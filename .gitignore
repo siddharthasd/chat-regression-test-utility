@@ -1,0 +1,3 @@
+# Per-branch session pointer written by speckit slash commands;
+# its value differs on every feature branch and would just churn.
+.specify/feature.json
