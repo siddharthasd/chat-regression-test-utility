@@ -54,7 +54,9 @@ This is the **most cross-cutting spec written so far** — Module 3 introduces a
 
 | Layer | Source | Purpose | Persisted? | Masked? |
 |---|---|---|---|---|
-| Tester Identity | OS user (`os.getlogin` chain) | Attribution / logging / UI display | Yes — `Job.createdBy`, `TesterFeedback.feedbackBy` | No (shown in full everywhere) |
+| Tester Identity | OS user (`os.getlogin` chain) | Attribution / logging / UI display | Yes — `Job.createdBy` (`TesterFeedback.feedbackBy` was originally included but removed in Round 2 along with the entire feedback feature) | No (shown in full everywhere) |
 | Test Credentials | CSV row (`testId` + `password`) | Chatbot-side auth via connector | `testId` yes; `password` NEVER (in-memory only) | `password` always masked; `testId` always plaintext |
 
 Two completely different identity concepts, two completely different handling rules. Module 3's contribution is making this distinction explicit.
+
+**Re-validated 2026-05-29 (Round 2 — user-feedback removed)** after the cross-spec consistency pass: `FR-004`'s `feedbackBy` bullet noted as superseded (the feedback feature is gone); User Story 2 renamed and trimmed to be about Job-`createdBy` only; US2 acceptance scenario about `TesterFeedback.feedbackBy` removed; US4's independent test trimmed; `SC-003` (feedback identity verification) marked removed; Tester Identity entity description trimmed; edge case about replace-feedback dropped; Assumptions block tightened. Of the lock-step amendments noted earlier in this checklist for the cross-spec rollout of `feedbackBy`, the entries to 001 (`Tester Feedback` entity) and to 009 (`TesterFeedback.feedbackBy`) are themselves now superseded — see those specs' Round-4 / Round-5 clarifications. All 16 checklist items remain passing.
