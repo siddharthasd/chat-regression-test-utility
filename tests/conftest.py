@@ -16,10 +16,18 @@ wizard test). Delete or replace when 009's real repository lands.
 
 from __future__ import annotations
 
+import os
+from collections.abc import Iterator
+
 import pytest
+from sqlalchemy import create_engine, event
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm import Session
+from sqlalchemy.pool import StaticPool
 
 from harness.identity.context import IdentityContext
 from harness.identity.resolution import TesterIdentity
+from harness.persistence.engine import apply_sqlite_pragmas, run_migrations
 
 
 class _StubIdentityContext:
@@ -69,3 +77,73 @@ def stub_identity(monkeypatch: pytest.MonkeyPatch) -> _StubIdentityContext:
 def stub_job_repository() -> StubJobRepository:
     """Yield a fresh stub Job repository (cleared per test)."""
     return StubJobRepository()
+
+
+# --------------------------------------------------------------------------- #
+# Persistence fixtures (009)                                                   #
+# --------------------------------------------------------------------------- #
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _isolate_harness_paths(tmp_path_factory: pytest.TempPathFactory) -> Iterator[None]:
+    """Point the harness DB + key files at a temp dir for the whole test session.
+
+    Keeps the real `~/.harness/` untouched when app-factory / CLI tests call
+    `bootstrap.initialize_harness()` (which now runs `init_db()`), and gives the
+    encryption utility an isolated key file.
+    """
+    base = tmp_path_factory.mktemp("harness_home")
+    prev = {k: os.environ.get(k) for k in ("HARNESS_DB_PATH", "HARNESS_KEY_FILE")}
+    os.environ["HARNESS_DB_PATH"] = str(base / "data.db")
+    os.environ["HARNESS_KEY_FILE"] = str(base / "master.key")
+    yield
+    for key, value in prev.items():
+        if value is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = value
+
+
+@pytest.fixture(scope="session")
+def db_engine() -> Iterator[Engine]:
+    """Session-scoped in-memory SQLite engine with all migrations applied once.
+
+    Uses StaticPool so the single in-memory connection (and thus the schema)
+    persists across the session (research R11).
+    """
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    apply_sqlite_pragmas(engine)
+    run_migrations(engine)
+    yield engine
+    engine.dispose()
+
+
+@pytest.fixture
+def db_session(db_engine: Engine) -> Iterator[Session]:
+    """Function-scoped session with savepoint rollback for data isolation.
+
+    Joins an outer transaction and restarts a SAVEPOINT after each inner
+    commit, so repository code that commits still rolls back cleanly at
+    teardown (research R11).
+    """
+    connection = db_engine.connect()
+    outer = connection.begin()
+    session = Session(bind=connection, expire_on_commit=False)
+    nested = connection.begin_nested()
+
+    @event.listens_for(session, "after_transaction_end")
+    def _restart_savepoint(sess: Session, trans) -> None:  # noqa: ANN001, ARG001
+        nonlocal nested
+        if not nested.is_active:
+            nested = connection.begin_nested()
+
+    try:
+        yield session
+    finally:
+        session.close()
+        outer.rollback()
+        connection.close()

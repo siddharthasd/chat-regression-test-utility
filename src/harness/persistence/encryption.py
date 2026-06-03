@@ -1,0 +1,84 @@
+"""Machine-local Fernet encryption for authDescriptor credential subfields.
+
+Consumed only by the two registration repositories and ``engine.py``. The
+encryption boundary is per-credential-subfield (not the whole descriptor) per
+009 FR-008 / research R4. See contracts/encryption-utility-api.md.
+"""
+
+from __future__ import annotations
+
+import os
+import threading
+from pathlib import Path
+
+from cryptography.fernet import Fernet, InvalidToken
+
+from harness.persistence.exceptions import HarnessKeyMismatchError
+
+_KEY_LOCK = threading.Lock()
+_CACHED_KEY: bytes | None = None
+_KEY_FILENAME = "master.key"
+
+
+def _key_file_path() -> Path:
+    """Resolve the machine-local key file path (research R4 priority order)."""
+    override = os.environ.get("HARNESS_KEY_FILE")
+    if override:
+        return Path(override)
+    if os.name == "nt":
+        local_app_data = os.environ.get("LOCALAPPDATA")
+        if local_app_data:
+            return Path(local_app_data) / "harness" / _KEY_FILENAME
+    return Path.home() / ".harness" / _KEY_FILENAME
+
+
+def get_or_create_key() -> bytes:
+    """Return the Fernet key bytes, creating the key file on first use.
+
+    File is created with mode ``0o600`` via ``O_CREAT | O_EXCL`` to prevent
+    races. Parent directories are created if absent. Thread-safe.
+    """
+    global _CACHED_KEY
+    with _KEY_LOCK:
+        if _CACHED_KEY is not None:
+            return _CACHED_KEY
+        path = _key_file_path()
+        if path.exists():
+            _CACHED_KEY = path.read_bytes().strip()
+            return _CACHED_KEY
+        path.parent.mkdir(parents=True, exist_ok=True)
+        key = Fernet.generate_key()
+        # O_EXCL: fail if another process created it between the check and now.
+        fd = os.open(str(path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        try:
+            os.write(fd, key)
+        finally:
+            os.close(fd)
+        _CACHED_KEY = key
+        return _CACHED_KEY
+
+
+def encrypt_credential(plaintext: str) -> str:
+    """Encrypt a single credential string; return URL-safe base64 ciphertext."""
+    token = Fernet(get_or_create_key()).encrypt(plaintext.encode("utf-8"))
+    return token.decode("ascii")
+
+
+def decrypt_credential(ciphertext: str) -> str:
+    """Decrypt a credential ciphertext string.
+
+    Raises:
+        HarnessKeyMismatchError: if the ciphertext cannot be decrypted
+            (wrong key, corrupted ciphertext, or key file missing).
+    """
+    try:
+        return Fernet(get_or_create_key()).decrypt(ciphertext.encode("ascii")).decode("utf-8")
+    except InvalidToken as exc:
+        raise HarnessKeyMismatchError() from exc
+
+
+def _reset_key_cache_for_tests() -> None:
+    """Clear the in-process key cache. Test-only hatch (e.g. key-rotation tests)."""
+    global _CACHED_KEY
+    with _KEY_LOCK:
+        _CACHED_KEY = None

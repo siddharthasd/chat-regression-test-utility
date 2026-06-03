@@ -64,5 +64,11 @@ def initialize_harness(app: Flask | None = None) -> None:
     IdentityContext._initialize_once(identity)  # noqa: SLF001  (legitimate single-init call site)
     configure_structlog_with_identity(identity.value)
 
+    # Prepare the persistence layer: apply pending migrations or refuse to start
+    # if the on-disk schema is newer than this harness (009 FR-014/FR-016).
+    from harness.persistence.engine import init_db
+
+    init_db()
+
     if app is not None:
         app.config["TESTER_IDENTITY"] = identity.value
