@@ -1,0 +1,16 @@
+{# US3 / 010 FR-005: subtle "Logged in as: <user>" indicator.
+
+  Include this partial in every page layout. Reads `tester_identity` from
+  the Flask app's context (populated by the inject_tester_identity context
+  processor wired in `harness.ui.create_app`).
+
+  Jinja2 auto-escaping handles XSS-safety — the value is rendered as text,
+  never as HTML.
+
+  Styling lives in a stylesheet (no inline `style` attribute) so a future
+  CSP `style-src 'self'` policy is not defeated. The CSS class is
+  `harness-logged-in-as`.
+#}
+<aside class="harness-logged-in-as">
+  Logged in as: {{ tester_identity }}
+</aside>
