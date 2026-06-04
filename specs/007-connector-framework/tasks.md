@@ -21,9 +21,9 @@ description: "Task list for Connector Framework (Module 4)"
 
 ## Phase 1: Setup
 
-- [ ] T001 Add `httpx>=0.27` to `[project].dependencies` in `pyproject.toml` (research R9)
-- [ ] T002 Create package scaffold: `src/harness/connector/__init__.py` and `tests/unit/connector/__init__.py`
-- [ ] T003 Reinstall and confirm `import httpx` resolves: `python -m pip install -e ".[dev]"`
+- [X] T001 Add `httpx>=0.27` to `[project].dependencies` in `pyproject.toml` (research R9)
+- [X] T002 Create package scaffold: `src/harness/connector/__init__.py` and `tests/unit/connector/__init__.py`
+- [X] T003 Reinstall and confirm `import httpx` resolves: `python -m pip install -e ".[dev]"`
 
 ---
 
@@ -33,10 +33,10 @@ description: "Task list for Connector Framework (Module 4)"
 
 **⚠️ CRITICAL**: No user-story phase begins until this is complete.
 
-- [ ] T004 [P] Implement `src/harness/connector/result.py`: frozen dataclasses `ConnectorSnapshot`, `UtteranceRow`, `ConnectorResult` (per contracts/client-api.md, data-model.md)
-- [ ] T005 [P] Implement `src/harness/connector/auth.py`: `build_auth_headers(descriptor)` for `none`/`bearer`/`api-key-header`/`basic` (unknown → `ValueError`), and `_decrypt_descriptor(descriptor)` reusing `harness.persistence.encryption.decrypt_credential` on the `credential`/`password` subfields (FR-007a-d/FR-008; R4/R5)
-- [ ] T006 Implement `src/harness/connector/client.py::dispatch_utterance(snapshot, row, *, client=None)`: decrypt descriptor (→ `connector_auth` on `HarnessKeyMismatchError`, no request sent), build body `{testId, utteranceText, password?}` (password iff `expects_per_row_password`, FR-002/017), add auth header, `httpx` POST with `timeout=timeout_seconds` (no retry), map failures to `connector_transport`/`connector_response`/`connector_normalization`, validate 2xx JSON via `harness.contract.validate_contract` → `ConnectorResult` (FR-001..006; R3/R7/R8). Depends on T004, T005.
-- [ ] T007 Re-export `dispatch_utterance`, `ConnectorResult`, `ConnectorSnapshot`, `UtteranceRow`, `build_auth_headers` from `src/harness/connector/__init__.py`
+- [X] T004 [P] Implement `src/harness/connector/result.py`: frozen dataclasses `ConnectorSnapshot`, `UtteranceRow`, `ConnectorResult` (per contracts/client-api.md, data-model.md)
+- [X] T005 [P] Implement `src/harness/connector/auth.py`: `build_auth_headers(descriptor)` for `none`/`bearer`/`api-key-header`/`basic` (unknown → `ValueError`), and `_decrypt_descriptor(descriptor)` reusing `harness.persistence.encryption.decrypt_credential` on the `credential`/`password` subfields (FR-007a-d/FR-008; R4/R5)
+- [X] T006 Implement `src/harness/connector/client.py::dispatch_utterance(snapshot, row, *, client=None)`: decrypt descriptor (→ `connector_auth` on `HarnessKeyMismatchError`, no request sent), build body `{testId, utteranceText, password?}` (password iff `expects_per_row_password`, FR-002/017), add auth header, `httpx` POST with `timeout=timeout_seconds` (no retry), map failures to `connector_transport`/`connector_response`/`connector_normalization`, validate 2xx JSON via `harness.contract.validate_contract` → `ConnectorResult` (FR-001..006; R3/R7/R8). Depends on T004, T005.
+- [X] T007 Re-export `dispatch_utterance`, `ConnectorResult`, `ConnectorSnapshot`, `UtteranceRow`, `build_auth_headers` from `src/harness/connector/__init__.py`
 
 **Checkpoint**: A row can be dispatched (via an injected `httpx.MockTransport` client) and outcomes categorized.
 
@@ -50,8 +50,8 @@ description: "Task list for Connector Framework (Module 4)"
 
 ### Tests for User Story 1
 
-- [ ] T008 [P] [US1] `tests/unit/connector/test_client.py`: success → `ok=True` + contract (FR-003); body has/omits `password` per `expects_per_row_password` (FR-002); exactly one request issued (SC-006) — via `httpx.MockTransport`
-- [ ] T009 [US1] `tests/unit/connector/test_client.py` (same file): errorStage mapping — non-2xx → `connector_response` (SC-008), invalid/non-conformant 2xx body → `connector_normalization` (SC-009), timeout → `connector_transport` (SC-010), no retry (FR-006)
+- [X] T008 [P] [US1] `tests/unit/connector/test_client.py`: success → `ok=True` + contract (FR-003); body has/omits `password` per `expects_per_row_password` (FR-002); exactly one request issued (SC-006) — via `httpx.MockTransport`
+- [X] T009 [US1] `tests/unit/connector/test_client.py` (same file): errorStage mapping — non-2xx → `connector_response` (SC-008), invalid/non-conformant 2xx body → `connector_normalization` (SC-009), timeout → `connector_transport` (SC-010), no retry (FR-006)
 
 **Checkpoint**: MVP dispatch logic proven at the unit level.
 
@@ -65,12 +65,12 @@ description: "Task list for Connector Framework (Module 4)"
 
 ### Implementation for User Story 2
 
-- [ ] T010 [US2] Implement `src/harness/connector/registry.py`: `ConnectorRegistryReader(session)` with `list_active() -> list[ConnectorListEntry]` (excludes archived) and `get(connector_id)` (full `009` record); `ConnectorListEntry` frozen dataclass `(connector_id, display_name, description, expects_per_row_password)` (FR-009-011; R6)
-- [ ] T011 [US2] Add `ConnectorRegistryReader` + `ConnectorListEntry` to `src/harness/connector/__init__.py` exports
+- [X] T010 [US2] Implement `src/harness/connector/registry.py`: `ConnectorRegistryReader(session)` with `list_active() -> list[ConnectorListEntry]` (excludes archived) and `get(connector_id)` (full `009` record); `ConnectorListEntry` frozen dataclass `(connector_id, display_name, description, expects_per_row_password)` (FR-009-011; R6)
+- [X] T011 [US2] Add `ConnectorRegistryReader` + `ConnectorListEntry` to `src/harness/connector/__init__.py` exports
 
 ### Tests for User Story 2
 
-- [ ] T012 [P] [US2] `tests/unit/connector/test_registry_read.py`: `list_active` excludes archived + returns the minimal tuple; `get` returns full record; identical data for any caller (SC-003); FR-012 extensibility (register-then-list with no code change)
+- [X] T012 [P] [US2] `tests/unit/connector/test_registry_read.py`: `list_active` excludes archived + returns the minimal tuple; `get` returns full record; identical data for any caller (SC-003); FR-012 extensibility (register-then-list with no code change)
 
 **Checkpoint**: Registry read surface usable by the wizard/orchestrator.
 
@@ -84,8 +84,8 @@ description: "Task list for Connector Framework (Module 4)"
 
 ### Tests for User Story 3
 
-- [ ] T013 [P] [US3] `tests/unit/connector/test_auth.py`: `none` → `{}`; `bearer`/`api-key-header`/`basic` headers correct (base64 for basic); unknown mode → `ValueError` (FR-007a-d/FR-008)
-- [ ] T014 [US3] `tests/unit/connector/test_client.py` (same file): auth header built from a decrypted `bearer` descriptor; decrypt failure → `ConnectorResult` with `error_stage="connector_auth"` and no request sent (FR-015/FR-016); credential plaintext not present in `ConnectorResult.error_details` (SC-004 spirit)
+- [X] T013 [P] [US3] `tests/unit/connector/test_auth.py`: `none` → `{}`; `bearer`/`api-key-header`/`basic` headers correct (base64 for basic); unknown mode → `ValueError` (FR-007a-d/FR-008)
+- [X] T014 [US3] `tests/unit/connector/test_client.py` (same file): auth header built from a decrypted `bearer` descriptor; decrypt failure → `ConnectorResult` with `error_stage="connector_auth"` and no request sent (FR-015/FR-016); credential plaintext not present in `ConnectorResult.error_details` (SC-004 spirit)
 
 **Checkpoint**: Credential handling is correct and leak-free at the client boundary.
 
@@ -99,13 +99,13 @@ description: "Task list for Connector Framework (Module 4)"
 
 ### Implementation for User Story 4
 
-- [ ] T015 [US4] Implement `src/harness/connector/mock.py`: `ThreadingHTTPServer` + handler binding `127.0.0.1`; modes `ok` (default, conformant contract reflecting the utterance, `connectorId="mock"`) / `nonconformant` / `status500` / `slow` via `--mode`/`HARNESS_MOCK_MODE`; `__main__` entry (FR-018-022; R2)
-- [ ] T016 [US4] Implement `src/harness/cli/connector.py`: `harness mock-connector [--port] [--mode]`; register the command on the `harness` group in `src/harness/cli/__init__.py` (FR-018)
+- [X] T015 [US4] Implement `src/harness/connector/mock.py`: `ThreadingHTTPServer` + handler binding `127.0.0.1`; modes `ok` (default, conformant contract reflecting the utterance, `connectorId="mock"`) / `nonconformant` / `status500` / `slow` via `--mode`/`HARNESS_MOCK_MODE`; `__main__` entry (FR-018-022; R2)
+- [X] T016 [US4] Implement `src/harness/cli/connector.py`: `harness mock-connector [--port] [--mode]`; register the command on the `harness` group in `src/harness/cli/__init__.py` (FR-018)
 
 ### Tests for User Story 4
 
-- [ ] T017 [P] [US4] `tests/integration/test_mock_service.py`: mock emits a body that passes `validate_contract` with `connectorId="mock"` (FR-019); each `--mode` yields the expected status/body; runs with no external setup (FR-020-022; SC-011)
-- [ ] T018 [US4] `tests/integration/test_connector_e2e.py`: launch mock on an ephemeral port; dispatch 3 rows → all `ok` + valid contract, one request per row (SC-001/006); register via `009` repo + list via `ConnectorRegistryReader` + run (SC-002); `--mode` runs map to the right `errorStage` (SC-008/009/010)
+- [X] T017 [P] [US4] `tests/integration/test_mock_service.py`: mock emits a body that passes `validate_contract` with `connectorId="mock"` (FR-019); each `--mode` yields the expected status/body; runs with no external setup (FR-020-022; SC-011)
+- [X] T018 [US4] `tests/integration/test_connector_e2e.py`: launch mock on an ephemeral port; dispatch 3 rows → all `ok` + valid contract, one request per row (SC-001/006); register via `009` repo + list via `ConnectorRegistryReader` + run (SC-002); `--mode` runs map to the right `errorStage` (SC-008/009/010)
 
 **Checkpoint**: Real end-to-end works; MVP demoable (US1 client + US4 mock).
 
@@ -113,10 +113,10 @@ description: "Task list for Connector Framework (Module 4)"
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T019 [P] `python -m ruff check src tests --fix`; resolve findings
-- [ ] T020 `python -m pytest --cov=harness --cov-report=term-missing`; confirm the foundation's 127 tests still pass + adequate `connector/` coverage
-- [ ] T021 [P] Execute `specs/007-connector-framework/quickstart.md` end-to-end; file discrepancies
-- [ ] T022 [P] Verify the plan's FR→File and SC matrices; confirm the `CLAUDE.md` marker points at the `007` plan
+- [X] T019 [P] `python -m ruff check src tests --fix`; resolve findings
+- [X] T020 `python -m pytest --cov=harness --cov-report=term-missing`; confirm the foundation's 127 tests still pass + adequate `connector/` coverage
+- [X] T021 [P] Execute `specs/007-connector-framework/quickstart.md` end-to-end; file discrepancies
+- [X] T022 [P] Verify the plan's FR→File and SC matrices; confirm the `CLAUDE.md` marker points at the `007` plan
 
 ---
 
