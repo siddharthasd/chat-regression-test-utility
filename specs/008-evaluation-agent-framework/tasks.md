@@ -21,9 +21,9 @@ description: "Task list for Evaluation Agent Framework (Module 7)"
 
 ## Phase 1: Setup
 
-- [ ] T001 Add `httpx>=0.27` to `[project].dependencies` in `pyproject.toml` (research R9)
-- [ ] T002 Create scaffold: `src/harness/evaluator/__init__.py` and `tests/unit/evaluator/__init__.py`
-- [ ] T003 Reinstall and confirm `import httpx`: `python -m pip install -e ".[dev]"`
+- [X] T001 Add `httpx>=0.27` to `[project].dependencies` in `pyproject.toml` (research R9)
+- [X] T002 Create scaffold: `src/harness/evaluator/__init__.py` and `tests/unit/evaluator/__init__.py`
+- [X] T003 Reinstall and confirm `import httpx`: `python -m pip install -e ".[dev]"`
 
 ---
 
@@ -31,11 +31,11 @@ description: "Task list for Evaluation Agent Framework (Module 7)"
 
 **Purpose**: dispatch types, auth, the EvaluationResult validator, and the full HTTP client.
 
-- [ ] T004 [P] Implement `src/harness/evaluator/result.py`: frozen `EvaluatorSnapshot`, `EvaluatorResult`, and `VERDICTS = {"pass","fail","warn"}` (data-model.md)
-- [ ] T005 [P] Implement `src/harness/evaluator/auth.py`: `build_auth_headers(descriptor)` (4 modes, unknown → `ValueError`) + `_decrypt_descriptor` reusing `harness.persistence.encryption.decrypt_credential` (FR-007; R4/R5; duplicated from 007 — flag for dedup)
-- [ ] T006 [P] Implement `src/harness/evaluator/validation.py`: `validate_evaluation_result(body, *, expected_utterance_id) -> list[str]` (FR-005b: 6 fields/types, utteranceId echo, verdict ∈ VERDICTS, scores-entry shape, ISO-8601 timestamp; agentId mismatch NOT a reject) + `compute_harness_annotations(scores, declared_dimensions) -> {"unexpected_score_dimensions": [...]}` (FR-005a)
-- [ ] T007 Implement `src/harness/evaluator/client.py::dispatch_evaluation(snapshot, contract, *, client=None)`: decrypt (→ `evaluator_auth`), POST contract verbatim with `timeout` (no retry, no cache), map failures (`evaluator_transport`/`evaluator_response`), validate 2xx via `validate_evaluation_result` (→ `evaluator_result`), derive `harness_annotations` → `EvaluatorResult` (FR-001..006a). Depends on T004–T006.
-- [ ] T008 Re-export `dispatch_evaluation`, `EvaluatorResult`, `EvaluatorSnapshot`, `validate_evaluation_result`, `compute_harness_annotations`, `build_auth_headers`, `VERDICTS` from `src/harness/evaluator/__init__.py`
+- [X] T004 [P] Implement `src/harness/evaluator/result.py`: frozen `EvaluatorSnapshot`, `EvaluatorResult`, and `VERDICTS = {"pass","fail","warn"}` (data-model.md)
+- [X] T005 [P] Implement `src/harness/evaluator/auth.py`: `build_auth_headers(descriptor)` (4 modes, unknown → `ValueError`) + `_decrypt_descriptor` reusing `harness.persistence.encryption.decrypt_credential` (FR-007; R4/R5; duplicated from 007 — flag for dedup)
+- [X] T006 [P] Implement `src/harness/evaluator/validation.py`: `validate_evaluation_result(body, *, expected_utterance_id) -> list[str]` (FR-005b: 6 fields/types, utteranceId echo, verdict ∈ VERDICTS, scores-entry shape, ISO-8601 timestamp; agentId mismatch NOT a reject) + `compute_harness_annotations(scores, declared_dimensions) -> {"unexpected_score_dimensions": [...]}` (FR-005a)
+- [X] T007 Implement `src/harness/evaluator/client.py::dispatch_evaluation(snapshot, contract, *, client=None)`: decrypt (→ `evaluator_auth`), POST contract verbatim with `timeout` (no retry, no cache), map failures (`evaluator_transport`/`evaluator_response`), validate 2xx via `validate_evaluation_result` (→ `evaluator_result`), derive `harness_annotations` → `EvaluatorResult` (FR-001..006a). Depends on T004–T006.
+- [X] T008 Re-export `dispatch_evaluation`, `EvaluatorResult`, `EvaluatorSnapshot`, `validate_evaluation_result`, `compute_harness_annotations`, `build_auth_headers`, `VERDICTS` from `src/harness/evaluator/__init__.py`
 
 **Checkpoint**: A contract can be dispatched (MockTransport) and the result validated/annotated/categorized.
 
@@ -49,9 +49,9 @@ description: "Task list for Evaluation Agent Framework (Module 7)"
 
 ### Tests for User Story 1
 
-- [ ] T009 [P] [US1] `tests/unit/evaluator/test_client.py`: success → `ok=True` + `evaluation_result` + `harness_annotations`; request body is the contract verbatim, no password (FR-002/017); exactly one request (SC-006)
-- [ ] T010 [US1] `tests/unit/evaluator/test_client.py` (same file): errorStage map — non-2xx → `evaluator_response` (SC-008), invalid/bad-result body → `evaluator_result` (SC-007), timeout → `evaluator_transport` (SC-009), decrypt-fail → `evaluator_auth` (FR-016)
-- [ ] T011 [P] [US1] `tests/unit/evaluator/test_validation.py`: FR-005b hard-rejects (missing field, wrong type, bad verdict, `utteranceId` mismatch, bad scores entry, bad timestamp); `evaluationAgentId` mismatch is NOT rejected (FR-003/004/005b)
+- [X] T009 [P] [US1] `tests/unit/evaluator/test_client.py`: success → `ok=True` + `evaluation_result` + `harness_annotations`; request body is the contract verbatim, no password (FR-002/017); exactly one request (SC-006)
+- [X] T010 [US1] `tests/unit/evaluator/test_client.py` (same file): errorStage map — non-2xx → `evaluator_response` (SC-008), invalid/bad-result body → `evaluator_result` (SC-007), timeout → `evaluator_transport` (SC-009), decrypt-fail → `evaluator_auth` (FR-016)
+- [X] T011 [P] [US1] `tests/unit/evaluator/test_validation.py`: FR-005b hard-rejects (missing field, wrong type, bad verdict, `utteranceId` mismatch, bad scores entry, bad timestamp); `evaluationAgentId` mismatch is NOT rejected (FR-003/004/005b)
 
 **Checkpoint**: MVP evaluate-and-validate logic proven at the unit level.
 
@@ -65,12 +65,12 @@ description: "Task list for Evaluation Agent Framework (Module 7)"
 
 ### Implementation for User Story 2
 
-- [ ] T012 [US2] Implement `src/harness/evaluator/registry.py`: `EvaluatorRegistryReader(session)` with `list_active() -> list[EvaluatorListEntry]` (excludes archived), `get(id)`, `get_declared_dimensions(id)`; `EvaluatorListEntry` frozen dataclass `(evaluation_agent_id, display_name, description, declared_scoring_dimensions)` (FR-008-013; R6)
-- [ ] T013 [US2] Add `EvaluatorRegistryReader` + `EvaluatorListEntry` to `src/harness/evaluator/__init__.py`
+- [X] T012 [US2] Implement `src/harness/evaluator/registry.py`: `EvaluatorRegistryReader(session)` with `list_active() -> list[EvaluatorListEntry]` (excludes archived), `get(id)`, `get_declared_dimensions(id)`; `EvaluatorListEntry` frozen dataclass `(evaluation_agent_id, display_name, description, declared_scoring_dimensions)` (FR-008-013; R6)
+- [X] T013 [US2] Add `EvaluatorRegistryReader` + `EvaluatorListEntry` to `src/harness/evaluator/__init__.py`
 
 ### Tests for User Story 2
 
-- [ ] T014 [P] [US2] `tests/unit/evaluator/test_registry_read.py`: `list_active` excludes archived + minimal tuple; `get` full record; `get_declared_dimensions` ordered (SC-011); identical data any caller (SC-003); register-then-list extensibility (FR-011)
+- [X] T014 [P] [US2] `tests/unit/evaluator/test_registry_read.py`: `list_active` excludes archived + minimal tuple; `get` full record; `get_declared_dimensions` ordered (SC-011); identical data any caller (SC-003); register-then-list extensibility (FR-011)
 
 **Checkpoint**: Registry read surface (incl. dimensions) usable.
 
@@ -84,7 +84,7 @@ description: "Task list for Evaluation Agent Framework (Module 7)"
 
 ### Tests for User Story 3
 
-- [ ] T015 [P] [US3] `tests/unit/evaluator/test_validation.py` (same file as T011): `compute_harness_annotations` lists unexpected names (first-seen order), empty when aligned (FR-005/005a); a result with an out-of-declared name validates (soft warning, not reject)
+- [X] T015 [P] [US3] `tests/unit/evaluator/test_validation.py` (same file as T011): `compute_harness_annotations` lists unexpected names (first-seen order), empty when aligned (FR-005/005a); a result with an out-of-declared name validates (soft warning, not reject)
 
 **Checkpoint**: Dimension-drift is annotated, never rejected.
 
@@ -98,12 +98,12 @@ description: "Task list for Evaluation Agent Framework (Module 7)"
 
 ### Implementation for User Story 5
 
-- [ ] T016 [US5] Implement `src/harness/evaluator/mock.py`: `ThreadingHTTPServer` + handler; echoes `utteranceId`; randomized `evaluationScores` over `--dimensions`/`HARNESS_MOCK_DIMENSIONS`, random `evaluationVerdict ∈ VERDICTS`, `metadata={"mock": true}`; modes `ok`/`nonconformant`/`status500`/`slow`/`unexpected_dims` via `--mode`/`HARNESS_MOCK_MODE`; `__main__` (FR-022-027; R2)
-- [ ] T017 [US5] Implement `src/harness/cli/evaluator.py`: `harness mock-evaluator [--port] [--mode] [--dimensions]`; register on the `harness` group in `src/harness/cli/__init__.py` (FR-022)
+- [X] T016 [US5] Implement `src/harness/evaluator/mock.py`: `ThreadingHTTPServer` + handler; echoes `utteranceId`; randomized `evaluationScores` over `--dimensions`/`HARNESS_MOCK_DIMENSIONS`, random `evaluationVerdict ∈ VERDICTS`, `metadata={"mock": true}`; modes `ok`/`nonconformant`/`status500`/`slow`/`unexpected_dims` via `--mode`/`HARNESS_MOCK_MODE`; `__main__` (FR-022-027; R2)
+- [X] T017 [US5] Implement `src/harness/cli/evaluator.py`: `harness mock-evaluator [--port] [--mode] [--dimensions]`; register on the `harness` group in `src/harness/cli/__init__.py` (FR-022)
 
 ### Tests for User Story 5
 
-- [ ] T018 [P] [US5] `tests/integration/test_mock_evaluator.py`: mock emits a result that passes `validate_evaluation_result` with `evaluationAgentId="mock-evaluator"` (FR-023); modes yield expected status/body; zero external setup (FR-026; SC-012)
+- [X] T018 [P] [US5] `tests/integration/test_mock_evaluator.py`: mock emits a result that passes `validate_evaluation_result` with `evaluationAgentId="mock-evaluator"` (FR-023); modes yield expected status/body; zero external setup (FR-026; SC-012)
 
 **Checkpoint**: Real evaluator self-test available.
 
@@ -117,8 +117,8 @@ description: "Task list for Evaluation Agent Framework (Module 7)"
 
 ### Tests for User Story 4
 
-- [ ] T019 [US4] `tests/integration/test_evaluator_e2e.py`: launch mock; dispatch a contract → `ok` + valid result (SC-001); register via `009` repo + run (SC-002); `--mode` runs → right `errorStage` (SC-007/008/009)
-- [ ] T020 [US4] `tests/integration/test_evaluator_e2e.py` (same file): same contract dispatched twice → two POSTs (SC-006) and results differ in ≥1 field (SC-005); assert no cache/memo layer (FR-018-020)
+- [X] T019 [US4] `tests/integration/test_evaluator_e2e.py`: launch mock; dispatch a contract → `ok` + valid result (SC-001); register via `009` repo + run (SC-002); `--mode` runs → right `errorStage` (SC-007/008/009)
+- [X] T020 [US4] `tests/integration/test_evaluator_e2e.py` (same file): same contract dispatched twice → two POSTs (SC-006) and results differ in ≥1 field (SC-005); assert no cache/memo layer (FR-018-020)
 
 **Checkpoint**: Real end-to-end works; non-determinism preserved.
 
@@ -126,10 +126,10 @@ description: "Task list for Evaluation Agent Framework (Module 7)"
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-- [ ] T021 [P] `python -m ruff check src tests --fix`; resolve findings
-- [ ] T022 `python -m pytest --cov=harness --cov-report=term-missing`; confirm the foundation's 127 still pass + adequate `evaluator/` coverage
-- [ ] T023 [P] Execute `specs/008-evaluation-agent-framework/quickstart.md`; file discrepancies
-- [ ] T024 [P] Verify FR→File and SC matrices; confirm `CLAUDE.md` marker → `008` plan
+- [X] T021 [P] `python -m ruff check src tests --fix`; resolve findings
+- [X] T022 `python -m pytest --cov=harness --cov-report=term-missing`; confirm the foundation's 127 still pass + adequate `evaluator/` coverage
+- [X] T023 [P] Execute `specs/008-evaluation-agent-framework/quickstart.md`; file discrepancies
+- [X] T024 [P] Verify FR→File and SC matrices; confirm `CLAUDE.md` marker → `008` plan
 
 ---
 
