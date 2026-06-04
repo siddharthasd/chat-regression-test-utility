@@ -9,10 +9,10 @@ Reuses 009 (registry + encryption) and 006 (`validate_contract`)::
 
 from __future__ import annotations
 
-from harness.connector.auth import build_auth_headers
 from harness.connector.client import dispatch_utterance
 from harness.connector.registry import ConnectorListEntry, ConnectorRegistryReader
 from harness.connector.result import ConnectorResult, ConnectorSnapshot, UtteranceRow
+from harness.remote.auth import build_auth_headers
 
 __all__ = [
     "ConnectorListEntry",

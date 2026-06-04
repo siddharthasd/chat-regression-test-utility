@@ -9,10 +9,10 @@ from __future__ import annotations
 
 import httpx
 
-from harness.connector.auth import _decrypt_descriptor, build_auth_headers
 from harness.connector.result import ConnectorResult, ConnectorSnapshot, UtteranceRow
 from harness.contract import validate_contract
 from harness.persistence.exceptions import HarnessKeyMismatchError
+from harness.remote.auth import build_auth_headers, decrypt_descriptor
 
 _BODY_TRUNCATE = 2000
 
@@ -35,7 +35,7 @@ def dispatch_utterance(
     or a categorized failure. `client` is injectable for MockTransport tests."""
     # 1. Decrypt credentials before sending; a key failure means no request goes out.
     try:
-        descriptor = _decrypt_descriptor(snapshot.auth_descriptor)
+        descriptor = decrypt_descriptor(snapshot.auth_descriptor)
     except HarnessKeyMismatchError:
         return ConnectorResult(
             ok=False,

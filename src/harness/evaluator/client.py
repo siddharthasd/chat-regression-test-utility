@@ -9,10 +9,10 @@ from __future__ import annotations
 
 import httpx
 
-from harness.evaluator.auth import _decrypt_descriptor, build_auth_headers
 from harness.evaluator.result import EvaluatorResult, EvaluatorSnapshot
 from harness.evaluator.validation import compute_harness_annotations, validate_evaluation_result
 from harness.persistence.exceptions import HarnessKeyMismatchError
+from harness.remote.auth import build_auth_headers, decrypt_descriptor
 
 _BODY_TRUNCATE = 2000
 
@@ -29,7 +29,7 @@ def dispatch_evaluation(
     injectable for MockTransport tests.
     """
     try:
-        descriptor = _decrypt_descriptor(snapshot.auth_descriptor)
+        descriptor = decrypt_descriptor(snapshot.auth_descriptor)
     except HarnessKeyMismatchError:
         return EvaluatorResult(
             ok=False,

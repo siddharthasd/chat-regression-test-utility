@@ -12,11 +12,11 @@ validated here (not via 006's validate_contract).
 
 from __future__ import annotations
 
-from harness.evaluator.auth import build_auth_headers
 from harness.evaluator.client import dispatch_evaluation
 from harness.evaluator.registry import EvaluatorListEntry, EvaluatorRegistryReader
 from harness.evaluator.result import VERDICTS, EvaluatorResult, EvaluatorSnapshot
 from harness.evaluator.validation import compute_harness_annotations, validate_evaluation_result
+from harness.remote.auth import build_auth_headers
 
 __all__ = [
     "VERDICTS",
