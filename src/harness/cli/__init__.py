@@ -31,6 +31,7 @@ def harness_group() -> None:
 from harness.cli import (  # noqa: E402, F401  (registers subcommands)
     connector,
     contract,
+    evaluator,
     info,
     serve,
 )
