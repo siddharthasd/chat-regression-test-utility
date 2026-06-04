@@ -1,5 +1,5 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at `specs/012-job-execution-engine/plan.md`.
+at `specs/011-csv-upload-validation/plan.md`.
 <!-- SPECKIT END -->
