@@ -35,6 +35,7 @@ where = ["src"]
 [tool.setuptools.package-data]
 "harness.contract.schemas" = ["*.json"]
 "harness.ui.connector_registry" = ["templates/connector_registry/*.html"]
+"harness.ui.evaluator_registry" = ["templates/evaluator_registry/*.html"]
 
 [tool.ruff]
 line-length = 100

@@ -21,19 +21,19 @@ description: "Task list for Evaluator Registry & Management (Module 14)"
 
 ## Phase 1: Setup
 
-- [ ] T001 Create scaffold: `src/harness/evaluator_registry/__init__.py`, `src/harness/ui/evaluator_registry/__init__.py`, `src/harness/ui/evaluator_registry/templates/evaluator_registry/` (dir), `tests/unit/evaluator_registry/__init__.py`
-- [ ] T002 Add `[tool.setuptools.package-data]` entry `"harness.ui.evaluator_registry" = ["templates/evaluator_registry/*.html"]` in `pyproject.toml`; `python -m pip install -e ".[dev]"`
+- [X] T001 Create scaffold: `src/harness/evaluator_registry/__init__.py`, `src/harness/ui/evaluator_registry/__init__.py`, `src/harness/ui/evaluator_registry/templates/evaluator_registry/` (dir), `tests/unit/evaluator_registry/__init__.py`
+- [X] T002 Add `[tool.setuptools.package-data]` entry `"harness.ui.evaluator_registry" = ["templates/evaluator_registry/*.html"]` in `pyproject.toml`; `python -m pip install -e ".[dev]"`
 
 ---
 
 ## Phase 2: Foundational (Blocking Prerequisites)
 
-- [ ] T003 [P] Add `count_by_evaluation_agent_id(evaluation_agent_id: str) -> int` to `src/harness/persistence/repositories/job.py` (FR-024 gate)
-- [ ] T004 [P] Implement `src/harness/evaluator_registry/forms.py::parse_evaluator_form(form, *, require_credential=True)`: required fields incl. **description**, URL syntax, timeout range 1–600, per-mode creds → canonical descriptor, and `parse_dimensions` (newline textarea → trimmed ordered list, drop blanks, duplicate → non-blocking warning, empty OK) (FR-002/004/005/007-011)
-- [ ] T005 [P] Implement `src/harness/evaluator_registry/test_connection.py`: `TestConnectionResult` + `run_test_connection(endpoint_url, decrypted_descriptor, timeout_seconds, declared_dimensions, *, client=None)` — sample contract (`harness.connector.mock.build_contract`, `utteranceId="test-utt"`), `harness.remote.auth.build_auth_headers`, `httpx` POST, categorize, 2xx → `harness.evaluator.validate_evaluation_result` + dimension-divergence `warning` via `compute_harness_annotations` (FR-026–030); never persists
-- [ ] T006 Implement `src/harness/evaluator_registry/service.py`: `RegistrationInUseError` + `EvaluatorRegistryService` (`create`/`update`[replace + mode-change]/`archive`/`restore`/`list_registrations`/`hard_delete`[gated via T003]/`count_referencing_jobs`) over `009`'s `EvaluationAgentRegistrationRepository` (FR-003/006/019/024). Depends on T003, T004.
-- [ ] T007 Re-export `EvaluatorRegistryService`, `RegistrationInUseError`, `parse_evaluator_form`, `run_test_connection`, `TestConnectionResult` from `src/harness/evaluator_registry/__init__.py`
-- [ ] T008 Create the Flask blueprint `src/harness/ui/evaluator_registry/__init__.py` (`template_folder`) + empty `routes.py`, and register it in `src/harness/ui/__init__.py::create_app()`
+- [X] T003 [P] Add `count_by_evaluation_agent_id(evaluation_agent_id: str) -> int` to `src/harness/persistence/repositories/job.py` (FR-024 gate)
+- [X] T004 [P] Implement `src/harness/evaluator_registry/forms.py::parse_evaluator_form(form, *, require_credential=True)`: required fields incl. **description**, URL syntax, timeout range 1–600, per-mode creds → canonical descriptor, and `parse_dimensions` (newline textarea → trimmed ordered list, drop blanks, duplicate → non-blocking warning, empty OK) (FR-002/004/005/007-011)
+- [X] T005 [P] Implement `src/harness/evaluator_registry/test_connection.py`: `TestConnectionResult` + `run_test_connection(endpoint_url, decrypted_descriptor, timeout_seconds, declared_dimensions, *, client=None)` — sample contract (`harness.connector.mock.build_contract`, `utteranceId="test-utt"`), `harness.remote.auth.build_auth_headers`, `httpx` POST, categorize, 2xx → `harness.evaluator.validate_evaluation_result` + dimension-divergence `warning` via `compute_harness_annotations` (FR-026–030); never persists
+- [X] T006 Implement `src/harness/evaluator_registry/service.py`: `RegistrationInUseError` + `EvaluatorRegistryService` (`create`/`update`[replace + mode-change]/`archive`/`restore`/`list_registrations`/`hard_delete`[gated via T003]/`count_referencing_jobs`) over `009`'s `EvaluationAgentRegistrationRepository` (FR-003/006/019/024). Depends on T003, T004.
+- [X] T007 Re-export `EvaluatorRegistryService`, `RegistrationInUseError`, `parse_evaluator_form`, `run_test_connection`, `TestConnectionResult` from `src/harness/evaluator_registry/__init__.py`
+- [X] T008 Create the Flask blueprint `src/harness/ui/evaluator_registry/__init__.py` (`template_folder`) + empty `routes.py`, and register it in `src/harness/ui/__init__.py::create_app()`
 
 **Checkpoint**: service + forms + test-connection unit-testable; blueprint mounts.
 
@@ -41,9 +41,9 @@ description: "Task list for Evaluator Registry & Management (Module 14)"
 
 ## Phase 3: User Story 1 — Register a new evaluator (Priority: P1) 🎯 MVP
 
-- [ ] T009 [US1] `routes.py`: `GET /evaluators/new`, `POST /evaluators` (validate via `forms`, `service.create`, redirect / re-render errors), `POST /evaluators/test-connection` (assemble descriptor + declared dims, `run_test_connection`, return `_test_result.html`); templates `form.html` (with dimensions textarea) + `_test_result.html`
-- [ ] T010 [P] [US1] `tests/unit/evaluator_registry/test_forms.py`: per-mode rules, URL, timeout, required description, empty-required (FR-002/004/005)
-- [ ] T011 [US1] `tests/unit/evaluator_registry/test_service.py`: `create` assigns id + encrypts + persists (FR-003); `tests/integration/test_evaluator_registry_ui.py`: create route persists + lists (SC-001)
+- [X] T009 [US1] `routes.py`: `GET /evaluators/new`, `POST /evaluators` (validate via `forms`, `service.create`, redirect / re-render errors), `POST /evaluators/test-connection` (assemble descriptor + declared dims, `run_test_connection`, return `_test_result.html`); templates `form.html` (with dimensions textarea) + `_test_result.html`
+- [X] T010 [P] [US1] `tests/unit/evaluator_registry/test_forms.py`: per-mode rules, URL, timeout, required description, empty-required (FR-002/004/005)
+- [X] T011 [US1] `tests/unit/evaluator_registry/test_service.py`: `create` assigns id + encrypts + persists (FR-003); `tests/integration/test_evaluator_registry_ui.py`: create route persists + lists (SC-001)
 
 **Checkpoint**: MVP — an evaluator can be registered through the UI.
 
@@ -51,8 +51,8 @@ description: "Task list for Evaluator Registry & Management (Module 14)"
 
 ## Phase 4: User Story 2 — Edit a registration (Priority: P1)
 
-- [ ] T012 [US2] `routes.py` (same file): `GET /evaluators/<id>/edit` (masked secrets, read-only id, dimensions prefilled), `POST /evaluators/<id>` (`service.update`); extend `form.html` for edit mode
-- [ ] T013 [US2] `test_service.py`: `update` preserves ciphertext unless replaced; mode change discards (FR-006/016/017); integration: edit masks secrets
+- [X] T012 [US2] `routes.py` (same file): `GET /evaluators/<id>/edit` (masked secrets, read-only id, dimensions prefilled), `POST /evaluators/<id>` (`service.update`); extend `form.html` for edit mode
+- [X] T013 [US2] `test_service.py`: `update` preserves ciphertext unless replaced; mode change discards (FR-006/016/017); integration: edit masks secrets
 
 **Checkpoint**: Edit + credential rotation work; snapshot isolation (009) intact.
 
@@ -60,8 +60,8 @@ description: "Task list for Evaluator Registry & Management (Module 14)"
 
 ## Phase 5: User Story 3 — Declare & refine scoring dimensions (Priority: P1)
 
-- [ ] T014 [P] [US3] `tests/unit/evaluator_registry/test_forms.py` (same file): `parse_dimensions` trims, drops blanks, preserves order (SC-011), warns on duplicates (FR-009), allows empty list (FR-010); rejects whitespace-only entries (FR-008)
-- [ ] T015 [US3] `test_service.py`: dimensions persist + read back in exact order via `008` reader (SC-011); empty list accepted (SC-012)
+- [X] T014 [P] [US3] `tests/unit/evaluator_registry/test_forms.py` (same file): `parse_dimensions` trims, drops blanks, preserves order (SC-011), warns on duplicates (FR-009), allows empty list (FR-010); rejects whitespace-only entries (FR-008)
+- [X] T015 [US3] `test_service.py`: dimensions persist + read back in exact order via `008` reader (SC-011); empty list accepted (SC-012)
 
 **Checkpoint**: Dimension capture is order-faithful and validated.
 
@@ -69,8 +69,8 @@ description: "Task list for Evaluator Registry & Management (Module 14)"
 
 ## Phase 6: User Story 4 — Archive / Restore (Priority: P1)
 
-- [ ] T016 [US4] `routes.py` (same file): `POST /evaluators/<id>/archive`, `POST /evaluators/<id>/restore` (+ bulk); list-row buttons + "Archived" badge in `list.html`
-- [ ] T017 [US4] `test_service.py`: `archive`/`restore` (FR-019/021); integration: archived absent from active list, present under Archived filter
+- [X] T016 [US4] `routes.py` (same file): `POST /evaluators/<id>/archive`, `POST /evaluators/<id>/restore` (+ bulk); list-row buttons + "Archived" badge in `list.html`
+- [X] T017 [US4] `test_service.py`: `archive`/`restore` (FR-019/021); integration: archived absent from active list, present under Archived filter
 
 **Checkpoint**: Archival lifecycle works; archived excluded from `008`'s `get_active`.
 
@@ -78,8 +78,8 @@ description: "Task list for Evaluator Registry & Management (Module 14)"
 
 ## Phase 7: User Story 5 — List, filter, inspect (Priority: P2)
 
-- [ ] T018 [US5] `routes.py` (same file): `GET /evaluators` with `filter`/`q`; `list.html` (columns per FR-015, masked creds, **dimension preview** first 3 + `+ N more`, badges, empty-state CTA)
-- [ ] T019 [P] [US5] `tests/integration/test_evaluator_registry_ui.py`: filter Active/Archived/All + search (FR-012-014); credentials never plaintext (SC-002); dimension preview present
+- [X] T018 [US5] `routes.py` (same file): `GET /evaluators` with `filter`/`q`; `list.html` (columns per FR-015, masked creds, **dimension preview** first 3 + `+ N more`, badges, empty-state CTA)
+- [X] T019 [P] [US5] `tests/integration/test_evaluator_registry_ui.py`: filter Active/Archived/All + search (FR-012-014); credentials never plaintext (SC-002); dimension preview present
 
 **Checkpoint**: Registry browsable/searchable; dimensions previewed.
 
@@ -87,8 +87,8 @@ description: "Task list for Evaluator Registry & Management (Module 14)"
 
 ## Phase 8: User Story 6 — Hard-delete (gated) (Priority: P3)
 
-- [ ] T020 [US6] `routes.py` (same file): `POST /evaluators/<id>/delete` — confirm; on `RegistrationInUseError` re-render with referencing-job count; else delete + redirect (FR-023/024)
-- [ ] T021 [US6] `test_service.py`: `hard_delete` blocked when referenced (SC-007), succeeds when unreferenced (SC-008); integration: delete route gating
+- [X] T020 [US6] `routes.py` (same file): `POST /evaluators/<id>/delete` — confirm; on `RegistrationInUseError` re-render with referencing-job count; else delete + redirect (FR-023/024)
+- [X] T021 [US6] `test_service.py`: `hard_delete` blocked when referenced (SC-007), succeeds when unreferenced (SC-008); integration: delete route gating
 
 **Checkpoint**: Gated hard-delete complete.
 
@@ -96,11 +96,11 @@ description: "Task list for Evaluator Registry & Management (Module 14)"
 
 ## Phase 9: Polish & Cross-Cutting Concerns
 
-- [ ] T022 [P] `tests/unit/evaluator_registry/test_test_connection.py`: categorized outcomes (valid/invalid_result/http_error/unreachable/timeout) + dimension-divergence soft warning, via `httpx.MockTransport`; no side effects (FR-028/029, SC-009/010)
-- [ ] T023 [P] `python -m ruff check src tests --fix`; resolve findings
-- [ ] T024 `python -m pytest --cov=harness --cov-report=term-missing`; confirm the foundation's 231 tests still pass + adequate `evaluator_registry/` coverage
-- [ ] T025 [P] Execute `specs/014-evaluator-registry-management/quickstart.md`; file discrepancies
-- [ ] T026 [P] Verify FR→File and SC matrices; confirm `CLAUDE.md` marker → `014` plan
+- [X] T022 [P] `tests/unit/evaluator_registry/test_test_connection.py`: categorized outcomes (valid/invalid_result/http_error/unreachable/timeout) + dimension-divergence soft warning, via `httpx.MockTransport`; no side effects (FR-028/029, SC-009/010)
+- [X] T023 [P] `python -m ruff check src tests --fix`; resolve findings
+- [X] T024 `python -m pytest --cov=harness --cov-report=term-missing`; confirm the foundation's 231 tests still pass + adequate `evaluator_registry/` coverage
+- [X] T025 [P] Execute `specs/014-evaluator-registry-management/quickstart.md`; file discrepancies
+- [X] T026 [P] Verify FR→File and SC matrices; confirm `CLAUDE.md` marker → `014` plan
 
 ---
 

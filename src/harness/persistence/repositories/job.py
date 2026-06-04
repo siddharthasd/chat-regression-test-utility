@@ -81,6 +81,17 @@ class JobRepository:
             or 0
         )
 
+    def count_by_evaluation_agent_id(self, evaluation_agent_id: str) -> int:
+        """Count Jobs whose snapshot references this evaluator (014 FR-024 gate)."""
+        return int(
+            self._session.scalar(
+                select(func.count())
+                .select_from(Job)
+                .where(Job.evaluation_agent_id == evaluation_agent_id)
+            )
+            or 0
+        )
+
     # -------------------------------------------------------------------- snapshots
     def set_connector_snapshot(
         self, job_id: str, registration: ConnectorRegistration

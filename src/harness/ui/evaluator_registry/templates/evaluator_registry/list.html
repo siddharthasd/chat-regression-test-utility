@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Evaluator Registry</title></head>
+<body>
+<h1>Evaluator Registry</h1>
+
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+
+<nav class="filters">
+  <a href="{{ url_for('evaluator_registry.list_evaluators', filter='active', q=q) }}"
+     {% if filter == 'active' %}aria-current="true"{% endif %}>Active</a>
+  <a href="{{ url_for('evaluator_registry.list_evaluators', filter='archived', q=q) }}"
+     {% if filter == 'archived' %}aria-current="true"{% endif %}>Archived</a>
+  <a href="{{ url_for('evaluator_registry.list_evaluators', filter='all', q=q) }}"
+     {% if filter == 'all' %}aria-current="true"{% endif %}>All</a>
+</nav>
+
+<form method="get" action="{{ url_for('evaluator_registry.list_evaluators') }}">
+  <input type="hidden" name="filter" value="{{ filter }}">
+  <input type="search" name="q" value="{{ q }}" placeholder="Search display name">
+  <button type="submit">Search</button>
+</form>
+
+<p><a href="{{ url_for('evaluator_registry.new_evaluator') }}">Register new evaluator</a></p>
+
+{% if not registrations %}
+  <p class="empty-state">No evaluators registered yet.
+    <a href="{{ url_for('evaluator_registry.new_evaluator') }}">Register your first evaluator</a>.</p>
+{% else %}
+<table>
+  <thead><tr>
+    <th>Display name</th><th>Endpoint</th><th>Auth</th><th>Timeout</th>
+    <th>Scoring dimensions</th><th>State</th><th>Updated</th><th>Actions</th>
+  </tr></thead>
+  <tbody>
+  {% for r in registrations %}
+    <tr>
+      <td>{{ r.display_name }}</td>
+      <td title="{{ r.endpoint_url }}">{{ r.endpoint_url[:40] }}</td>
+      <td>{{ r.auth_mode }}{% if r.header_name %} ({{ r.header_name }}){% endif %}</td>
+      <td>{{ r.timeout_seconds }}</td>
+      <td class="dimensions-preview">{{ r.dimensions_preview }}</td>
+      <td>{% if r.archived %}<span class="badge-archived">Archived</span>{% else %}Active{% endif %}</td>
+      <td>{{ r.updated_at }}</td>
+      <td>
+        <a href="{{ url_for('evaluator_registry.edit_evaluator', evaluation_agent_id=r.evaluation_agent_id) }}">Edit</a>
+        {% if r.archived %}
+          <form method="post" style="display:inline"
+                action="{{ url_for('evaluator_registry.restore_evaluator', evaluation_agent_id=r.evaluation_agent_id) }}">
+            <button type="submit">Restore</button></form>
+        {% else %}
+          <form method="post" style="display:inline"
+                action="{{ url_for('evaluator_registry.archive_evaluator', evaluation_agent_id=r.evaluation_agent_id) }}">
+            <button type="submit">Archive</button></form>
+        {% endif %}
+        <form method="post" style="display:inline"
+              action="{{ url_for('evaluator_registry.delete_evaluator', evaluation_agent_id=r.evaluation_agent_id) }}"
+              onsubmit="return confirm('Delete this evaluator permanently?')">
+          <button type="submit">Delete permanently</button></form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+</body>
+</html>
