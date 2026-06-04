@@ -182,22 +182,50 @@ def test_reconcile_orphans(db) -> None:
 
 # --------------------------------------------------------------------------- US5
 def test_two_jobs_concurrent_independent(db) -> None:
+    # Drive two run_job workers truly concurrently and join them deterministically
+    # (no wall-clock deadline). Servers stay up until both threads finish.
     with _serving(conn_mock.make_server(mode="ok")) as conn_url, \
          _serving(ev_mock.make_server(mode="ok")) as eval_url:
         job_a = _make_queued_job(conn_url, eval_url, 3)
         job_b = _make_queued_job(conn_url, eval_url, 2)
-        enqueue_job(job_a)
-        enqueue_job(job_b)
-        deadline = time.time() + 15
-        while time.time() < deadline:
-            if _job(job_a).status == "completed" and _job(job_b).status == "completed":
-                break
-            time.sleep(0.1)
 
+        workers = [
+            threading.Thread(target=run_job, args=(job_a,), name="job-a"),
+            threading.Thread(target=run_job, args=(job_b,), name="job-b"),
+        ]
+        for w in workers:
+            w.start()
+        for w in workers:
+            w.join(timeout=30)
+        assert not any(w.is_alive() for w in workers), "a worker thread did not finish in time"
+
+    # Independent terminal state + counters.
     assert _job(job_a).status == "completed"
     assert _job(job_b).status == "completed"
     assert _job(job_a).processed_count == 3
     assert _job(job_b).processed_count == 2
+    assert _job(job_a).failed_count == 0
+    assert _job(job_b).failed_count == 0
+
+
+def test_enqueue_job_is_async_and_completes(db) -> None:
+    # enqueue_job (the production async entry point) must return immediately and
+    # the job must reach a terminal state shortly after.
+    with _serving(conn_mock.make_server(mode="ok")) as conn_url, \
+         _serving(ev_mock.make_server(mode="ok")) as eval_url:
+        job_id = _make_queued_job(conn_url, eval_url, 2)
+
+        start = time.monotonic()
+        enqueue_job(job_id)
+        assert time.monotonic() - start < 1.0  # returns without waiting for the run
+
+        deadline = time.time() + 30
+        while time.time() < deadline and _job(job_id).status not in {
+            "completed", "failed", "cancelled"
+        }:
+            time.sleep(0.05)
+        assert _job(job_id).status == "completed"
+        assert _job(job_id).processed_count == 2
 
 
 # --------------------------------------------------------------------------- US6

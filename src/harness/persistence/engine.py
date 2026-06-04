@@ -16,6 +16,7 @@ from pathlib import Path
 from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import NullPool
 
 from harness.persistence.exceptions import HarnessDatabaseTooNewError
 
@@ -122,10 +123,14 @@ def init_db(db_path: Path | str | None = None) -> Engine:
     path = Path(db_path) if db_path is not None else resolve_db_path()
     _ensure_directory(path)
     # check_same_thread=False lets the orchestrator's per-job worker threads (012)
-    # use sessions backed by the pooled connection; WAL + busy_timeout keep
-    # concurrent writers safe in the single-process harness (012 research R2).
+    # open sessions off any thread; NullPool gives each session its OWN connection
+    # so two overlapping workers never share a single SQLite connection (which is
+    # unsafe even with check_same_thread=False). WAL + busy_timeout serialize the
+    # short per-row writes safely in the single-process harness (012 research R2).
     engine = create_engine(
-        f"sqlite:///{path}", connect_args={"check_same_thread": False}
+        f"sqlite:///{path}",
+        connect_args={"check_same_thread": False},
+        poolclass=NullPool,
     )
     apply_sqlite_pragmas(engine)
     enable_transactional_ddl(engine)
