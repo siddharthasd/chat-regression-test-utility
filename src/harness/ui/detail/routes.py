@@ -55,6 +55,9 @@ def detail(job_id: str):
         all_rows = [
             view.row_view(u, dims) for u in UtteranceRepository(session).get_by_job_ordered(job_id)
         ]
+        can_export = bool(all_rows) and job.status not in {
+            JobStatus.DRAFT.value, JobStatus.QUEUED.value
+        }
 
     test_id_options = view.distinct_test_ids(all_rows)
     rows = view.apply_filters(
@@ -79,6 +82,7 @@ def detail(job_id: str):
         filtered=filtered,
         can_cancel=job.status in _CANCELLABLE,
         can_delete=job.status in _DELETABLE,
+        can_export=can_export,
         error=None,
     )
 
@@ -176,6 +180,8 @@ def _rerender_error(job_id: str, message: str, status_code: int):
             filtered=False,
             can_cancel=meta["status"] in _CANCELLABLE,
             can_delete=meta["status"] in _DELETABLE,
+            can_export=bool(rows)
+            and meta["status"] not in {JobStatus.DRAFT.value, JobStatus.QUEUED.value},
             error=message,
         ),
         status_code,

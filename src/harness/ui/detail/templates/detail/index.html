@@ -50,6 +50,19 @@
       Processed {{ meta.processed_count }} · Failed {{ meta.failed_count }}</dd>
   </dl>
 
+  {% if can_export %}
+  <form class="export" method="get" action="{{ url_for('export.export', job_id=meta.job_id) }}">
+    <label>Download Results
+      <select name="format">
+        <option value="csv">CSV</option>
+        <option value="json">JSON</option>
+        <option value="zip">Both (zip)</option>
+      </select>
+    </label>
+    <button type="submit">Download Results</button>
+  </form>
+  {% endif %}
+
   <div class="actions">
     {% if can_cancel %}
     <form method="post" action="{{ url_for('detail.cancel', job_id=meta.job_id) }}"
