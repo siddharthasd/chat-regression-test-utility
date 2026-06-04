@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Harness Dashboard</title></head>
+<body>
+<header>
+  <h1>Test Jobs</h1>
+  {% include "_logged_in_as.html" ignore missing %}
+</header>
+
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+
+<div class="actions">
+  <a class="cta" href="{{ url_for('wizard.new_job') }}">Create New Job</a>
+  <form method="post" action="{{ url_for('dashboard.clear_terminal') }}"
+        onsubmit="return confirm('Delete all {{ terminal_clearable }} failed/cancelled job(s)? This cannot be undone.');"
+        style="display:inline">
+    <button type="submit" {% if not terminal_clearable %}disabled{% endif %}>
+      Clear all failed and cancelled ({{ terminal_clearable }})
+    </button>
+  </form>
+</div>
+
+{% if total_jobs == 0 %}
+  <p class="empty-state">No jobs yet.
+    <a href="{{ url_for('wizard.new_job') }}">Create your first job</a>.</p>
+{% else %}
+
+<form method="get" action="{{ url_for('dashboard.index') }}" class="filters">
+  <input type="search" name="q" value="{{ q }}" placeholder="Search job name">
+  <fieldset><legend>Status</legend>
+    {% for s in facets.statuses %}
+      <label><input type="checkbox" name="status" value="{{ s }}"
+        {% if s in selected.status %}checked{% endif %}> {{ s }}</label>
+    {% endfor %}
+  </fieldset>
+  <fieldset><legend>Connector</legend>
+    {% for c in facets.connectors %}
+      <label><input type="checkbox" name="connector" value="{{ c }}"
+        {% if c in selected.connector %}checked{% endif %}> {{ c }}</label>
+    {% endfor %}
+  </fieldset>
+  <fieldset><legend>Created by</legend>
+    {% for u in facets.created_bys %}
+      <label><input type="checkbox" name="created_by" value="{{ u }}"
+        {% if u in selected.created_by %}checked{% endif %}> {{ u }}</label>
+    {% endfor %}
+  </fieldset>
+  <button type="submit">Apply filters</button>
+  <a href="{{ url_for('dashboard.index') }}">Clear filters</a>
+</form>
+
+{% macro sortlink(col, label) %}
+  {% set next_dir = 'desc' if (sort == col and dir == 'asc') else 'asc' %}
+  <a href="{{ url_for('dashboard.index', sort=col, dir=next_dir, q=q,
+      status=selected.status, connector=selected.connector, created_by=selected.created_by) }}">
+    {{ label }}{% if sort == col %} {{ '▲' if dir == 'asc' else '▼' }}{% endif %}</a>
+{% endmacro %}
+
+{% if not rows %}
+  <p class="empty-state no-matches">No jobs match the current filters.
+    <a href="{{ url_for('dashboard.index') }}">Clear filters</a>.</p>
+{% else %}
+<table>
+  <thead><tr>
+    <th>{{ sortlink('job_name', 'Job Name') }}</th>
+    <th>{{ sortlink('status', 'Status') }}</th>
+    <th>{{ sortlink('created_by', 'Created By') }}</th>
+    <th>{{ sortlink('created_at', 'Created At') }}</th>
+    <th>{{ sortlink('started_at', 'Started At') }}</th>
+    <th>{{ sortlink('completed_at', 'Completed At') }}</th>
+    <th>{{ sortlink('connector', 'Connector') }}</th>
+    <th>Utterances</th>
+    <th>{{ sortlink('failed_count', 'Failed') }}</th>
+    <th>{{ sortlink('harness_version', 'Harness') }}</th>
+    <th>Actions</th>
+  </tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr data-job-id="{{ r.job_id }}">
+      <td><a class="row-link" href="/jobs/{{ r.job_id }}/detail" title="{{ r.job_name }}">{{ r.job_name[:60] }}</a></td>
+      <td><span class="badge {{ r.badge_class }}" data-cell="status">{{ r.status_label }}</span></td>
+      <td>{{ r.created_by }}</td>
+      <td title="{{ r.created_at[1] }}">{{ r.created_at[0] }}</td>
+      <td title="{{ r.started_at[1] }}">{{ r.started_at[0] }}</td>
+      <td title="{{ r.completed_at[1] }}">{{ r.completed_at[0] }}</td>
+      <td>{{ r.connector_name or '—' }}</td>
+      <td data-cell="utterances">{{ r.processed }}/{{ r.total if r.total is not none else '—' }}</td>
+      <td data-cell="failed">{{ r.failed_count }}</td>
+      <td>{{ r.harness_version }}</td>
+      <td>
+        {% if r.deletable %}
+        <form method="post" action="{{ url_for('dashboard.delete_job', job_id=r.job_id) }}"
+              onsubmit="return confirm('Permanently delete this {{ r.status }} job?');"
+              style="display:inline">
+          <button type="submit">Delete</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endif %}
+
+<script>
+// Near-real-time updates (FR-012/013): poll until every rendered row is terminal.
+(function () {
+  var timer = setInterval(refresh, 3000);
+  function refresh() {
+    fetch("{{ url_for('dashboard.jobs_json') }}").then(function (r) { return r.json(); })
+      .then(function (data) {
+        var anyLive = false;
+        data.jobs.forEach(function (j) {
+          var row = document.querySelector('tr[data-job-id="' + j.job_id + '"]');
+          if (!row) return;
+          if (!j.terminal) anyLive = true;
+          var badge = row.querySelector('[data-cell="status"]');
+          if (badge) { badge.textContent = j.status_label; badge.className = 'badge ' + j.badge_class; }
+          var utt = row.querySelector('[data-cell="utterances"]');
+          if (utt) utt.textContent = j.processed + '/' + (j.total === null ? '—' : j.total);
+          var failed = row.querySelector('[data-cell="failed"]');
+          if (failed) failed.textContent = j.failed;
+        });
+        if (!anyLive) clearInterval(timer);
+      }).catch(function () { /* transient: keep polling */ });
+  }
+})();
+</script>
+</body>
+</html>

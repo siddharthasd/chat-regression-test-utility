@@ -72,6 +72,10 @@ class JobRepository:
     def get_by_status(self, status: str) -> list[Job]:
         return list(self._session.scalars(select(Job).where(Job.status == status)))
 
+    def list_all(self) -> list[Job]:
+        """All jobs, newest first — the dashboard's default listing (002 FR-002/009a)."""
+        return list(self._session.scalars(select(Job).order_by(Job.created_at.desc())))
+
     def count_by_connector_id(self, connector_id: str) -> int:
         """Count Jobs whose snapshot references this connector (013 FR-019 gate)."""
         return int(
