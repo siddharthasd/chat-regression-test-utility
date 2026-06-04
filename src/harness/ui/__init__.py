@@ -20,6 +20,9 @@ def create_app() -> Flask:
     app = Flask(__name__)
     initialize_harness(app)
     app.context_processor(inject_tester_identity)
-    # Blueprints / routes are registered by later spec modules (002 dashboard,
-    # 003 wizard, 004 detail view, 005 export).
+    # Blueprints / routes registered by spec modules.
+    from harness.ui.connector_registry import bp as connector_registry_bp
+
+    app.register_blueprint(connector_registry_bp)
+    # Future: 002 dashboard, 003 wizard, 004 detail view, 005 export, 014 evaluator registry.
     return app

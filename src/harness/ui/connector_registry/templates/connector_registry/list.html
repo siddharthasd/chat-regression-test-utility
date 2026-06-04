@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Connector Registry</title></head>
+<body>
+<h1>Connector Registry</h1>
+
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+
+<nav class="filters">
+  <a href="{{ url_for('connector_registry.list_connectors', filter='active', q=q) }}"
+     {% if filter == 'active' %}aria-current="true"{% endif %}>Active</a>
+  <a href="{{ url_for('connector_registry.list_connectors', filter='archived', q=q) }}"
+     {% if filter == 'archived' %}aria-current="true"{% endif %}>Archived</a>
+  <a href="{{ url_for('connector_registry.list_connectors', filter='all', q=q) }}"
+     {% if filter == 'all' %}aria-current="true"{% endif %}>All</a>
+</nav>
+
+<form method="get" action="{{ url_for('connector_registry.list_connectors') }}">
+  <input type="hidden" name="filter" value="{{ filter }}">
+  <input type="search" name="q" value="{{ q }}" placeholder="Search display name">
+  <button type="submit">Search</button>
+</form>
+
+<p><a href="{{ url_for('connector_registry.new_connector') }}">Register new connector</a></p>
+
+{% if not registrations %}
+  <p class="empty-state">No connectors registered yet.
+    <a href="{{ url_for('connector_registry.new_connector') }}">Register your first connector</a>.</p>
+{% else %}
+<table>
+  <thead><tr>
+    <th>Display name</th><th>Endpoint</th><th>Auth</th><th>Timeout</th>
+    <th>Per-row password</th><th>State</th><th>Updated</th><th>Actions</th>
+  </tr></thead>
+  <tbody>
+  {% for r in registrations %}
+    <tr>
+      <td>{{ r.display_name }}</td>
+      <td title="{{ r.endpoint_url }}">{{ r.endpoint_url[:40] }}</td>
+      <td>{{ r.auth_mode }}{% if r.header_name %} ({{ r.header_name }}){% endif %}</td>
+      <td>{{ r.timeout_seconds }}</td>
+      <td>{{ 'yes' if r.expects_per_row_password else 'no' }}</td>
+      <td>{% if r.archived %}<span class="badge-archived">Archived</span>{% else %}Active{% endif %}</td>
+      <td>{{ r.updated_at }}</td>
+      <td>
+        <a href="{{ url_for('connector_registry.edit_connector', connector_id=r.connector_id) }}">Edit</a>
+        {% if r.archived %}
+          <form method="post" style="display:inline"
+                action="{{ url_for('connector_registry.restore_connector', connector_id=r.connector_id) }}">
+            <button type="submit">Restore</button></form>
+        {% else %}
+          <form method="post" style="display:inline"
+                action="{{ url_for('connector_registry.archive_connector', connector_id=r.connector_id) }}">
+            <button type="submit">Archive</button></form>
+        {% endif %}
+        <form method="post" style="display:inline"
+              action="{{ url_for('connector_registry.delete_connector', connector_id=r.connector_id) }}"
+              onsubmit="return confirm('Delete this connector permanently?')">
+          <button type="submit">Delete permanently</button></form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+</body>
+</html>

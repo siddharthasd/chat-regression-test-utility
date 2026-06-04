@@ -13,7 +13,7 @@ import uuid
 from datetime import UTC, datetime
 from importlib.metadata import PackageNotFoundError, version
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from harness.persistence.enums import DELETABLE_STATUSES, JobStatus
@@ -71,6 +71,15 @@ class JobRepository:
 
     def get_by_status(self, status: str) -> list[Job]:
         return list(self._session.scalars(select(Job).where(Job.status == status)))
+
+    def count_by_connector_id(self, connector_id: str) -> int:
+        """Count Jobs whose snapshot references this connector (013 FR-019 gate)."""
+        return int(
+            self._session.scalar(
+                select(func.count()).select_from(Job).where(Job.connector_id == connector_id)
+            )
+            or 0
+        )
 
     # -------------------------------------------------------------------- snapshots
     def set_connector_snapshot(
