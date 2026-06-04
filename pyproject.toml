@@ -7,6 +7,7 @@ dependencies = [
     "flask>=3.0",
     "click>=8.1",
     "structlog>=24.1",
+    "jsonschema>=4.21",
 ]
 
 [project.optional-dependencies]
@@ -26,6 +27,9 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"harness.contract.schemas" = ["*.json"]
 
 [tool.ruff]
 line-length = 100

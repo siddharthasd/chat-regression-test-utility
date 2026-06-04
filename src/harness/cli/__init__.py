@@ -28,4 +28,4 @@ def harness_group() -> None:
 # Subcommand registration — kept here so importing harness.cli is enough to
 # wire everything in. Subcommand modules call `harness_group.add_command(...)`
 # at import time.
-from harness.cli import info, serve  # noqa: E402, F401  (registers subcommands)
+from harness.cli import contract, info, serve  # noqa: E402, F401  (registers subcommands)

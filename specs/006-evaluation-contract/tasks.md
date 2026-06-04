@@ -21,9 +21,9 @@ description: "Task list for Standard Evaluation Contract (Module 6)"
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-- [ ] T001 Graft the `010` foundation if not already present (`git checkout 010-tester-identity -- pyproject.toml .python-version .gitignore src tests`), then add `jsonschema>=4.21` to `[project].dependencies` and ensure `*.json` under `src/harness/contract/schemas/` ships as package data (`[tool.setuptools] include-package-data` or `package-data`) in `pyproject.toml` (research R10)
-- [ ] T002 Create the contract package scaffold: `src/harness/contract/__init__.py` and the `src/harness/contract/schemas/` directory
-- [ ] T003 Reinstall editable and confirm `import jsonschema` resolves: `python -m pip install -e ".[dev]"`
+- [X] T001 Graft the `010` foundation if not already present (`git checkout 010-tester-identity -- pyproject.toml .python-version .gitignore src tests`), then add `jsonschema>=4.21` to `[project].dependencies` and ensure `*.json` under `src/harness/contract/schemas/` ships as package data (`[tool.setuptools] include-package-data` or `package-data`) in `pyproject.toml` (research R10)
+- [X] T002 Create the contract package scaffold: `src/harness/contract/__init__.py` and the `src/harness/contract/schemas/` directory
+- [X] T003 Reinstall editable and confirm `import jsonschema` resolves: `python -m pip install -e ".[dev]"`
 
 ---
 
@@ -33,12 +33,12 @@ description: "Task list for Standard Evaluation Contract (Module 6)"
 
 **⚠️ CRITICAL**: No user-story phase can begin until this phase is complete.
 
-- [ ] T004 Author the bundled JSON Schema `src/harness/contract/schemas/standard_evaluation_contract.schema.json` (Draft 2020-12): all 8 required top-level fields (FR-002), the `chatbotResponse` sub-object (FR-003), `conversationContext` as `["object","null"]`, `timestamp` `format: date-time` (FR-013), `contractVersion` `pattern: ^[0-9]+$`, `rawPayload` unconstrained (`true`), `additionalProperties` left open at every level (FR-005), and per-field `description` annotations (FR-014)
-- [ ] T005 [P] Implement `src/harness/contract/violations.py`: `ViolationKind` StrEnum (`missing`/`wrong_type`/`bad_format`/`version_out_of_range`/`forbidden_field`/`schema`), frozen `Violation` and `ValidationResult` dataclasses (per contracts/validation-api.md)
-- [ ] T006 [P] Implement `src/harness/contract/schema.py`: `load_schema()` via `importlib.resources`, `BUNDLED_CONTRACT_VERSION: int = 1`, and a cached `Draft202012Validator` built with a `FormatChecker` so `date-time` is asserted (research R2/R5/R8)
-- [ ] T007 Implement the structural core of `validate_contract()` in `src/harness/contract/validation.py`: run `validator.iter_errors(instance)`, map each `ValidationError` to a `Violation` (json_path → `field_path`; keyword → `ViolationKind`; `validator_value`/`instance` → expected/observed), return a deterministically-ordered `ValidationResult`; never raise on arbitrary input (FR-002/003/008/011/013)
-- [ ] T008 Re-export `validate_contract`, `ValidationResult`, `Violation`, `ViolationKind`, `BUNDLED_CONTRACT_VERSION` from `src/harness/contract/__init__.py`
-- [ ] T009 [P] `tests/unit/contract/__init__.py` + `tests/unit/contract/test_schema.py`: schema loads; the required/optional field sets match FR-002/FR-003; every field carries a `description` (FR-014); `BUNDLED_CONTRACT_VERSION` equals the schema's own declared version (no drift, R8)
+- [X] T004 Author the bundled JSON Schema `src/harness/contract/schemas/standard_evaluation_contract.schema.json` (Draft 2020-12): all 8 required top-level fields (FR-002), the `chatbotResponse` sub-object (FR-003), `conversationContext` as `["object","null"]`, `timestamp` `format: date-time` (FR-013), `contractVersion` `pattern: ^[0-9]+$`, `rawPayload` unconstrained (`true`), `additionalProperties` left open at every level (FR-005), and per-field `description` annotations (FR-014)
+- [X] T005 [P] Implement `src/harness/contract/violations.py`: `ViolationKind` StrEnum (`missing`/`wrong_type`/`bad_format`/`version_out_of_range`/`forbidden_field`/`schema`), frozen `Violation` and `ValidationResult` dataclasses (per contracts/validation-api.md)
+- [X] T006 [P] Implement `src/harness/contract/schema.py`: `load_schema()` via `importlib.resources`, `BUNDLED_CONTRACT_VERSION: int = 1`, and a cached `Draft202012Validator` built with a `FormatChecker` so `date-time` is asserted (research R2/R5/R8)
+- [X] T007 Implement the structural core of `validate_contract()` in `src/harness/contract/validation.py`: run `validator.iter_errors(instance)`, map each `ValidationError` to a `Violation` (json_path → `field_path`; keyword → `ViolationKind`; `validator_value`/`instance` → expected/observed), return a deterministically-ordered `ValidationResult`; never raise on arbitrary input (FR-002/003/008/011/013)
+- [X] T008 Re-export `validate_contract`, `ValidationResult`, `Violation`, `ViolationKind`, `BUNDLED_CONTRACT_VERSION` from `src/harness/contract/__init__.py`
+- [X] T009 [P] `tests/unit/contract/__init__.py` + `tests/unit/contract/test_schema.py`: schema loads; the required/optional field sets match FR-002/FR-003; every field carries a `description` (FR-014); `BUNDLED_CONTRACT_VERSION` equals the schema's own declared version (no drift, R8)
 
 **Checkpoint**: Structural validation works end-to-end for conforming and structurally-invalid instances.
 
@@ -52,14 +52,14 @@ description: "Task list for Standard Evaluation Contract (Module 6)"
 
 ### Implementation for User Story 1
 
-- [ ] T010 [US1] Implement the `harness contract validate <file> [--json]` CLI in `src/harness/cli/contract.py` (reads JSON, calls `validate_contract`, human + `--json` output, exit codes 0/1/2 per contracts/cli-contract.md, FR-010)
-- [ ] T011 [US1] Register the `contract` command group on the `harness` Click group in `src/harness/cli/__init__.py`
+- [X] T010 [US1] Implement the `harness contract validate <file> [--json]` CLI in `src/harness/cli/contract.py` (reads JSON, calls `validate_contract`, human + `--json` output, exit codes 0/1/2 per contracts/cli-contract.md, FR-010)
+- [X] T011 [US1] Register the `contract` command group on the `harness` Click group in `src/harness/cli/__init__.py`
 
 ### Tests for User Story 1
 
-- [ ] T012 [P] [US1] `tests/unit/contract/test_validation.py::test_conformant_instance_passes` — a fully-conforming instance yields `valid=True`, `violations==[]` (SC-001)
-- [ ] T013 [P] [US1] `tests/unit/contract/test_validation.py::test_required_values_preserved` — required field values are unchanged through validation (round-trip, SC-001)
-- [ ] T014 [US1] `tests/integration/test_contract_cli.py::test_validate_conforming_exit_zero` — CLI on a conforming file prints `VALID` and exits 0 (SC-008)
+- [X] T012 [P] [US1] `tests/unit/contract/test_validation.py::test_conformant_instance_passes` — a fully-conforming instance yields `valid=True`, `violations==[]` (SC-001)
+- [X] T013 [P] [US1] `tests/unit/contract/test_validation.py::test_required_values_preserved` — required field values are unchanged through validation (round-trip, SC-001)
+- [X] T014 [US1] `tests/integration/test_contract_cli.py::test_validate_conforming_exit_zero` — CLI on a conforming file prints `VALID` and exits 0 (SC-008)
 
 **Checkpoint**: MVP — conforming instances validate and the authoring CLI works.
 
@@ -73,13 +73,13 @@ description: "Task list for Standard Evaluation Contract (Module 6)"
 
 ### Implementation for User Story 2
 
-- [ ] T015 [US2] Add `_scan_for_password(instance)` recursive scan to `src/harness/contract/validation.py` and wire it into `validate_contract` — any `password` key at any depth → `FORBIDDEN_FIELD` violation with dotted/indexed path (FR-004)
-- [ ] T016 [US2] Add the numeric `contractVersion` gate to `validate_contract` in `src/harness/contract/validation.py`: parse as int (FR-016), accept `<=` bundled, reject `>` bundled with a `VERSION_OUT_OF_RANGE` violation naming both versions + "update the harness" remediation (FR-015)
+- [X] T015 [US2] Add `_scan_for_password(instance)` recursive scan to `src/harness/contract/validation.py` and wire it into `validate_contract` — any `password` key at any depth → `FORBIDDEN_FIELD` violation with dotted/indexed path (FR-004)
+- [X] T016 [US2] Add the numeric `contractVersion` gate to `validate_contract` in `src/harness/contract/validation.py`: parse as int (FR-016), accept `<=` bundled, reject `>` bundled with a `VERSION_OUT_OF_RANGE` violation naming both versions + "update the harness" remediation (FR-015)
 
 ### Tests for User Story 2
 
-- [ ] T017 [P] [US2] `tests/unit/contract/test_validation.py`: `test_missing_field_named` (SC-002), `test_type_mismatch_named` (SC-003), `test_timestamp_format` (FR-013), `test_password_forbidden_nested` (FR-004) — each asserts the violation `field_path`/`kind`/detail
-- [ ] T018 [P] [US2] `tests/integration/test_contract_cli.py::test_validate_nonconforming_exit_one` — CLI on a malformed file prints `INVALID` with violations and exits 1; bad JSON / missing file exits 2
+- [X] T017 [P] [US2] `tests/unit/contract/test_validation.py`: `test_missing_field_named` (SC-002), `test_type_mismatch_named` (SC-003), `test_timestamp_format` (FR-013), `test_password_forbidden_nested` (FR-004) — each asserts the violation `field_path`/`kind`/detail
+- [X] T018 [P] [US2] `tests/integration/test_contract_cli.py::test_validate_nonconforming_exit_one` — CLI on a malformed file prints `INVALID` with violations and exits 1; bad JSON / missing file exits 2
 
 **Checkpoint**: Every rejection path produces actionable, field-named detail; the malformed instance never passes.
 
@@ -93,8 +93,8 @@ description: "Task list for Standard Evaluation Contract (Module 6)"
 
 ### Tests for User Story 3
 
-- [ ] T019 [P] [US3] `tests/unit/contract/test_validation.py::test_unknown_fields_ok` — instance with extra top-level + nested unknown fields validates `True` (FR-005, SC-005)
-- [ ] T020 [P] [US3] `tests/unit/contract/test_validation.py::test_empty_agentchain_and_metadata_ok` — `agentChain: []`, `metadata: {}`, and `conversationContext: null` all validate (spec edge cases)
+- [X] T019 [P] [US3] `tests/unit/contract/test_validation.py::test_unknown_fields_ok` — instance with extra top-level + nested unknown fields validates `True` (FR-005, SC-005)
+- [X] T020 [P] [US3] `tests/unit/contract/test_validation.py::test_empty_agentchain_and_metadata_ok` — `agentChain: []`, `metadata: {}`, and `conversationContext: null` all validate (spec edge cases)
 
 **Checkpoint**: Extensibility property holds; no code change needed (schema is open by design from T004).
 
@@ -108,10 +108,10 @@ description: "Task list for Standard Evaluation Contract (Module 6)"
 
 ### Tests for User Story 4
 
-- [ ] T021 [P] [US4] `tests/unit/contract/test_versioning.py::test_numeric_not_lexicographic` — an instance at `"10"` vs a bundled `"2"` scenario compares numerically (FR-016)
-- [ ] T022 [P] [US4] `tests/unit/contract/test_versioning.py::test_version_greater_rejected` — `contractVersion` greater than bundled → `VERSION_OUT_OF_RANGE` naming both versions (SC-004)
-- [ ] T023 [P] [US4] `tests/unit/contract/test_versioning.py::test_determinism` — two calls on the same input yield equal `ValidationResult` (order/content/count) (FR-011, SC-009)
-- [ ] T024 [P] [US4] `tests/unit/contract/test_versioning.py::test_breaking_change_policy` — encode FR-007's rule set (removed/renamed/retyped/newly-required field ⇒ must bump) as an assertion over a small breaking-change detector helper; `test_additive_no_bump` for FR-006 (SC-006/SC-007)
+- [X] T021 [P] [US4] `tests/unit/contract/test_versioning.py::test_numeric_not_lexicographic` — an instance at `"10"` vs a bundled `"2"` scenario compares numerically (FR-016)
+- [X] T022 [P] [US4] `tests/unit/contract/test_versioning.py::test_version_greater_rejected` — `contractVersion` greater than bundled → `VERSION_OUT_OF_RANGE` naming both versions (SC-004)
+- [X] T023 [P] [US4] `tests/unit/contract/test_versioning.py::test_determinism` — two calls on the same input yield equal `ValidationResult` (order/content/count) (FR-011, SC-009)
+- [X] T024 [P] [US4] `tests/unit/contract/test_versioning.py::test_breaking_change_policy` — encode FR-007's rule set (removed/renamed/retyped/newly-required field ⇒ must bump) as an assertion over a small breaking-change detector helper; `test_additive_no_bump` for FR-006 (SC-006/SC-007)
 
 **Checkpoint**: Versioning policy is machine-checkable; numeric semantics verified.
 
@@ -119,11 +119,11 @@ description: "Task list for Standard Evaluation Contract (Module 6)"
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T025 [P] `python -m ruff check src tests --fix`; resolve findings
-- [ ] T026 `python -m pytest --cov=harness --cov-report=term-missing`; confirm no regression in grafted `010`/`009` tests and adequate `contract/` coverage
-- [ ] T027 Verify the bundled `*.json` schema actually ships with the installed package (import + `load_schema()` from an installed location, not just the source tree) — guards the R10 package-data config
-- [ ] T028 [P] Execute `specs/006-evaluation-contract/quickstart.md` end-to-end; file any discrepancy as a follow-up
-- [ ] T029 [P] Verify the plan's FR→File and SC matrices: every FR has an implementation file and a passing test; confirm `CLAUDE.md` marker still points at the `006` plan
+- [X] T025 [P] `python -m ruff check src tests --fix`; resolve findings
+- [X] T026 `python -m pytest --cov=harness --cov-report=term-missing`; confirm no regression in grafted `010`/`009` tests and adequate `contract/` coverage
+- [X] T027 Verify the bundled `*.json` schema actually ships with the installed package (import + `load_schema()` from an installed location, not just the source tree) — guards the R10 package-data config
+- [X] T028 [P] Execute `specs/006-evaluation-contract/quickstart.md` end-to-end; file any discrepancy as a follow-up
+- [X] T029 [P] Verify the plan's FR→File and SC matrices: every FR has an implementation file and a passing test; confirm `CLAUDE.md` marker still points at the `006` plan
 
 ---
 
