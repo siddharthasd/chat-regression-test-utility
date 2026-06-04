@@ -121,7 +121,12 @@ def init_db(db_path: Path | str | None = None) -> Engine:
     global _engine
     path = Path(db_path) if db_path is not None else resolve_db_path()
     _ensure_directory(path)
-    engine = create_engine(f"sqlite:///{path}")
+    # check_same_thread=False lets the orchestrator's per-job worker threads (012)
+    # use sessions backed by the pooled connection; WAL + busy_timeout keep
+    # concurrent writers safe in the single-process harness (012 research R2).
+    engine = create_engine(
+        f"sqlite:///{path}", connect_args={"check_same_thread": False}
+    )
     apply_sqlite_pragmas(engine)
     enable_transactional_ddl(engine)
     run_migrations(engine)

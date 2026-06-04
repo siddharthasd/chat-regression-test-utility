@@ -70,5 +70,11 @@ def initialize_harness(app: Flask | None = None) -> None:
 
     init_db()
 
+    # Orphan reconciliation: fail any Job left running/cancelling by a prior
+    # process before any other module reads persistent state (012 FR-002).
+    from harness.orchestrator import reconcile_orphans
+
+    reconcile_orphans()
+
     if app is not None:
         app.config["TESTER_IDENTITY"] = identity.value
