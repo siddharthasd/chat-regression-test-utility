@@ -21,14 +21,14 @@ description: "Task list for Job Detail & Traceability View (Module 13)"
 
 ## Phase 1: Setup
 
-- [ ] T001 Create scaffold: `src/harness/ui/detail/__init__.py` (exports `bp`), `src/harness/ui/detail/routes.py` (empty `bp = Blueprint("detail", __name__, template_folder="templates")`), `src/harness/ui/detail/view.py` (empty), `src/harness/ui/detail/templates/detail/` (dir).
-- [ ] T002 Register the detail blueprint in `src/harness/ui/__init__.py::create_app()`; add `"harness.ui.detail" = ["templates/detail/*.html"]` to `[tool.setuptools.package-data]`; `python -m pip install -e ".[dev]"`.
+- [X] T001 Create scaffold: `src/harness/ui/detail/__init__.py` (exports `bp`), `src/harness/ui/detail/routes.py` (empty `bp = Blueprint("detail", __name__, template_folder="templates")`), `src/harness/ui/detail/view.py` (empty), `src/harness/ui/detail/templates/detail/` (dir).
+- [X] T002 Register the detail blueprint in `src/harness/ui/__init__.py::create_app()`; add `"harness.ui.detail" = ["templates/detail/*.html"]` to `[tool.setuptools.package-data]`; `python -m pip install -e ".[dev]"`.
 
 ---
 
 ## Phase 2: Foundational (Blocking Prerequisites)
 
-- [ ] T003 Implement `src/harness/ui/detail/view.py`: `mask_descriptor(d)` (credential/password → `••••••••`, keep mode/headerName/username, never decrypt — FR-005); `metadata_view(job)` (all FR-003 fields, masked descriptors, status_label/badge, hybrid timestamps via `dashboard.view.format_timestamp`, job-level counts); `row_view(utterance, declared_dims)` (FR-007/008 fields + `scores_cells` ordered by declared dims then unexpected, awaiting/— placeholders, `has_unexpected_dims`, expand artifacts, never `password`); `apply_filters(rows, verdicts, error_only, test_ids, q)` (AND; q over utterance+response only); `sort_rows(rows, sort, dir)` (any col except scores; verdict fail>warn>pass; default row_index asc); `reconstruct_csv(job, utterances) -> (filename, text)` (no password; -reconstructed/-partial + marker).
+- [X] T003 Implement `src/harness/ui/detail/view.py`: `mask_descriptor(d)` (credential/password → `••••••••`, keep mode/headerName/username, never decrypt — FR-005); `metadata_view(job)` (all FR-003 fields, masked descriptors, status_label/badge, hybrid timestamps via `dashboard.view.format_timestamp`, job-level counts); `row_view(utterance, declared_dims)` (FR-007/008 fields + `scores_cells` ordered by declared dims then unexpected, awaiting/— placeholders, `has_unexpected_dims`, expand artifacts, never `password`); `apply_filters(rows, verdicts, error_only, test_ids, q)` (AND; q over utterance+response only); `sort_rows(rows, sort, dir)` (any col except scores; verdict fail>warn>pass; default row_index asc); `reconstruct_csv(job, utterances) -> (filename, text)` (no password; -reconstructed/-partial + marker).
 
 **Checkpoint**: pure projection/masking/filter/CSV layer unit-usable; blueprint mounts.
 
@@ -36,8 +36,8 @@ description: "Task list for Job Detail & Traceability View (Module 13)"
 
 ## Phase 3: User Story 1 — Metadata panel for one job (Priority: P1) 🎯 MVP
 
-- [ ] T004 [US1] `routes.py`: `GET /jobs/<id>/detail` (load job → `metadata_view` + rows; 404 unknown) rendering `detail/index.html`'s metadata panel; `GET /jobs/<id>/download.csv` (`reconstruct_csv` → `text/csv` attachment). `index.html` created with the panel (masked config, declared dims, counts, status badge, download link) + tester-identity chrome.
-- [ ] T005 [US1] `tests/integration/test_detail_ui.py`: panel renders persisted config; a secret (bearer token / basic password) is **masked and never in the HTML** (SC-003); counts match; `draft` job shows blank started/completed; `download.csv` contains the utterances, omits `password`, and is marked reconstructed (partial for non-terminal) (SC-009). Per-test `engine.init_db(tmp)`.
+- [X] T004 [US1] `routes.py`: `GET /jobs/<id>/detail` (load job → `metadata_view` + rows; 404 unknown) rendering `detail/index.html`'s metadata panel; `GET /jobs/<id>/download.csv` (`reconstruct_csv` → `text/csv` attachment). `index.html` created with the panel (masked config, declared dims, counts, status badge, download link) + tester-identity chrome.
+- [X] T005 [US1] `tests/integration/test_detail_ui.py`: panel renders persisted config; a secret (bearer token / basic password) is **masked and never in the HTML** (SC-003); counts match; `draft` job shows blank started/completed; `download.csv` contains the utterances, omits `password`, and is marked reconstructed (partial for non-terminal) (SC-009). Per-test `engine.init_db(tmp)`.
 
 **Checkpoint**: MVP — the panel answers "what is this job?" with secrets masked.
 
@@ -45,8 +45,8 @@ description: "Task list for Job Detail & Traceability View (Module 13)"
 
 ## Phase 4: User Story 2 — Inspect one utterance's full trace (Priority: P1)
 
-- [ ] T006 [US2] Extend `index.html` with the Results Table (one row per utterance: rowIndex, testId, utterance/response truncated, verdict badge, ordered scores cells, error status, unexpected-dim indicator) + per-row expand revealing full input (no password), raw response, normalized contract, evaluation result, harness_annotations, and error_status/stage/details — each large JSON in `<pre>` with a copy button (FR-007/008/009).
-- [ ] T007 [US2] `test_detail_ui.py`: completed row expand shows all four artifacts; a `failed` row shows its 9-value `error_stage` + details + the partial upstream artifact (e.g. `connector_normalization` → raw present, contract null); scores render in declared-dimension order; an unexpected-dimension row shows the indicator (SC-002).
+- [X] T006 [US2] Extend `index.html` with the Results Table (one row per utterance: rowIndex, testId, utterance/response truncated, verdict badge, ordered scores cells, error status, unexpected-dim indicator) + per-row expand revealing full input (no password), raw response, normalized contract, evaluation result, harness_annotations, and error_status/stage/details — each large JSON in `<pre>` with a copy button (FR-007/008/009).
+- [X] T007 [US2] `test_detail_ui.py`: completed row expand shows all four artifacts; a `failed` row shows its 9-value `error_stage` + details + the partial upstream artifact (e.g. `connector_normalization` → raw present, contract null); scores render in declared-dimension order; an unexpected-dimension row shows the indicator (SC-002).
 
 **Checkpoint**: One-click full traceability per row.
 
@@ -54,8 +54,8 @@ description: "Task list for Job Detail & Traceability View (Module 13)"
 
 ## Phase 5: User Story 4 — Sort, filter, search the table (Priority: P2)
 
-- [ ] T008 [US4] `routes.py` (same file): read `verdict` (multi), `error_only`, `test_id` (multi), `q`, `sort`, `dir` → `apply_filters` + `sort_rows`; `index.html` adds verdict/error/testId filter controls, a search box, sortable headers (NO sort on Scores), and the "Visible: N of M" indicator (FR-011/012/013/014/014a).
-- [ ] T009 [US4] `test_detail_ui.py`: verdict filter, error-only toggle, testId filter, utterance/response search, and their AND-combination; sort toggles; search does NOT match raw-JSON-only content; "Visible: N of M" appears when filtered (SC-010).
+- [X] T008 [US4] `routes.py` (same file): read `verdict` (multi), `error_only`, `test_id` (multi), `q`, `sort`, `dir` → `apply_filters` + `sort_rows`; `index.html` adds verdict/error/testId filter controls, a search box, sortable headers (NO sort on Scores), and the "Visible: N of M" indicator (FR-011/012/013/014/014a).
+- [X] T009 [US4] `test_detail_ui.py`: verdict filter, error-only toggle, testId filter, utterance/response search, and their AND-combination; sort toggles; search does NOT match raw-JSON-only content; "Visible: N of M" appears when filtered (SC-010).
 
 **Checkpoint**: The table is sliceable; scores stay unsortable.
 
@@ -63,8 +63,8 @@ description: "Task list for Job Detail & Traceability View (Module 13)"
 
 ## Phase 6: User Story 5 — Live incremental population (Priority: P2)
 
-- [ ] T010 [US5] `routes.py` (same file): `GET /jobs/<id>/detail.json` → `{status, status_label, badge_class, total, processed, failed, row_count, terminal}`, `404` if deleted; add the inline poller to `index.html` (3 s; patch panel; reload on row_count growth; redirect to `/` on 404; stop at terminal) (FR-015/016/020).
-- [ ] T011 [US5] `test_detail_ui.py`: `detail.json` returns live counts + `terminal` flags (running false, completed/failed/cancelled true); deleting the job → `detail.json` 404 (FR-020 path) (SC-004).
+- [X] T010 [US5] `routes.py` (same file): `GET /jobs/<id>/detail.json` → `{status, status_label, badge_class, total, processed, failed, row_count, terminal}`, `404` if deleted; add the inline poller to `index.html` (3 s; patch panel; reload on row_count growth; redirect to `/` on 404; stop at terminal) (FR-015/016/020).
+- [X] T011 [US5] `test_detail_ui.py`: `detail.json` returns live counts + `terminal` flags (running false, completed/failed/cancelled true); deleting the job → `detail.json` 404 (FR-020 path) (SC-004).
 
 **Checkpoint**: Non-terminal jobs update without manual refresh; deleted-elsewhere handled.
 
@@ -72,8 +72,8 @@ description: "Task list for Job Detail & Traceability View (Module 13)"
 
 ## Phase 7: User Story 6 — Cancel / Delete from the detail view (Priority: P2)
 
-- [ ] T012 [US6] `routes.py` (same file): `POST /jobs/<id>/cancel` (iff queued/running → `transition_to_cancelling`; `InvalidTransitionError` → 409) + `POST /jobs/<id>/delete` (iff draft/failed/cancelled, re-checked → `delete` cascade → redirect to dashboard); `index.html` shows Cancel iff queued/running and Delete iff draft/failed/cancelled, each with a confirm prompt (FR-018/019).
-- [ ] T013 [US6] `test_detail_ui.py`: Cancel control present exactly for queued/running and absent otherwise (SC-006); Delete present exactly for draft/failed/cancelled (SC-007); cancel transitions to `cancelling`; delete removes the job + rows and redirects to `/` (SC-008); cancel on an already-terminal job → 409.
+- [X] T012 [US6] `routes.py` (same file): `POST /jobs/<id>/cancel` (iff queued/running → `transition_to_cancelling`; `InvalidTransitionError` → 409) + `POST /jobs/<id>/delete` (iff draft/failed/cancelled, re-checked → `delete` cascade → redirect to dashboard); `index.html` shows Cancel iff queued/running and Delete iff draft/failed/cancelled, each with a confirm prompt (FR-018/019).
+- [X] T013 [US6] `test_detail_ui.py`: Cancel control present exactly for queued/running and absent otherwise (SC-006); Delete present exactly for draft/failed/cancelled (SC-007); cancel transitions to `cancelling`; delete removes the job + rows and redirects to `/` (SC-008); cancel on an already-terminal job → 409.
 
 **Checkpoint**: The canonical job-level actions are correctly gated.
 
@@ -81,9 +81,9 @@ description: "Task list for Job Detail & Traceability View (Module 13)"
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-- [ ] T014 [P] `python -m ruff check src tests --fix`; resolve findings (line-length 100).
-- [ ] T015 `python -m pytest --cov=harness --cov-report=term-missing`; confirm the foundation's 338 tests still pass + adequate `ui/detail/` coverage; check whether the credential-masking XFAIL `test_no_password_column_in_detail_view` now XPASSes and, if so, un-xfail it.
-- [ ] T016 [P] Execute `specs/004-job-detail-view/quickstart.md`; verify FR→File + SC matrices; confirm `CLAUDE.md` marker → `004` plan.
+- [X] T014 [P] `python -m ruff check src tests --fix`; resolve findings (line-length 100).
+- [X] T015 `python -m pytest --cov=harness --cov-report=term-missing`; confirm the foundation's 338 tests still pass + adequate `ui/detail/` coverage; check whether the credential-masking XFAIL `test_no_password_column_in_detail_view` now XPASSes and, if so, un-xfail it.
+- [X] T016 [P] Execute `specs/004-job-detail-view/quickstart.md`; verify FR→File + SC matrices; confirm `CLAUDE.md` marker → `004` plan.
 
 ---
 

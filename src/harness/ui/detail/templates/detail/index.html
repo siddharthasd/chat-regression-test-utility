@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Job: {{ meta.job_name }}</title></head>
+<body data-job-id="{{ meta.job_id }}" data-terminal="{{ '1' if meta.terminal else '0' }}"
+      data-row-count="{{ visible_m }}">
+<header>
+  <p><a href="{{ url_for('dashboard.index') }}">&larr; Dashboard</a></p>
+  {% include "_logged_in_as.html" ignore missing %}
+</header>
+
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+
+<!-- ============================ Job Metadata Panel ============================ -->
+<section class="metadata-panel">
+  <h1>{{ meta.job_name }}
+    <span class="badge {{ meta.badge_class }}" id="status-badge">{{ meta.status_label }}</span></h1>
+  {% if meta.description %}<p>{{ meta.description }}</p>{% endif %}
+  {% if meta.error_details %}<p class="error">Error: {{ meta.error_details }}</p>{% endif %}
+
+  <dl>
+    <dt>Created By</dt><dd>{{ meta.created_by }}</dd>
+    <dt>Created</dt><dd title="{{ meta.created_at[1] }}">{{ meta.created_at[0] }}</dd>
+    <dt>Started</dt><dd title="{{ meta.started_at[1] }}">{{ meta.started_at[0] }}</dd>
+    <dt>Completed</dt><dd title="{{ meta.completed_at[1] }}">{{ meta.completed_at[0] }}</dd>
+    <dt>Harness</dt><dd>{{ meta.harness_version }}</dd>
+
+    <dt>Connector</dt><dd>{{ meta.connector_name or '—' }}
+      <small>({{ meta.connector_id or 'n/a' }})</small></dd>
+    <dt>Connector endpoint</dt><dd>{{ meta.connector_endpoint_url }}</dd>
+    <dt>Connector auth</dt><dd>
+      {% for k, v in meta.connector_auth.items() %}{{ k }}={{ v }} {% endfor %}</dd>
+    <dt>Connector timeout</dt><dd>{{ meta.connector_timeout_seconds }}s</dd>
+    <dt>Per-row password</dt><dd>{{ 'yes' if meta.connector_expects_per_row_password else 'no' }}</dd>
+
+    <dt>Evaluator</dt><dd>{{ meta.evaluation_agent_name or '—' }}
+      <small>({{ meta.evaluation_agent_id or 'n/a' }})</small></dd>
+    <dt>Evaluator endpoint</dt><dd>{{ meta.evaluator_endpoint_url }}</dd>
+    <dt>Evaluator auth</dt><dd>
+      {% for k, v in meta.evaluator_auth.items() %}{{ k }}={{ v }} {% endfor %}</dd>
+    <dt>Evaluator timeout</dt><dd>{{ meta.evaluator_timeout_seconds }}s</dd>
+    <dt>Scoring dimensions</dt><dd>{{ meta.declared_dimensions | join(', ') or '(none)' }}</dd>
+
+    <dt>Source CSV</dt><dd>
+      {% if meta.source_csv_filename %}
+        {{ meta.source_csv_filename }} —
+        <a href="{{ url_for('detail.download_csv', job_id=meta.job_id) }}">download (reconstructed)</a>
+      {% else %}<em>not uploaded</em>{% endif %}</dd>
+    <dt>Counts</dt><dd id="counts">
+      Total {{ meta.total_utterance_count if meta.total_utterance_count is not none else '—' }} ·
+      Processed {{ meta.processed_count }} · Failed {{ meta.failed_count }}</dd>
+  </dl>
+
+  <div class="actions">
+    {% if can_cancel %}
+    <form method="post" action="{{ url_for('detail.cancel', job_id=meta.job_id) }}"
+          onsubmit="return confirm('Cancel this job? In-flight rows finish; the rest are cancelled.');"
+          style="display:inline">
+      <button type="submit">Cancel Job</button>
+    </form>
+    {% endif %}
+    {% if can_delete %}
+    <form method="post" action="{{ url_for('detail.delete', job_id=meta.job_id) }}"
+          onsubmit="return confirm('Permanently delete this job and all its rows?');"
+          style="display:inline">
+      <button type="submit">Delete Job</button>
+    </form>
+    {% endif %}
+  </div>
+</section>
+
+<!-- ============================== Results Table =============================== -->
+<section class="results">
+  <form method="get" action="{{ url_for('detail.detail', job_id=meta.job_id) }}" class="filters">
+    <input type="search" name="q" value="{{ q }}" placeholder="Search utterance / response">
+    <fieldset><legend>Verdict</legend>
+      {% for v in ['pass', 'warn', 'fail'] %}
+        <label><input type="checkbox" name="verdict" value="{{ v }}"
+          {% if v in selected.verdict %}checked{% endif %}> {{ v }}</label>
+      {% endfor %}
+    </fieldset>
+    <label><input type="checkbox" name="error_only" value="1"
+      {% if error_only %}checked{% endif %}> Errors only</label>
+    <fieldset><legend>testId</legend>
+      {% for t in test_id_options %}
+        <label><input type="checkbox" name="test_id" value="{{ t }}"
+          {% if t in selected.test_id %}checked{% endif %}> {{ t }}</label>
+      {% endfor %}
+    </fieldset>
+    <button type="submit">Apply</button>
+    <a href="{{ url_for('detail.detail', job_id=meta.job_id) }}">Clear</a>
+  </form>
+
+  {% if filtered %}<p class="visible-count">Visible: {{ visible_n }} of {{ visible_m }}</p>{% endif %}
+
+  {% macro sortlink(col, label) %}
+    {% set next_dir = 'desc' if (sort == col and dir == 'asc') else 'asc' %}
+    <a href="{{ url_for('detail.detail', job_id=meta.job_id, sort=col, dir=next_dir, q=q,
+        verdict=selected.verdict, test_id=selected.test_id,
+        error_only='1' if error_only else None) }}">
+      {{ label }}{% if sort == col %} {{ '▲' if dir == 'asc' else '▼' }}{% endif %}</a>
+  {% endmacro %}
+
+  <table>
+    <thead><tr>
+      <th>{{ sortlink('row_index', '#') }}</th>
+      <th>{{ sortlink('test_id', 'testId') }}</th>
+      <th>{{ sortlink('utterance_text', 'Utterance') }}</th>
+      <th>{{ sortlink('chatbot_response', 'Response') }}</th>
+      <th>{{ sortlink('verdict', 'Verdict') }}</th>
+      <th>Scores</th>
+      <th>{{ sortlink('error_status', 'Error') }}</th>
+    </tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr class="result-row" data-row-index="{{ r.row_index }}">
+        <td>{{ r.row_index }}</td>
+        <td>{{ r.test_id }}</td>
+        <td title="{{ r.utterance_text }}">{{ r.utterance_text_short }}</td>
+        <td title="{{ r.chatbot_response }}">{{ r.chatbot_response_short or '—' }}</td>
+        <td>{% if r.verdict %}<span class="verdict verdict-{{ r.verdict }}">{{ r.verdict }}</span>{% else %}—{% endif %}
+          {% if r.has_unexpected_dims %}<span class="annot" title="evaluator emitted unexpected dimensions">⚠ unexpected</span>{% endif %}
+        </td>
+        <td>
+          <ul class="scores">
+          {% for c in r.scores_cells %}
+            <li{% if c.unexpected %} class="unexpected"{% endif %}>{{ c.name }}: {{ c.score }}</li>
+          {% endfor %}
+          </ul>
+        </td>
+        <td>{% if r.error_status %}<span class="error-status" title="{{ r.error_stage }}">{{ r.error_status }}</span>{% else %}ok{% endif %}</td>
+      </tr>
+      <tr class="expand-row"><td colspan="7">
+        <details>
+          <summary>Trace</summary>
+          <p><strong>Input</strong>: testId={{ r.test_id }}; {{ r.utterance_text }}
+            {% if r.extra_metadata %}<br>metadata: {{ r.extra_metadata }}{% endif %}</p>
+          {% if r.error_status %}
+            <p class="error">Error: {{ r.error_status }} / {{ r.error_stage }} — {{ r.error_details }}</p>
+          {% endif %}
+          {% for label, artifact in [
+              ('Raw chatbot response', r.raw_chatbot_response),
+              ('Normalized contract', r.normalized_contract),
+              ('Evaluation scores', r.evaluation_scores),
+              ('Result metadata', r.result_metadata),
+              ('Harness annotations', r.harness_annotations)] %}
+            <div class="artifact">
+              <strong>{{ label }}</strong>
+              {% if artifact is not none %}
+                <button type="button" class="copy-btn" onclick="copyPre(this)">Copy</button>
+                <pre>{{ artifact | tojson(indent=2) }}</pre>
+              {% else %}<em> (none)</em>{% endif %}
+            </div>
+          {% endfor %}
+        </details>
+      </td></tr>
+    {% else %}
+      <tr><td colspan="7" class="empty-state">No rows match the current filters.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<script>
+function copyPre(btn) {
+  var pre = btn.parentElement.querySelector('pre');
+  if (pre && navigator.clipboard) navigator.clipboard.writeText(pre.textContent);
+}
+// Live updates (FR-015/016/020): poll until terminal; reload when rows grow.
+(function () {
+  var body = document.body;
+  if (body.dataset.terminal === '1') return;
+  var baseline = parseInt(body.dataset.rowCount, 10) || 0;
+  var jobId = body.dataset.jobId;
+  var timer = setInterval(poll, 3000);
+  function poll() {
+    fetch("/jobs/" + jobId + "/detail.json").then(function (resp) {
+      if (resp.status === 404) { clearInterval(timer); window.location = "/"; return null; }
+      return resp.json();
+    }).then(function (d) {
+      if (!d) return;
+      var badge = document.getElementById('status-badge');
+      if (badge) { badge.textContent = d.status_label; badge.className = 'badge ' + d.badge_class; }
+      var counts = document.getElementById('counts');
+      if (counts) counts.textContent = 'Total ' + (d.total === null ? '—' : d.total) +
+        ' · Processed ' + d.processed + ' · Failed ' + d.failed;
+      if (d.row_count > baseline) { window.location.reload(); }
+      if (d.terminal) clearInterval(timer);
+    }).catch(function () { /* transient */ });
+  }
+})();
+</script>
+</body>
+</html>
