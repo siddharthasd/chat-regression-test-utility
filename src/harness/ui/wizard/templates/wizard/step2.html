@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Create Job — Step 2</title></head>
+<body>
+<h1>Upload CSV</h1>
+<p class="steps">Step 2 of 5: Upload CSV</p>
+
+<p><a href="{{ url_for('wizard.step1', job_id=job_id) }}">&larr; Back</a></p>
+
+{% if notice %}<p class="notice" role="status">{{ notice }}</p>{% endif %}
+
+{% if errors %}
+  <div class="error" role="alert">
+    <p>The CSV could not be accepted:</p>
+    <ul>
+    {% for e in errors %}
+      <li>{% if e.row %}Row {{ e.row }}{% if e.column %}, column "{{ e.column }}"{% endif %}: {% endif %}{{ e.message }}</li>
+    {% endfor %}
+    </ul>
+  </div>
+{% endif %}
+
+<form method="post" action="{{ url_for('wizard.step2_upload', job_id=job_id) }}"
+      enctype="multipart/form-data">
+  <p><input type="file" name="csv_file" accept=".csv"></p>
+  <button type="submit">Upload &amp; validate</button>
+</form>
+
+{% if summary %}
+  <div class="summary">
+    <p>Current CSV: <strong>{{ summary.utterances }}</strong> utterance(s),
+       <strong>{{ summary.distinct_test_ids }}</strong> distinct testId(s).</p>
+    <p><a href="{{ url_for('wizard.step3', job_id=job_id) }}">Next &rarr;</a></p>
+  </div>
+{% else %}
+  <p class="hint">Upload a valid CSV to continue.</p>
+{% endif %}
+</body>
+</html>

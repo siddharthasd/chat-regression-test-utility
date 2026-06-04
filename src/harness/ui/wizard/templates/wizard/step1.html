@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Create Job — Step 1</title></head>
+<body>
+<h1>Create Job</h1>
+<p class="steps">Step 1 of 5: Create Job</p>
+
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+
+<form method="post"
+      action="{% if job %}{{ url_for('wizard.step1_save', job_id=job.job_id) }}{% else %}{{ url_for('wizard.create_job') }}{% endif %}">
+  <p>
+    <label>Job name (required)<br>
+      <input type="text" name="job_name" value="{{ form.get('job_name', '') }}" required>
+    </label>
+  </p>
+  <p>
+    <label>Description (optional)<br>
+      <textarea name="description" rows="3">{{ form.get('description', '') }}</textarea>
+    </label>
+  </p>
+  <button type="submit">Next</button>
+</form>
+</body>
+</html>

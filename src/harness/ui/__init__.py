@@ -23,8 +23,10 @@ def create_app() -> Flask:
     # Blueprints / routes registered by spec modules.
     from harness.ui.connector_registry import bp as connector_registry_bp
     from harness.ui.evaluator_registry import bp as evaluator_registry_bp
+    from harness.ui.wizard import bp as wizard_bp
 
     app.register_blueprint(connector_registry_bp)
     app.register_blueprint(evaluator_registry_bp)
-    # Future: 002 dashboard, 003 wizard, 004 detail view, 005 export.
+    app.register_blueprint(wizard_bp)
+    # Future: 002 dashboard, 004 detail view, 005 export.
     return app

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Create Job — Step 5</title></head>
+<body>
+<h1>Review &amp; Start</h1>
+<p class="steps">Step 5 of 5: Review &amp; Start</p>
+
+<p><a href="{{ url_for('wizard.step4', job_id=job_id) }}">&larr; Back</a></p>
+
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+
+<dl class="review">
+  <dt>Job name</dt><dd>{{ view.job_name }}</dd>
+  <dt>Description</dt><dd>{{ view.description or '(none)' }}</dd>
+  <dt>CSV</dt><dd>{{ view.source_csv_filename }} — {{ view.total_utterance_count }} utterance(s),
+    {{ view.distinct_test_ids }} distinct testId(s)</dd>
+  <dt>Connector</dt><dd>{{ view.connector_name or '(not selected)' }} —
+    <span title="{{ view.connector_endpoint_url }}">{{ (view.connector_endpoint_url or '')[:50] }}</span>
+    (auth: {{ view.connector_auth_mode }};
+    per-row password: {{ 'yes' if view.connector_expects_per_row_password else 'no' }})</dd>
+  <dt>Evaluator</dt><dd>{{ view.evaluation_agent_name or '(not selected)' }} —
+    <span title="{{ view.evaluator_endpoint_url }}">{{ (view.evaluator_endpoint_url or '')[:50] }}</span>
+    (auth: {{ view.evaluator_auth_mode }})</dd>
+  <dt>Scoring dimensions</dt><dd>{{ view.declared_scoring_dimensions | join(', ') or '(none)' }}</dd>
+</dl>
+
+{% if not start_ready %}<p class="warning" role="alert">{{ reason }}</p>{% endif %}
+
+<form method="post" action="{{ url_for('wizard.start', job_id=job_id) }}">
+  <button type="submit" {% if not start_ready %}disabled{% endif %}>Start Job</button>
+</form>
+</body>
+</html>

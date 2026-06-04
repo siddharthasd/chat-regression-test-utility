@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Job Started</title></head>
+<body>
+<h1>Job started</h1>
+<p>Job <strong>{{ view.job_name }}</strong> ({{ view.job_id[:8] }}) is now
+   <strong>{{ view.status }}</strong>. The execution engine will pick it up shortly.</p>
+<p><a href="{{ url_for('wizard.new_job') }}">Create another job</a></p>
+</body>
+</html>

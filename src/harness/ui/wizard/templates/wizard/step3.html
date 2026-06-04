@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Create Job — Step 3</title></head>
+<body>
+<h1>Select Connector</h1>
+<p class="steps">Step 3 of 5: Select Connector</p>
+
+<p><a href="{{ url_for('wizard.step2', job_id=job_id) }}">&larr; Back</a></p>
+
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+
+{% if not entries %}
+  <p class="empty-state" role="alert">
+    No connectors are registered yet.
+    <a href="{{ url_for('connector_registry.new_connector') }}">Register a connector</a>
+    to continue, then return here.
+  </p>
+{% else %}
+<form method="post" action="{{ url_for('wizard.step3_save', job_id=job_id) }}">
+  <p>
+    <label>Connector (required)<br>
+      <select name="connector_id" required>
+        <option value="">-- choose a connector --</option>
+        {% for e in entries %}
+          <option value="{{ e.connector_id }}" {% if e.connector_id == selected %}selected{% endif %}>
+            {{ e.display_name }} ({{ e.connector_id[:8] }}){% if e.expects_per_row_password %} — needs per-row password{% endif %}
+          </option>
+        {% endfor %}
+      </select>
+    </label>
+  </p>
+  <button type="submit">Next</button>
+</form>
+{% endif %}
+</body>
+</html>

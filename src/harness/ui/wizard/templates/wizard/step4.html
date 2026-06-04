@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Create Job — Step 4</title></head>
+<body>
+<h1>Select Evaluation Agent</h1>
+<p class="steps">Step 4 of 5: Select Evaluation Agent</p>
+
+<p><a href="{{ url_for('wizard.step3', job_id=job_id) }}">&larr; Back</a></p>
+
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+
+{% if not entries %}
+  <p class="empty-state" role="alert">
+    No evaluation agents are registered yet.
+    <a href="{{ url_for('evaluator_registry.new_evaluator') }}">Register an evaluator</a>
+    to continue, then return here.
+  </p>
+{% else %}
+<form method="post" action="{{ url_for('wizard.step4_save', job_id=job_id) }}">
+  <p>
+    <label>Evaluation agent (required)<br>
+      <select name="evaluation_agent_id" required>
+        <option value="">-- choose an evaluator --</option>
+        {% for e in entries %}
+          <option value="{{ e.evaluation_agent_id }}" {% if e.evaluation_agent_id == selected %}selected{% endif %}>
+            {{ e.display_name }} ({{ e.evaluation_agent_id[:8] }})
+          </option>
+        {% endfor %}
+      </select>
+    </label>
+  </p>
+  <details>
+    <summary>Evaluator details</summary>
+    <ul>
+    {% for e in entries %}
+      <li><strong>{{ e.display_name }}</strong>: {{ e.description }}
+        {% if e.declared_scoring_dimensions %}
+          — dimensions: {{ e.declared_scoring_dimensions | join(', ') }}
+        {% endif %}
+      </li>
+    {% endfor %}
+    </ul>
+  </details>
+  <button type="submit">Next</button>
+</form>
+{% endif %}
+</body>
+</html>
