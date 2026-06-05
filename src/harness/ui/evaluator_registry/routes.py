@@ -36,6 +36,10 @@ def _reg_to_view(reg) -> dict:
         "auth_mode": descriptor.get("mode"),
         "header_name": descriptor.get("headerName"),
         "username": descriptor.get("username"),
+        "token_url": descriptor.get("tokenUrl"),
+        "client_id": descriptor.get("clientId"),
+        "scope": descriptor.get("scope"),
+        "audience": descriptor.get("audience"),
         "timeout_seconds": reg.timeout_seconds,
         "declared_scoring_dimensions": dims,
         "dimensions_text": "\n".join(dims),
@@ -209,4 +213,19 @@ def _descriptor_from_form(form, mode: str) -> tuple[dict, bool]:
             "username": (form.get("username") or "").strip(),
             "password": password,
         }, not password
+    if mode == "client-credentials":
+        secret = (form.get("client_secret") or "").strip()
+        descriptor = {
+            "mode": "client-credentials",
+            "tokenUrl": (form.get("token_url") or "").strip(),
+            "clientId": (form.get("client_id") or "").strip(),
+            "clientSecret": secret,
+        }
+        scope = (form.get("scope") or "").strip()
+        audience = (form.get("audience") or "").strip()
+        if scope:
+            descriptor["scope"] = scope
+        if audience:
+            descriptor["audience"] = audience
+        return descriptor, not secret
     return {"mode": "none"}, False

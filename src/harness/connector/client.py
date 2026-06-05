@@ -13,6 +13,7 @@ from harness.connector.result import ConnectorResult, ConnectorSnapshot, Utteran
 from harness.contract import validate_contract
 from harness.persistence.exceptions import HarnessKeyMismatchError
 from harness.remote.auth import build_auth_headers, decrypt_descriptor
+from harness.remote.oauth import TokenFetchError, resolve_auth_descriptor
 
 _BODY_TRUNCATE = 2000
 
@@ -43,13 +44,26 @@ def dispatch_utterance(
             error_details="machine-local key missing or wrong",
         )
 
-    headers = {"Content-Type": "application/json", **build_auth_headers(descriptor)}
     body = _build_body(snapshot, row)
 
     owns_client = client is None
     if owns_client:
         client = httpx.Client(timeout=httpx.Timeout(snapshot.timeout_seconds))
     try:
+        # 2. Resolve the descriptor (client-credentials fetches a token via `client`,
+        #    reusing the per-row timeout); other modes pass through unchanged.
+        try:
+            descriptor = resolve_auth_descriptor(
+                descriptor, client=client, timeout=snapshot.timeout_seconds
+            )
+        except TokenFetchError as exc:
+            return ConnectorResult(
+                ok=False,
+                error_stage="connector_auth",
+                error_details=f"token fetch failed: {exc}",
+            )
+        headers = {"Content-Type": "application/json", **build_auth_headers(descriptor)}
+
         try:
             response = client.post(snapshot.endpoint_url, json=body, headers=headers)
         except httpx.TimeoutException:

@@ -176,7 +176,7 @@ the ones your service influences; understanding them tells you exactly what to a
 | `connector_transport` | The harness couldn't reach you, the connection failed (DNS/refused/TLS), or your response took longer than `timeoutSeconds` | Be reachable; respond within the configured timeout; the harness will **not** retry |
 | `connector_response` | You returned a **non-2xx** HTTP status. The harness records your response body (truncated) as the error detail | Return `200`; put diagnostic info in the body if you must fail |
 | `connector_normalization` | You returned `2xx` but the body **isn't valid JSON**, or it **fails contract validation** (missing/mis-typed required field, `contractVersion` too high). The detail lists the field violations | Match the schema in §3 exactly; send `contractVersion: "1"`; ensure `conversationContext` is `null` and `chatbotResponse` has all four sub-fields |
-| `connector_auth` | The harness couldn't **decrypt the stored credential** for your registration (machine key missing/rotated) | This is a harness-side configuration issue, not your service — re-register the credential if it occurs |
+| `connector_auth` | The harness couldn't obtain the service credential — either it couldn't **decrypt the stored credential** (machine key missing/rotated) or, for `client-credentials`, the **token request failed** (token URL unreachable, non-2xx, or no `access_token`) | Decrypt failures are a harness-side config issue (re-register the credential); token failures mean checking the token URL / client id / client secret / scope you registered |
 
 Per-row failures are **isolated**: a failing row is recorded with its stage + detail and
 the run continues. One bad row never aborts the job.
@@ -194,12 +194,32 @@ chosen at registration; you implement the matching check on your side.
 | `bearer` | `Authorization: Bearer <token>` | Validate the bearer token |
 | `api-key-header` | `<your-header-name>: <value>` | Validate a custom header (e.g. `X-API-Key`) |
 | `basic` | `Authorization: Basic base64(user:pass)` | Validate HTTP Basic credentials |
+| `client-credentials` | `Authorization: Bearer <fetched-token>` | Validate the bearer token your gateway/IdP issued |
 
 The credential is entered once at registration and **encrypted at rest** by the harness;
 it is decrypted only in memory when building each request and never logged, exported, or
 shown in the UI. This auth is **service-level** (how the harness authenticates to your
 connector) and is distinct from the optional **per-row `password`** (§7), which is a
 credential for your *chatbot*.
+
+For `client-credentials`, the harness performs the OAuth2 **client-credentials grant** itself:
+before calling your endpoint it `POST`s `grant_type=client_credentials` (plus your client id,
+client secret, and optional scope/audience) as a form-encoded body to your registered **token
+URL**, reads the `access_token` from the JSON response, and attaches it as
+`Authorization: Bearer <token>`. Tokens are cached in memory and reused until shortly before
+their `expires_in`, then re-fetched — so your endpoint just validates a normal bearer token.
+If the token request fails (unreachable token URL, non-2xx, or no `access_token`), the row is
+recorded under the `connector_auth` stage and your endpoint is never called.
+
+> **This token is service-level — one token, the same for every row.** The harness's
+> client-credentials grant carries only your registered client id/secret/scope/audience; it has
+> **no per-row parameter**, and the token is cached and reused across all rows of a job. If your
+> backend needs a **per-employee / per-end-user** token, do *not* try to drive it from this
+> credential. Instead, key it off the per-row **`testId`** that every connector request already
+> carries in its body (§2), and mint the per-user token **inside your connector**. In other
+> words: the harness uses one service token to *reach* you; your connector uses `testId` to
+> obtain whatever per-user token it needs to call the chatbot. (If the per-user secret is a
+> password rather than a derived identity, use the per-row `password` in §7 instead.)
 
 ---
 
@@ -256,7 +276,7 @@ and provide the metadata:
 | **Display name** | Yes | Human-readable label shown in the job wizard, dashboard, detail view, and exports. This exact name is snapshotted onto each job at creation time. |
 | **Description** | No | Free text. |
 | **Endpoint URL** | Yes | Full `http://` or `https://` URL the harness will `POST` to. |
-| **Auth mode** | Yes | `none` / `bearer` / `api-key-header` / `basic` (§6). For the non-`none` modes you also enter the credential (token / header name + value / username + password). |
+| **Auth mode** | Yes | `none` / `bearer` / `api-key-header` / `basic` / `client-credentials` (§6). For the non-`none` modes you also enter the credential (token / header name + value / username + password). For `client-credentials` you enter a **token URL**, **client ID**, **client secret**, and optional **scope** + **audience**; only the client secret is stored encrypted. |
 | **Timeout (seconds)** | Yes | 1–300, default 30. The harness aborts a row's call after this. |
 | **Expects per-row password** | Yes (toggle) | Enable only if your chatbot needs a per-row credential (§7). |
 

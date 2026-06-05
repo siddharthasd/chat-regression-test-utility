@@ -65,3 +65,62 @@ def test_require_credential_false_skips_secret() -> None:
     payload, errors = parse_connector_form(_form(auth_mode="bearer"), require_credential=False)
     assert errors == {}  # token not required when editing without replace
     assert payload["auth_descriptor"]["mode"] == "bearer"
+
+
+def test_client_credentials_descriptor() -> None:
+    payload, errors = parse_connector_form(
+        _form(
+            auth_mode="client-credentials",
+            token_url="https://idp.test/token",
+            client_id="cid",
+            client_secret="sec",
+            scope="a b",
+            audience="aud",
+        )
+    )
+    assert errors == {}
+    assert payload["auth_descriptor"] == {
+        "mode": "client-credentials",
+        "tokenUrl": "https://idp.test/token",
+        "clientId": "cid",
+        "clientSecret": "sec",
+        "scope": "a b",
+        "audience": "aud",
+    }
+
+
+def test_client_credentials_requires_token_url_and_client_id_and_secret() -> None:
+    _, errors = parse_connector_form(_form(auth_mode="client-credentials"))
+    assert "token_url" in errors
+    assert "client_id" in errors
+    assert "client_secret" in errors
+
+
+def test_client_credentials_rejects_bad_token_url() -> None:
+    _, errors = parse_connector_form(
+        _form(auth_mode="client-credentials", token_url="nope", client_id="c", client_secret="s")
+    )
+    assert "token_url" in errors
+
+
+def test_client_credentials_omits_blank_scope_audience() -> None:
+    payload, errors = parse_connector_form(
+        _form(
+            auth_mode="client-credentials",
+            token_url="https://idp.test/token",
+            client_id="cid",
+            client_secret="sec",
+        )
+    )
+    assert errors == {}
+    assert "scope" not in payload["auth_descriptor"]
+    assert "audience" not in payload["auth_descriptor"]
+
+
+def test_client_credentials_secret_optional_without_replace() -> None:
+    payload, errors = parse_connector_form(
+        _form(auth_mode="client-credentials", token_url="https://idp.test/token", client_id="cid"),
+        require_credential=False,
+    )
+    assert errors == {}  # secret not required when editing without replace
+    assert payload["auth_descriptor"]["clientSecret"] == ""

@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from urllib.parse import urlparse
 
-AUTH_MODES = ("none", "bearer", "api-key-header", "basic")
+AUTH_MODES = ("none", "bearer", "api-key-header", "basic", "client-credentials")
 TIMEOUT_MIN, TIMEOUT_MAX = 1, 300
 _TRUTHY = {"1", "true", "on", "yes"}
 
@@ -92,6 +92,8 @@ def _build_descriptor(
         if require_credential and not header_value:
             errors["header_value"] = "Header value is required."
         return {"mode": "api-key-header", "headerName": header_name, "credential": header_value}
+    if mode == "client-credentials":
+        return _build_client_credentials(form, errors, require_credential)
     # basic
     username = (form.get("username") or "").strip()
     password = (form.get("password") or "").strip()
@@ -100,3 +102,36 @@ def _build_descriptor(
     if require_credential and not password:
         errors["password"] = "Password is required."
     return {"mode": "basic", "username": username, "password": password}
+
+
+def _build_client_credentials(
+    form: Mapping, errors: dict[str, str], require_credential: bool
+) -> dict:
+    """OAuth2 client-credentials descriptor. clientSecret is the only secret subfield;
+    scope/audience are optional and omitted when blank (harness.remote.oauth)."""
+    token_url = (form.get("token_url") or "").strip()
+    client_id = (form.get("client_id") or "").strip()
+    client_secret = (form.get("client_secret") or "").strip()
+    scope = (form.get("scope") or "").strip()
+    audience = (form.get("audience") or "").strip()
+
+    if not token_url:
+        errors["token_url"] = "Token URL is required."
+    elif not _valid_url(token_url):
+        errors["token_url"] = "Token URL must be a valid http:// or https:// URL."
+    if not client_id:
+        errors["client_id"] = "Client ID is required."
+    if require_credential and not client_secret:
+        errors["client_secret"] = "Client secret is required."
+
+    descriptor = {
+        "mode": "client-credentials",
+        "tokenUrl": token_url,
+        "clientId": client_id,
+        "clientSecret": client_secret,
+    }
+    if scope:
+        descriptor["scope"] = scope
+    if audience:
+        descriptor["audience"] = audience
+    return descriptor

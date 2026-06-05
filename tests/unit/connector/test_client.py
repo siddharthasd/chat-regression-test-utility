@@ -12,6 +12,7 @@ import httpx
 
 from harness.connector import ConnectorSnapshot, UtteranceRow, dispatch_utterance, mock
 from harness.persistence import encryption
+from harness.remote import oauth
 
 
 def _snap(auth: dict | None = None, expects: bool = False, timeout: int = 10) -> ConnectorSnapshot:
@@ -161,3 +162,43 @@ def test_no_plaintext_credential_in_result() -> None:
         client=_client(_ok),
     )
     assert "DISTINCT-TOKEN-XYZ" not in repr(r)  # plaintext never surfaces in the result
+
+
+# ------------------------------------------------------------------ client-credentials
+def _cc_auth() -> dict:
+    return {
+        "mode": "client-credentials",
+        "tokenUrl": "http://idp.test/token",
+        "clientId": "cid",
+        "clientSecret": encryption.encrypt_credential("SHHH"),
+    }
+
+
+def test_client_credentials_fetches_token_then_sends_bearer() -> None:
+    oauth.reset_token_cache()
+    captured: dict = {}
+
+    def h(request: httpx.Request) -> httpx.Response:
+        if str(request.url) == "http://idp.test/token":
+            assert b"client_secret=SHHH" in request.content  # decrypted secret used
+            return httpx.Response(200, json={"access_token": "AT", "expires_in": 3600})
+        captured["auth"] = request.headers.get("Authorization")
+        return httpx.Response(200, json=mock.build_contract("t", "h"))
+
+    r = dispatch_utterance(_snap(auth=_cc_auth()), UtteranceRow("t", "h"), client=_client(h))
+    assert r.ok is True
+    assert captured["auth"] == "Bearer AT"  # token attached to the connector request
+
+
+def test_client_credentials_token_failure_is_connector_auth() -> None:
+    oauth.reset_token_cache()
+
+    def h(request: httpx.Request) -> httpx.Response:
+        if str(request.url) == "http://idp.test/token":
+            return httpx.Response(401, text="bad client")
+        return httpx.Response(200, json=mock.build_contract("t", "h"))
+
+    r = dispatch_utterance(_snap(auth=_cc_auth()), UtteranceRow("t", "h"), client=_client(h))
+    assert r.ok is False
+    assert r.error_stage == "connector_auth"
+    assert "token fetch failed" in r.error_details

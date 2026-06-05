@@ -13,6 +13,7 @@ import httpx
 
 from harness.contract import validate_contract
 from harness.remote.auth import build_auth_headers
+from harness.remote.oauth import TokenFetchError, resolve_auth_descriptor
 
 _SAMPLE_BODY = {"testId": "test-connection", "utteranceText": "ping"}
 _TRUNCATE = 500
@@ -21,7 +22,8 @@ _TRUNCATE = 500
 @dataclass(frozen=True)
 class TestConnectionResult:
     ok: bool
-    category: str  # valid|invalid_contract|http_error|unreachable|timeout|auth_decrypt_failed
+    # valid|invalid_contract|http_error|unreachable|timeout|auth_decrypt_failed|auth_token_failed
+    category: str
     status_code: int | None = None
     detail: str = ""
 
@@ -39,15 +41,23 @@ def run_test_connection(
     if expects_per_row_password:
         body["password"] = "test"
 
-    try:
-        headers = {"Content-Type": "application/json", **build_auth_headers(decrypted_descriptor)}
-    except ValueError as exc:
-        return TestConnectionResult(False, "auth_decrypt_failed", detail=str(exc))
-
     owns_client = client is None
     if owns_client:
         client = httpx.Client(timeout=httpx.Timeout(timeout_seconds))
     try:
+        # Resolve client-credentials to a bearer token (fetched via `client`) before
+        # building headers; other modes pass through unchanged.
+        try:
+            descriptor = resolve_auth_descriptor(
+                decrypted_descriptor, client=client, timeout=timeout_seconds, use_cache=False
+            )
+        except TokenFetchError as exc:
+            return TestConnectionResult(False, "auth_token_failed", detail=str(exc))
+        try:
+            headers = {"Content-Type": "application/json", **build_auth_headers(descriptor)}
+        except ValueError as exc:
+            return TestConnectionResult(False, "auth_decrypt_failed", detail=str(exc))
+
         try:
             response = client.post(endpoint_url, json=body, headers=headers)
         except httpx.TimeoutException:

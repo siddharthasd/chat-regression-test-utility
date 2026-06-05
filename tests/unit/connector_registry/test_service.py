@@ -6,6 +6,7 @@ import pytest
 
 from harness.connector_registry import ConnectorRegistryService, RegistrationInUseError
 from harness.persistence.repositories import JobRepository
+from harness.remote import oauth
 
 
 def _payload(**over) -> dict:
@@ -68,6 +69,32 @@ def test_mode_change_discards_old_credential(db_session) -> None:
     assert desc["mode"] == "basic"
     assert desc["password"] == "pw"
     assert "credential" not in desc  # old bearer credential discarded
+
+
+def test_update_invalidates_cached_token_on_secret_rotation(db_session) -> None:
+    """Rotating a client-credentials secret must evict the cached token (F2): the
+    cache key omits the secret, so a stale token would otherwise survive."""
+    cc = {
+        "mode": "client-credentials",
+        "tokenUrl": "https://idp.test/token",
+        "clientId": "cid",
+        "clientSecret": "OLD",
+        "scope": "s",
+    }
+    svc = ConnectorRegistryService(db_session)
+    reg = svc.create(_payload(auth_descriptor=dict(cc)))
+
+    # Seed the cache as if a job had already fetched a token for this key.
+    oauth.reset_token_cache()
+    oauth._cache[oauth._cache_key(cc)] = ("STALE", float("inf"))
+
+    svc.update(
+        reg.connector_id,
+        _payload(auth_descriptor={**cc, "clientSecret": "NEW"}),
+        replace_credential=True,
+    )
+    assert oauth._cache_key(cc) not in oauth._cache  # evicted
+    oauth.reset_token_cache()
 
 
 # ------------------------------------------------------------------ US3

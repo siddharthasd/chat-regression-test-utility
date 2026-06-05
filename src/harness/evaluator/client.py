@@ -13,6 +13,7 @@ from harness.evaluator.result import EvaluatorResult, EvaluatorSnapshot
 from harness.evaluator.validation import compute_harness_annotations, validate_evaluation_result
 from harness.persistence.exceptions import HarnessKeyMismatchError
 from harness.remote.auth import build_auth_headers, decrypt_descriptor
+from harness.remote.oauth import TokenFetchError, resolve_auth_descriptor
 
 _BODY_TRUNCATE = 2000
 
@@ -37,13 +38,26 @@ def dispatch_evaluation(
             error_details="machine-local key missing or wrong",
         )
 
-    headers = {"Content-Type": "application/json", **build_auth_headers(descriptor)}
     expected_uid = contract.get("utteranceId") if isinstance(contract, dict) else None
 
     owns_client = client is None
     if owns_client:
         client = httpx.Client(timeout=httpx.Timeout(snapshot.timeout_seconds))
     try:
+        # Resolve the descriptor (client-credentials fetches a token via `client`,
+        # reusing the per-row timeout); other modes pass through unchanged.
+        try:
+            descriptor = resolve_auth_descriptor(
+                descriptor, client=client, timeout=snapshot.timeout_seconds
+            )
+        except TokenFetchError as exc:
+            return EvaluatorResult(
+                ok=False,
+                error_stage="evaluator_auth",
+                error_details=f"token fetch failed: {exc}",
+            )
+        headers = {"Content-Type": "application/json", **build_auth_headers(descriptor)}
+
         try:
             response = client.post(snapshot.endpoint_url, json=contract, headers=headers)
         except httpx.TimeoutException:

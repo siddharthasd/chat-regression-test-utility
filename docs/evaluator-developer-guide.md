@@ -159,7 +159,7 @@ ones your service influences.
 | `evaluator_transport` | The harness couldn't reach you, the connection failed, or your response exceeded `timeoutSeconds` | Be reachable; respond within the timeout; the harness will **not** retry |
 | `evaluator_response` | You returned a **non-2xx** HTTP status (the body is recorded, truncated, as the detail) | Return `200` |
 | `evaluator_result` | You returned `2xx` but the body **isn't valid JSON** or **fails result validation** (missing/mis-typed field, verdict not in `pass`/`fail`/`warn`, `utteranceId` doesn't match the contract, bad score entry, non-ISO timestamp) | Match §3 exactly: echo `utteranceId`, use a closed-enum verdict, include all required fields with correct types |
-| `evaluator_auth` | The harness couldn't **decrypt the stored credential** for your registration | Harness-side config issue (key missing/rotated), not your service — re-register the credential if it occurs |
+| `evaluator_auth` | The harness couldn't obtain the service credential — either it couldn't **decrypt the stored credential** (key missing/rotated) or, for `client-credentials`, the **token request failed** (token URL unreachable, non-2xx, or no `access_token`) | Decrypt failures are a harness-side config issue (re-register the credential); token failures mean checking the token URL / client id / client secret / scope you registered |
 
 Per-row failures are **isolated**: a failing row is recorded with its stage + detail and
 the run continues. One bad row never aborts the job.
@@ -177,10 +177,18 @@ chosen at registration; you implement the matching check.
 | `bearer` | `Authorization: Bearer <token>` | Validate the bearer token |
 | `api-key-header` | `<your-header-name>: <value>` | Validate a custom header (e.g. `X-API-Key`) |
 | `basic` | `Authorization: Basic base64(user:pass)` | Validate HTTP Basic credentials |
+| `client-credentials` | `Authorization: Bearer <fetched-token>` | Validate the bearer token your gateway/IdP issued |
 
 The credential is entered once at registration and **encrypted at rest**; it is decrypted
 only in memory when building each request and is never logged, exported, or shown in the
 UI. (Evaluators have no per-row password concept — that's a connector-only feature.)
+
+For `client-credentials`, the harness runs the OAuth2 **client-credentials grant** itself:
+before each call it `POST`s `grant_type=client_credentials` (plus your client id, client
+secret, and optional scope/audience) as a form-encoded body to your registered **token URL**,
+reads `access_token` from the JSON response, and attaches it as `Authorization: Bearer <token>`.
+Tokens are cached in memory and reused until shortly before `expires_in`, then re-fetched. A
+failed token request records the row under `evaluator_auth` and your endpoint is never called.
 
 ---
 
@@ -242,7 +250,7 @@ Open the registry, choose **Register new evaluator**, and provide the metadata:
 | **Display name** | Yes | Human-readable label shown in the job wizard, detail view, and exports. Snapshotted onto each job at creation time. |
 | **Description** | **Yes** | What this evaluator measures / how it judges. (Required for evaluators.) |
 | **Endpoint URL** | Yes | Full `http://` or `https://` URL the harness `POST`s the contract to. |
-| **Auth mode** | Yes | `none` / `bearer` / `api-key-header` / `basic` (§6), plus the credential for the non-`none` modes. |
+| **Auth mode** | Yes | `none` / `bearer` / `api-key-header` / `basic` / `client-credentials` (§6), plus the credential for the non-`none` modes. For `client-credentials` you enter a **token URL**, **client ID**, **client secret**, and optional **scope** + **audience**; only the client secret is stored encrypted. |
 | **Timeout (seconds)** | Yes | 1–600, default 60. The harness aborts a row's call after this. (Judges are often slower than connectors — size this for your model.) |
 | **Scoring dimensions** | No | One dimension name per line (ordered). Blank lines are ignored; duplicates raise a non-blocking warning; an empty list is allowed (§7). |
 

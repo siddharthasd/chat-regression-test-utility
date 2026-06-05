@@ -13,6 +13,7 @@ from harness.persistence.repositories import (
     EvaluationAgentRegistrationRepository,
     JobRepository,
 )
+from harness.remote.oauth import invalidate_token
 
 
 class RegistrationInUseError(Exception):
@@ -76,6 +77,11 @@ class EvaluatorRegistryService:
         }
         if replace_credential or mode_changed:
             update_data["auth_descriptor"] = payload["auth_descriptor"]
+            # Drop any token cached under the old/new client-credentials key so a
+            # rotated secret takes effect immediately (the cache key omits the
+            # secret). No-ops for non-client-credentials descriptors.
+            invalidate_token(existing.auth_descriptor or {})
+            invalidate_token(payload["auth_descriptor"])
         return self._repo.update(evaluation_agent_id, update_data)
 
     def archive(self, evaluation_agent_id: str) -> None:

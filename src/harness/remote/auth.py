@@ -1,8 +1,10 @@
 """Auth-header construction + just-in-time credential decryption (shared, FR-007).
 
-The single source of truth for the four auth modes (`none`/`bearer`/
-`api-key-header`/`basic`) used by both the connector (007) and evaluator (008)
-HTTP clients. Credential decryption reuses 009's machine-local encryption.
+The single source of truth for the auth modes (`none`/`bearer`/`api-key-header`/
+`basic`/`client-credentials`) used by both the connector (007) and evaluator (008)
+HTTP clients. Credential decryption reuses 009's machine-local encryption. The
+`client-credentials` token exchange lives in `remote.oauth`; this module only
+builds headers from a resolved descriptor.
 """
 
 from __future__ import annotations
@@ -11,7 +13,7 @@ import base64
 
 from harness.persistence.encryption import decrypt_credential
 
-_SECRET_SUBFIELDS = ("credential", "password")
+_SECRET_SUBFIELDS = ("credential", "password", "clientSecret")
 
 
 def decrypt_descriptor(descriptor: dict) -> dict:

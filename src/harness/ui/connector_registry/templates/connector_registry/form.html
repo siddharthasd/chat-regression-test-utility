@@ -25,7 +25,7 @@
   <p><label>Auth mode
     <select name="auth_mode">
       {% set current_mode = form.get('auth_mode') or (reg.auth_mode if reg else 'none') %}
-      {% for m in ['none', 'bearer', 'api-key-header', 'basic'] %}
+      {% for m in ['none', 'bearer', 'api-key-header', 'basic', 'client-credentials'] %}
         <option value="{{ m }}" {% if current_mode == m %}selected{% endif %}>{{ m }}</option>
       {% endfor %}
     </select></label>
@@ -46,6 +46,18 @@
       {% if errors.username %}<span class="field-error">{{ errors.username }}</span>{% endif %}</p>
     <p><label>Basic password <input type="password" name="password" autocomplete="off"></label>
       {% if errors.password %}<span class="field-error">{{ errors.password }}</span>{% endif %}</p>
+    <p><label>OAuth2 token URL
+      <input name="token_url" value="{{ form.get('token_url') or (reg.token_url if reg else '') }}"></label>
+      {% if errors.token_url %}<span class="field-error">{{ errors.token_url }}</span>{% endif %}</p>
+    <p><label>OAuth2 client ID
+      <input name="client_id" value="{{ form.get('client_id') or (reg.client_id if reg else '') }}"></label>
+      {% if errors.client_id %}<span class="field-error">{{ errors.client_id }}</span>{% endif %}</p>
+    <p><label>OAuth2 client secret <input type="password" name="client_secret" autocomplete="off"></label>
+      {% if errors.client_secret %}<span class="field-error">{{ errors.client_secret }}</span>{% endif %}</p>
+    <p><label>OAuth2 scope (optional, space-delimited)
+      <input name="scope" value="{{ form.get('scope') or (reg.scope if reg else '') }}"></label></p>
+    <p><label>OAuth2 audience (optional)
+      <input name="audience" value="{{ form.get('audience') or (reg.audience if reg else '') }}"></label></p>
   </fieldset>
 
   <p><label>Timeout seconds

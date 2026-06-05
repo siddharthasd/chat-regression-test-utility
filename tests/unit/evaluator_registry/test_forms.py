@@ -81,3 +81,42 @@ def test_require_credential_false_skips_secret() -> None:
     payload, errors = parse_evaluator_form(_form(auth_mode="bearer"), require_credential=False)
     assert errors == {}
     assert payload["auth_descriptor"]["mode"] == "bearer"
+
+
+# ------------------------------------------------------------------ client-credentials
+def test_client_credentials_descriptor() -> None:
+    payload, errors = parse_evaluator_form(
+        _form(
+            auth_mode="client-credentials",
+            token_url="https://idp.test/token",
+            client_id="cid",
+            client_secret="sec",
+            scope="a b",
+            audience="aud",
+        )
+    )
+    assert errors == {}
+    assert payload["auth_descriptor"] == {
+        "mode": "client-credentials",
+        "tokenUrl": "https://idp.test/token",
+        "clientId": "cid",
+        "clientSecret": "sec",
+        "scope": "a b",
+        "audience": "aud",
+    }
+
+
+def test_client_credentials_requires_token_url_client_id_secret() -> None:
+    _, errors = parse_evaluator_form(_form(auth_mode="client-credentials"))
+    assert "token_url" in errors
+    assert "client_id" in errors
+    assert "client_secret" in errors
+
+
+def test_client_credentials_secret_optional_without_replace() -> None:
+    payload, errors = parse_evaluator_form(
+        _form(auth_mode="client-credentials", token_url="https://idp.test/token", client_id="cid"),
+        require_credential=False,
+    )
+    assert errors == {}
+    assert payload["auth_descriptor"]["clientSecret"] == ""

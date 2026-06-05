@@ -11,6 +11,7 @@ import httpx
 
 from harness.evaluator import EvaluatorSnapshot, dispatch_evaluation, mock
 from harness.persistence import encryption
+from harness.remote import oauth
 
 CONTRACT = {"utteranceId": "u-1", "utteranceText": "hi", "testId": "t1"}
 
@@ -125,3 +126,43 @@ def test_auth_header_built_from_decrypted_bearer() -> None:
         _snap(auth={"mode": "bearer", "credential": ciphertext}), CONTRACT, client=_client(h)
     )
     assert captured["auth"] == "Bearer EVAL-TOK"
+
+
+# ------------------------------------------------------------------ client-credentials
+def _cc_auth() -> dict:
+    return {
+        "mode": "client-credentials",
+        "tokenUrl": "http://idp.test/token",
+        "clientId": "cid",
+        "clientSecret": encryption.encrypt_credential("SHHH"),
+    }
+
+
+def test_client_credentials_fetches_token_then_sends_bearer() -> None:
+    oauth.reset_token_cache()
+    captured: dict = {}
+
+    def h(request: httpx.Request) -> httpx.Response:
+        if str(request.url) == "http://idp.test/token":
+            assert b"client_secret=SHHH" in request.content  # decrypted secret used
+            return httpx.Response(200, json={"access_token": "AT", "expires_in": 3600})
+        captured["auth"] = request.headers.get("Authorization")
+        return httpx.Response(200, json=mock.build_result("u-1", ["relevance"]))
+
+    r = dispatch_evaluation(_snap(auth=_cc_auth()), CONTRACT, client=_client(h))
+    assert r.ok is True
+    assert captured["auth"] == "Bearer AT"
+
+
+def test_client_credentials_token_failure_is_evaluator_auth() -> None:
+    oauth.reset_token_cache()
+
+    def h(request: httpx.Request) -> httpx.Response:
+        if str(request.url) == "http://idp.test/token":
+            return httpx.Response(401, text="bad client")
+        return httpx.Response(200, json=mock.build_result("u-1", ["relevance"]))
+
+    r = dispatch_evaluation(_snap(auth=_cc_auth()), CONTRACT, client=_client(h))
+    assert r.ok is False
+    assert r.error_stage == "evaluator_auth"
+    assert "token fetch failed" in r.error_details

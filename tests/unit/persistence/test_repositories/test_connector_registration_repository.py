@@ -41,6 +41,29 @@ def test_get_auth_descriptor_decrypted_round_trips(db_session) -> None:
     assert decrypted["credential"] == "SECRET-TOKEN-123"
 
 
+def test_client_secret_encrypted_at_rest_and_round_trips(db_session) -> None:
+    repo = ConnectorRegistrationRepository(db_session)
+    reg = repo.create(
+        _data(
+            auth_descriptor={
+                "mode": "client-credentials",
+                "tokenUrl": "https://idp.test/token",
+                "clientId": "cid",
+                "clientSecret": "CC-SECRET-123",
+                "scope": "a b",
+            }
+        )
+    )
+    # clientSecret is ciphertext at rest; non-secret subfields stay plaintext.
+    assert reg.auth_descriptor["clientSecret"] != "CC-SECRET-123"
+    assert reg.auth_descriptor["tokenUrl"] == "https://idp.test/token"
+    assert reg.auth_descriptor["clientId"] == "cid"
+    assert reg.auth_descriptor["scope"] == "a b"
+    # And it round-trips on decrypt.
+    decrypted = repo.get_auth_descriptor_decrypted(reg.connector_id)
+    assert decrypted["clientSecret"] == "CC-SECRET-123"
+
+
 def test_get_active_excludes_archived(db_session) -> None:
     repo = ConnectorRegistrationRepository(db_session)
     a = repo.create(_data(display_name="A"))
