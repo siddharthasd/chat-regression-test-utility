@@ -1,0 +1,298 @@
+# Building an Evaluation Agent — Developer Guide
+
+This guide is for developers building an **evaluation agent** (an "evaluator"): an HTTP
+service that scores a chatbot's response. You deploy it in your own environment, then
+register it in the harness by entering its metadata (URL, auth, timeout, scoring
+dimensions). This document covers the request the harness sends you, the result shape
+you must return, the validation and error categories you'll be graded against, scoring
+dimensions, and the registration steps.
+
+> It is the mirror image of the **connector** guide. Read that one too — the request the
+> harness sends *you* is the very contract a connector *produced*.
+
+---
+
+## 1. What an evaluator is
+
+After a connector turns a chatbot's reply into a **Standard Evaluation Contract**, the
+harness makes **one HTTP `POST`** to your evaluator with that contract as the body. Your
+evaluator inspects the utterance + the chatbot's response and returns an
+**EvaluationResult**: a verdict plus per-dimension scores. The harness validates and
+persists that result.
+
+```
+connector ──Standard Evaluation Contract──▶ harness ──POST (same contract)──▶ YOUR EVALUATOR
+harness ◀──────────── EvaluationResult (JSON) ───────────────────────────────┘
+```
+
+Key idea: **the connector's output and your evaluator's input are the same shape** (the
+Standard Evaluation Contract). **Your output is a different shape** (the EvaluationResult).
+Your evaluator is stateless from the harness's point of view — every row is an independent
+request; there is no session.
+
+Your evaluator may be non-deterministic (e.g. an LLM judge). The harness never caches or
+deduplicates — every call is fresh.
+
+---
+
+## 2. The request the harness sends you — the Standard Evaluation Contract
+
+| Aspect | Value |
+|---|---|
+| Method | `POST` |
+| URL | Your registered `endpointUrl` (called verbatim for every row) |
+| `Content-Type` | `application/json` |
+| Auth header | Added by the harness per your registered auth mode (see §6) |
+| Body | A **Standard Evaluation Contract** instance (the connector's output, unchanged) |
+| Timeout | The harness aborts the call after your registered `timeoutSeconds`; it does **not** retry |
+
+The body is the full contract. The fields you'll typically read:
+
+| Field | Why you care |
+|---|---|
+| `utteranceId` | **You must echo this back** in your result — it's the correlation key (see §3). |
+| `utteranceText` | The original user input being tested. |
+| `testId` | The test-case id (for your own logging/grouping if useful). |
+| `chatbotResponse.normalizedText` | The chatbot's reply as plain text — usually what you score. |
+| `chatbotResponse.rawPayload` | The raw chatbot response, if you need structure beyond the text. |
+| `chatbotResponse.agentChain` / `.metadata` | Optional signal (agents invoked, latency, etc.). |
+| `conversationContext` | `null` in v1; don't depend on its shape. |
+
+The full contract schema (every field + types) is documented in the **connector developer
+guide** — the connector produces it, you consume it. Treat unknown fields leniently; the
+contract is additive.
+
+---
+
+## 3. The response you must return — EvaluationResult
+
+Return HTTP **`200`** with a JSON object containing **all** of the following fields. (This
+shape is validated programmatically by the harness, not by the contract schema — it is a
+*different* shape from the contract.)
+
+| Field | Type | Rules |
+|---|---|---|
+| `utteranceId` | string | **Must equal the `utteranceId` from the request contract.** A mismatch fails the row. |
+| `evaluationAgentId` | string | An identifier for your evaluator. (A value that differs from the registered id is *not* an error — it's a soft signal — but echoing a stable id is recommended.) |
+| `evaluationTimestamp` | string | RFC 3339 / ISO-8601 datetime, e.g. `2026-06-05T14:32:05Z`. |
+| `evaluationVerdict` | string | **Exactly one of `pass` / `fail` / `warn`.** Any other value fails the row. |
+| `evaluationScores` | array | Zero or more score entries; see below. `[]` is allowed. |
+| `metadata` | object | Free-form evaluator metadata (model, prompt id, token usage…). No keys standardized. **`{}` is valid.** |
+
+### Each `evaluationScores` entry
+
+```json
+{ "parameter_name": "relevance", "score": 0.92, "reasoning": "Directly answers the question." }
+```
+
+| Field | Type | Rules |
+|---|---|---|
+| `parameter_name` | string | The scoring dimension's name. Align these with your **declared dimensions** (§7). |
+| `score` | number **or** string | A numeric score or a label (e.g. `0.92`, `4`, `"high"`). **Booleans are rejected.** |
+| `reasoning` | string | Why this score. Empty string is allowed, but prefer a real explanation — it surfaces in the detail view and exports. |
+
+### Complete example response
+
+```json
+{
+  "utteranceId": "a3f1c2de-9b44-4e7a-8c11-2b6f0d9e1234",
+  "evaluationAgentId": "acme-llm-judge",
+  "evaluationTimestamp": "2026-06-05T14:32:05Z",
+  "evaluationVerdict": "pass",
+  "evaluationScores": [
+    { "parameter_name": "relevance",    "score": 0.92, "reasoning": "Directly answers the question." },
+    { "parameter_name": "tone",         "score": "appropriate", "reasoning": "Polite and concise." },
+    { "parameter_name": "groundedness", "score": 0.80, "reasoning": "Matches the knowledge base." }
+  ],
+  "metadata": { "model": "acme-judge-v2", "promptTokens": 318 }
+}
+```
+
+> There is **no** top-level `reasoning` field — per-score reasoning lives inside each
+> `evaluationScores` entry. Do not invent a `userFeedback*` field; the harness has no
+> feedback concept.
+
+---
+
+## 4. Reference implementation (Python/Flask sketch)
+
+Any HTTP server in any language works:
+
+```python
+from datetime import datetime, timezone
+from flask import Flask, request, jsonify
+
+app = Flask(__name__)
+AGENT_ID = "acme-llm-judge"
+
+@app.post("/evaluate")
+def evaluate():
+    contract = request.get_json(force=True)
+    utterance = contract["utteranceText"]
+    answer = contract["chatbotResponse"]["normalizedText"]
+
+    verdict, scores = run_my_judge(utterance, answer)   # <- your scoring logic
+
+    return jsonify({
+        "utteranceId": contract["utteranceId"],          # echo it back
+        "evaluationAgentId": AGENT_ID,
+        "evaluationTimestamp": datetime.now(timezone.utc).isoformat(),
+        "evaluationVerdict": verdict,                    # "pass" | "fail" | "warn"
+        "evaluationScores": scores,                      # [{parameter_name, score, reasoning}, ...]
+        "metadata": {},
+    }), 200
+```
+
+The harness ships a **bundled mock evaluator** you can read and run as a worked reference —
+see §8.
+
+---
+
+## 5. How the harness grades your response — error categories
+
+The harness records one of these per-row outcomes. The four `evaluator_*` stages are the
+ones your service influences.
+
+| Stage | When it happens | How to avoid it |
+|---|---|---|
+| *(success)* | You returned `200` with a valid EvaluationResult | — |
+| `evaluator_transport` | The harness couldn't reach you, the connection failed, or your response exceeded `timeoutSeconds` | Be reachable; respond within the timeout; the harness will **not** retry |
+| `evaluator_response` | You returned a **non-2xx** HTTP status (the body is recorded, truncated, as the detail) | Return `200` |
+| `evaluator_result` | You returned `2xx` but the body **isn't valid JSON** or **fails result validation** (missing/mis-typed field, verdict not in `pass`/`fail`/`warn`, `utteranceId` doesn't match the contract, bad score entry, non-ISO timestamp) | Match §3 exactly: echo `utteranceId`, use a closed-enum verdict, include all required fields with correct types |
+| `evaluator_auth` | The harness couldn't **decrypt the stored credential** for your registration | Harness-side config issue (key missing/rotated), not your service — re-register the credential if it occurs |
+
+Per-row failures are **isolated**: a failing row is recorded with its stage + detail and
+the run continues. One bad row never aborts the job.
+
+---
+
+## 6. Authentication
+
+Your endpoint can require auth. The harness attaches the header based on the **auth mode**
+chosen at registration; you implement the matching check.
+
+| Auth mode | Header the harness sends | You implement |
+|---|---|---|
+| `none` | *(none)* | Open endpoint (use network controls instead) |
+| `bearer` | `Authorization: Bearer <token>` | Validate the bearer token |
+| `api-key-header` | `<your-header-name>: <value>` | Validate a custom header (e.g. `X-API-Key`) |
+| `basic` | `Authorization: Basic base64(user:pass)` | Validate HTTP Basic credentials |
+
+The credential is entered once at registration and **encrypted at rest**; it is decrypted
+only in memory when building each request and is never logged, exported, or shown in the
+UI. (Evaluators have no per-row password concept — that's a connector-only feature.)
+
+---
+
+## 7. Declared scoring dimensions
+
+At registration you declare an **ordered list of scoring dimensions** (e.g. `relevance`,
+`groundedness`, `tone`). These are metadata about what your evaluator measures, and they
+shape how results are displayed — they do **not** constrain what you return at runtime:
+
+- **Emit scores for your declared dimensions.** Their order drives the column order in the
+  detail view and in exports, so results line up across rows and across jobs that used the
+  same evaluator.
+- **Emitting an *undeclared* `parameter_name` is allowed** — it's recorded and shown, but
+  the harness flags it as a soft warning (`harnessAnnotations.unexpected_score_dimensions`)
+  so the tester can see your output diverged from the registration. It does **not** fail
+  the row or change the verdict.
+- **Omitting a declared dimension is allowed** — downstream it simply shows as
+  unevaluated (`—`) for that row. No failure.
+
+So: declared dimensions are a contract about *intent and presentation*, not a hard runtime
+gate. Keep them in sync with what you actually emit to avoid spurious "unexpected
+dimension" warnings.
+
+---
+
+## 8. Build & test locally before registering
+
+**Run the bundled mock evaluator** to see a conformant service:
+
+```bash
+harness mock-evaluator --port 8901 --dimensions "relevance,groundedness"
+# → mock evaluator listening on http://127.0.0.1:8901 (mode=ok)
+```
+
+Send it a sample contract (it echoes `utteranceId` and returns a well-formed result):
+
+```bash
+curl -s -X POST http://localhost:8901 \
+  -H "Content-Type: application/json" \
+  -d '{"contractVersion":"1","utteranceId":"u-1","utteranceText":"hi","testId":"t1",
+       "conversationContext":null,"connectorId":"c","timestamp":"2026-06-05T00:00:00Z",
+       "chatbotResponse":{"rawPayload":{},"normalizedText":"hello","agentChain":[],"metadata":{}}}' | jq .
+```
+
+Validate your own evaluator's output against §3 the same way. The mock also supports
+failure modes — `--mode status500`, `nonconformant`, `slow`, and `unexpected_dims` (emits a
+dimension you didn't declare) — useful for seeing how the harness records each error stage
+and the unexpected-dimension warning.
+
+---
+
+## 9. Registering your evaluator in the harness
+
+Evaluators are registered through the **Evaluator Registry** UI — no harness code change.
+Open the registry, choose **Register new evaluator**, and provide the metadata:
+
+| Field | Required | Notes |
+|---|---|---|
+| **Display name** | Yes | Human-readable label shown in the job wizard, detail view, and exports. Snapshotted onto each job at creation time. |
+| **Description** | **Yes** | What this evaluator measures / how it judges. (Required for evaluators.) |
+| **Endpoint URL** | Yes | Full `http://` or `https://` URL the harness `POST`s the contract to. |
+| **Auth mode** | Yes | `none` / `bearer` / `api-key-header` / `basic` (§6), plus the credential for the non-`none` modes. |
+| **Timeout (seconds)** | Yes | 1–600, default 60. The harness aborts a row's call after this. (Judges are often slower than connectors — size this for your model.) |
+| **Scoring dimensions** | No | One dimension name per line (ordered). Blank lines are ignored; duplicates raise a non-blocking warning; an empty list is allowed (§7). |
+
+**Test connection.** The registration form has a *Test connection* button that sends a
+sample contract to your endpoint and reports whether the response is a valid
+EvaluationResult — and warns if you emitted dimensions you didn't declare. Use it to
+confirm your service before saving.
+
+**After registering:**
+
+- The credential is encrypted at rest immediately.
+- Testers select your evaluator by **display name** in the job wizard. At job creation the
+  full configuration (URL, auth, timeout, declared dimensions) is **snapshotted** onto the
+  job — later edits to the registration do **not** change existing jobs.
+- You can **edit** (rotate credential, adjust dimensions/timeout), **archive** (hide from
+  new jobs, keep historical), or **restore** the registration. One referenced by historical
+  jobs cannot be hard-deleted.
+
+---
+
+## 10. Requirements checklist
+
+Your evaluator is ready to register when it:
+
+- [ ] Accepts `POST` with a Standard Evaluation Contract JSON body.
+- [ ] Returns HTTP **`200`** on success.
+- [ ] Returns an EvaluationResult (§3): `utteranceId` (echoed from the request),
+      `evaluationAgentId`, `evaluationTimestamp` (ISO-8601), `evaluationVerdict`
+      (`pass`/`fail`/`warn`), `evaluationScores` (array of `{parameter_name, score,
+      reasoning}`), `metadata` (object).
+- [ ] Uses a number or string `score` (never a boolean) in each score entry.
+- [ ] Emits `parameter_name`s aligned with its declared dimensions (extras are warned, not
+      failed).
+- [ ] Responds within the timeout you'll register (no retries on the harness side).
+- [ ] Enforces whatever auth mode you'll register (or `none`).
+- [ ] Is reachable from the harness host at the URL you'll register.
+
+---
+
+## Appendix — field quick reference
+
+**Request → evaluator:** a Standard Evaluation Contract
+(`utteranceId`, `utteranceText`, `testId`, `chatbotResponse{rawPayload, normalizedText,
+agentChain, metadata}`, `conversationContext`, `connectorId`, `timestamp`,
+`contractVersion`).
+
+**Evaluator → harness (EvaluationResult):**
+`utteranceId` (echoed), `evaluationAgentId`, `evaluationTimestamp` (ISO-8601),
+`evaluationVerdict` (`pass`|`fail`|`warn`), `evaluationScores`
+[`{parameter_name, score, reasoning}`], `metadata`.
+
+**Evaluator error stages:** `evaluator_transport`, `evaluator_response`,
+`evaluator_result`, `evaluator_auth`.
