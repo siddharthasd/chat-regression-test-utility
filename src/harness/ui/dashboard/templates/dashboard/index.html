@@ -9,9 +9,9 @@
   </div>
   <div class="d-flex gap-2">
     <form method="post" action="{{ url_for('dashboard.clear_terminal') }}"
-          onsubmit="return confirm('Delete all {{ terminal_clearable }} failed/cancelled job(s)? This cannot be undone.');">
+          onsubmit="return confirm('Delete all {{ terminal_clearable }} failed/cancelled/completed-with-errors job(s)? This cannot be undone.');">
       <button type="submit" class="btn btn-sm btn-outline-danger" {% if not terminal_clearable %}disabled{% endif %}>
-        Clear failed &amp; cancelled ({{ terminal_clearable }})
+        Clear errors ({{ terminal_clearable }})
       </button>
     </form>
     <a class="btn btn-primary btn-sm fw-semibold" href="{{ url_for('wizard.new_job') }}">+ New Job</a>

@@ -83,7 +83,9 @@ def row_view(job: Job, now: datetime | None = None) -> dict:
         "total": job.total_utterance_count,
         "failed_count": failed,
         "harness_version": job.harness_version,
-        "deletable": job.status in _DELETABLE,
+        "deletable": job.status in _DELETABLE or (
+            job.status == JobStatus.COMPLETED.value and failed > 0
+        ),
         "terminal": job.status in {s.value for s in TERMINAL_STATUSES},
     }
 

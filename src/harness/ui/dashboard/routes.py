@@ -18,7 +18,7 @@ from harness.ui.dashboard import view
 
 bp = Blueprint("dashboard", __name__, template_folder="templates")
 
-_DELETABLE = {JobStatus.FAILED.value, JobStatus.CANCELLED.value}
+_DELETABLE = {JobStatus.FAILED.value, JobStatus.CANCELLED.value, JobStatus.COMPLETED.value}
 
 
 @bp.route("/", methods=["GET"])
@@ -111,7 +111,7 @@ def delete_job(job_id: str):
 
 @bp.route("/dashboard/clear-terminal", methods=["POST"])
 def clear_terminal():
-    """Delete every failed + cancelled job atomically (FR-010c)."""
+    """Delete every failed, cancelled, and completed-with-errors job atomically (FR-010c)."""
     with get_session() as session:
-        JobRepository(session).delete_all_failed_and_cancelled()
+        JobRepository(session).delete_all_clearable()
     return redirect(url_for("dashboard.index"))

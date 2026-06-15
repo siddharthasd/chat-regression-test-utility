@@ -83,7 +83,9 @@ def test_cascade_atomic_for_failed(db_session) -> None:
     assert db_session.query(EvaluationResult).count() == 0
 
 
-@pytest.mark.parametrize("status", [JobStatus.DRAFT, JobStatus.FAILED, JobStatus.CANCELLED])
+@pytest.mark.parametrize(
+    "status", [JobStatus.DRAFT, JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.COMPLETED]
+)
 def test_status_gate_deletable(db_session, status) -> None:
     jobs = JobRepository(db_session)
     job = _job_in_status(db_session, status)
@@ -92,7 +94,7 @@ def test_status_gate_deletable(db_session, status) -> None:
 
 
 @pytest.mark.parametrize(
-    "status", [JobStatus.QUEUED, JobStatus.RUNNING, JobStatus.CANCELLING, JobStatus.COMPLETED]
+    "status", [JobStatus.QUEUED, JobStatus.RUNNING, JobStatus.CANCELLING]
 )
 def test_status_gate_non_deletable(db_session, status) -> None:
     jobs = JobRepository(db_session)
@@ -102,14 +104,19 @@ def test_status_gate_non_deletable(db_session, status) -> None:
     assert jobs.get(job.job_id) is not None
 
 
-def test_bulk_delete_failed_and_cancelled(db_session) -> None:
+def test_bulk_delete_clearable(db_session) -> None:
+    """delete_all_clearable removes failed, cancelled, and completed-with-errors."""
     jobs = JobRepository(db_session)
     failed = _job_in_status(db_session, JobStatus.FAILED)
     cancelled = _job_in_status(db_session, JobStatus.CANCELLED)
-    completed = _job_in_status(db_session, JobStatus.COMPLETED)
+    completed_clean = _job_in_status(db_session, JobStatus.COMPLETED)  # failed_count=0
+    completed_errors = _job_in_status(db_session, JobStatus.COMPLETED)
+    completed_errors.failed_count = 3  # mark as completed-with-errors
+    db_session.flush()
 
-    deleted = jobs.delete_all_failed_and_cancelled()
-    assert deleted == 2
+    deleted = jobs.delete_all_clearable()
+    assert deleted == 3
     assert jobs.get(failed.job_id) is None
     assert jobs.get(cancelled.job_id) is None
-    assert jobs.get(completed.job_id) is not None  # untouched
+    assert jobs.get(completed_errors.job_id) is None
+    assert jobs.get(completed_clean.job_id) is not None  # untouched

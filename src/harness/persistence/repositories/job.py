@@ -214,13 +214,17 @@ class JobRepository:
         self._session.delete(job)  # cascades Utterance + EvaluationResult
         self._session.flush()
 
-    def delete_all_failed_and_cancelled(self) -> int:
+    def delete_all_clearable(self) -> int:
+        """Delete all failed, cancelled, and completed-with-errors jobs atomically."""
         # Snapshot the qualifying id-set inside the transaction (FR-012 atomicity).
+        # "Completed with errors" = status completed AND failed_count > 0.
         job_ids = list(
             self._session.scalars(
                 select(Job.job_id).where(
-                    Job.status.in_(
-                        [JobStatus.FAILED.value, JobStatus.CANCELLED.value]
+                    Job.status.in_([JobStatus.FAILED.value, JobStatus.CANCELLED.value])
+                    | (
+                        (Job.status == JobStatus.COMPLETED.value)
+                        & (Job.failed_count > 0)
                     )
                 )
             )

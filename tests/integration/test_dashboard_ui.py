@@ -141,27 +141,45 @@ def test_delete_failed_job(client) -> None:
     assert "ToDelete" not in _html(client)
 
 
-def test_delete_completed_rejected(client) -> None:
-    job_id = _seed(status=JobStatus.COMPLETED, name="KeepMe")
+def test_delete_completed_no_errors_has_no_delete_button(client) -> None:
+    """Completed jobs with no failed rows have no Delete button shown in the UI."""
+    job_id = _seed(status=JobStatus.COMPLETED, name="CleanDone", failed=0)
+    body = _html(client)
+    assert f"/dashboard/jobs/{job_id}/delete" not in body
+
+
+def test_delete_completed_with_errors_has_delete_button(client) -> None:
+    """Completed-with-errors jobs show a Delete button and can be individually removed."""
+    job_id = _seed(status=JobStatus.COMPLETED, name="ErrorDone", failed=3)
+    body = _html(client)
+    assert f"/dashboard/jobs/{job_id}/delete" in body
     resp = client.post(f"/dashboard/jobs/{job_id}/delete")
-    assert resp.status_code == 409
-    assert "KeepMe" in _html(client)  # still present
+    assert resp.status_code == 302
+    assert "ErrorDone" not in _html(client)
 
 
 def test_delete_control_only_on_terminal_error_rows(client) -> None:
-    fail_id = _seed(status=JobStatus.FAILED, name="Failed")
-    run_id = _seed(status=JobStatus.RUNNING, name="Running")
+    fail_id = _seed(status=JobStatus.FAILED, name="FailedJob")
+    comp_err_id = _seed(status=JobStatus.COMPLETED, name="CompletedWithErrors", failed=2)
+    run_id = _seed(status=JobStatus.RUNNING, name="RunningJob")
+    clean_id = _seed(status=JobStatus.COMPLETED, name="CleanCompleted", failed=0)
     body = _html(client)
     assert f"/dashboard/jobs/{fail_id}/delete" in body
+    assert f"/dashboard/jobs/{comp_err_id}/delete" in body
     assert f"/dashboard/jobs/{run_id}/delete" not in body
+    assert f"/dashboard/jobs/{clean_id}/delete" not in body
 
 
-def test_clear_terminal_removes_only_failed_and_cancelled(client) -> None:
+def test_clear_terminal_removes_failed_cancelled_and_completed_with_errors(client) -> None:
     _seed(status=JobStatus.FAILED, name="FailedJobToDelete")
     _seed(status=JobStatus.CANCELLED, name="CancelledJobToDelete")
-    _seed(status=JobStatus.COMPLETED, name="CompletedJobToKeep")
+    _seed(status=JobStatus.COMPLETED, name="CompletedWithErrorsToDelete", failed=5)
+    _seed(status=JobStatus.COMPLETED, name="CleanCompletedToKeep", failed=0)
     _seed(status=JobStatus.RUNNING, name="RunningJobToKeep")
     assert client.post("/dashboard/clear-terminal").status_code == 302
     body = _html(client)
-    assert "FailedJobToDelete" not in body and "CancelledJobToDelete" not in body
-    assert "CompletedJobToKeep" in body and "RunningJobToKeep" in body
+    assert "FailedJobToDelete" not in body
+    assert "CancelledJobToDelete" not in body
+    assert "CompletedWithErrorsToDelete" not in body
+    assert "CleanCompletedToKeep" in body
+    assert "RunningJobToKeep" in body

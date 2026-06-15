@@ -31,8 +31,9 @@ class ErrorStatus(StrEnum):
 
 
 #: Statuses from which a Job may be deleted (009 FR-011).
+#: COMPLETED is included so that "completed with errors" runs can be cleaned up.
 DELETABLE_STATUSES: frozenset[JobStatus] = frozenset(
-    {JobStatus.DRAFT, JobStatus.FAILED, JobStatus.CANCELLED}
+    {JobStatus.DRAFT, JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.COMPLETED}
 )
 
 #: Terminal statuses (009 spec / data-model state machine).

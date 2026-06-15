@@ -167,13 +167,14 @@ def test_cancelled_requires_cancelling_state(db_session) -> None:
 
 
 # ------------------------------------------------------------------ US3 delete gate
-def test_delete_refused_for_completed(db_session) -> None:
+def test_delete_allowed_for_completed(db_session) -> None:
+    """COMPLETED was added to DELETABLE_STATUSES to support clearing completed-with-errors runs."""
     jobs, job = _snapshotted_draft(db_session)
     jobs.transition_to_queued(job.job_id)
     jobs.transition_to_running(job.job_id)
     jobs.transition_to_completed(job.job_id)
-    with pytest.raises(JobNotDeletableError):
-        jobs.delete(job.job_id)
+    jobs.delete(job.job_id)
+    assert jobs.get(job.job_id) is None
 
 
 def test_delete_allowed_for_draft(db_session) -> None:

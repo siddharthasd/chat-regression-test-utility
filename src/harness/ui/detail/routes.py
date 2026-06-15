@@ -30,6 +30,20 @@ bp = Blueprint("detail", __name__, template_folder="templates")
 
 _CANCELLABLE = {JobStatus.QUEUED.value, JobStatus.RUNNING.value}
 _DELETABLE = {s.value for s in DELETABLE_STATUSES}
+_ALWAYS_DELETABLE = {JobStatus.DRAFT.value, JobStatus.FAILED.value, JobStatus.CANCELLED.value}
+
+
+def _can_delete(job) -> bool:
+    """Show Delete button for draft, failed, cancelled, or completed-with-errors."""
+    return job.status in _ALWAYS_DELETABLE or (
+        job.status == JobStatus.COMPLETED.value and (job.failed_count or 0) > 0
+    )
+
+
+def _can_delete_from_meta(meta: dict) -> bool:
+    return meta["status"] in _ALWAYS_DELETABLE or (
+        meta["status"] == JobStatus.COMPLETED.value and (meta.get("failed_count") or 0) > 0
+    )
 
 
 def _truthy(value: str | None) -> bool:
@@ -81,7 +95,7 @@ def detail(job_id: str):
         visible_m=len(all_rows),
         filtered=filtered,
         can_cancel=job.status in _CANCELLABLE,
-        can_delete=job.status in _DELETABLE,
+        can_delete=_can_delete(job),
         can_export=can_export,
         error=None,
     )
@@ -144,7 +158,7 @@ def delete(job_id: str):
         job = repo.get(job_id)
         if job is None:
             abort(404)
-        if job.status not in _DELETABLE:
+        if not _can_delete(job):
             return _rerender_error(
                 job_id, f"Job is '{job.status}' and cannot be deleted from this view.", 409
             )
@@ -179,7 +193,7 @@ def _rerender_error(job_id: str, message: str, status_code: int):
             visible_m=len(rows),
             filtered=False,
             can_cancel=meta["status"] in _CANCELLABLE,
-            can_delete=meta["status"] in _DELETABLE,
+            can_delete=(_can_delete_from_meta(meta)),
             can_export=bool(rows)
             and meta["status"] not in {JobStatus.DRAFT.value, JobStatus.QUEUED.value},
             error=message,
