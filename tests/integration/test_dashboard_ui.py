@@ -157,11 +157,11 @@ def test_delete_control_only_on_terminal_error_rows(client) -> None:
 
 
 def test_clear_terminal_removes_only_failed_and_cancelled(client) -> None:
-    _seed(status=JobStatus.FAILED, name="F1")
-    _seed(status=JobStatus.CANCELLED, name="C1")
-    _seed(status=JobStatus.COMPLETED, name="Done")
-    _seed(status=JobStatus.RUNNING, name="Run")
+    _seed(status=JobStatus.FAILED, name="FailedJobToDelete")
+    _seed(status=JobStatus.CANCELLED, name="CancelledJobToDelete")
+    _seed(status=JobStatus.COMPLETED, name="CompletedJobToKeep")
+    _seed(status=JobStatus.RUNNING, name="RunningJobToKeep")
     assert client.post("/dashboard/clear-terminal").status_code == 302
     body = _html(client)
-    assert "F1" not in body and "C1" not in body
-    assert "Done" in body and "Run" in body
+    assert "FailedJobToDelete" not in body and "CancelledJobToDelete" not in body
+    assert "CompletedJobToKeep" in body and "RunningJobToKeep" in body

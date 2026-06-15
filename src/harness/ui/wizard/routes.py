@@ -46,6 +46,59 @@ def _csv_summary(session, job_id: str) -> dict | None:
     return {"utterances": len(rows), "distinct_test_ids": len({r.test_id for r in rows})}
 
 
+# ------------------------------------------------------------------------------ clone
+@bp.route("/jobs/<job_id>/clone", methods=["POST"])
+def clone_job(job_id: str):
+    """Clone a terminal job into a new draft, re-snapshotting from the live registry."""
+    from harness.ui.detail import view as detail_view
+
+    with get_session() as session:
+        source = JobRepository(session).get(job_id)
+        if source is None:
+            abort(404)
+
+        created_by = IdentityContext.current().value
+        new_job = JobRepository(session).create_draft(
+            f"{source.job_name} (retry)", source.description, created_by
+        )
+        new_job_id = new_job.job_id
+
+        utterances = UtteranceRepository(session).get_by_job_ordered(job_id)
+        source_csv_filename = source.source_csv_filename or f"job-{job_id[:8]}.csv"
+        csv_str = detail_view.reconstruct_csv(source, utterances)[1] if utterances else None
+        source_connector_id = source.connector_id
+        source_evaluator_id = source.evaluation_agent_id
+
+    # Process CSV before setting the connector snapshot so that the password-column
+    # requirement (connector_expects_per_row_password) doesn't apply to the
+    # reconstructed CSV, which never contains passwords.
+    if csv_str:
+        fd, tmp_path = tempfile.mkstemp(suffix=".csv")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8", newline="") as fh:
+                fh.write(csv_str)
+            process_upload(new_job_id, tmp_path, filename=source_csv_filename)
+        finally:
+            os.unlink(tmp_path)
+
+    # Re-snapshot connector and evaluator from the live registry so any credential
+    # fixes the user applied since the original run are picked up automatically.
+    with get_session() as session:
+        repo = JobRepository(session)
+        if source_connector_id:
+            reg = ConnectorRegistryReader(session).get(source_connector_id)
+            if reg and not reg.archived:
+                repo.set_connector_snapshot(new_job_id, reg)
+        if source_evaluator_id:
+            reg = EvaluatorRegistryReader(session).get(source_evaluator_id)
+            if reg and not reg.archived:
+                repo.set_evaluator_snapshot(new_job_id, reg)
+
+    # Resume derives the lowest-incomplete step automatically; if everything is
+    # still active it lands on step 5 (review) ready to start immediately.
+    return redirect(url_for("wizard.resume", job_id=new_job_id))
+
+
 # ------------------------------------------------------------------------ create/resume
 @bp.route("/jobs/new", methods=["GET"])
 def new_job():

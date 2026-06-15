@@ -38,6 +38,11 @@
       <button type="submit" class="btn btn-sm btn-warning">Cancel Job</button>
     </form>
     {% endif %}
+    {% if meta.terminal %}
+    <form method="post" action="{{ url_for('wizard.clone_job', job_id=meta.job_id) }}">
+      <button type="submit" class="btn btn-sm btn-outline-primary fw-semibold">Clone &amp; Rerun</button>
+    </form>
+    {% endif %}
     {% if can_delete %}
     <form method="post" action="{{ url_for('detail.delete', job_id=meta.job_id) }}"
           onsubmit="return confirm('Permanently delete this job and all its rows?');">

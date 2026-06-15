@@ -146,7 +146,10 @@ def _detail_results_section(run) -> str:
     """The Results Table section of the detail page (excludes the metadata panel,
     which legitimately shows a 'Per-row password' config-flag label)."""
     html = run.client.get(f"/jobs/{run.job_id}/detail").get_data(as_text=True)
-    return html.split('<section class="results">', 1)[1]
+    # Split at the results card header — everything after it is the utterance table.
+    marker = "Utterance Results"
+    assert marker in html, f"Could not find '{marker}' landmark in detail page HTML"
+    return html.split(marker, 1)[1]
 
 
 def test_password_not_in_db(run) -> None:

@@ -169,7 +169,7 @@ def test_scores_ordered_and_unexpected_indicator(client) -> None:
         )}],
     )
     body = _html(client, job_id)
-    assert "⚠ unexpected" in body
+    assert "evaluator emitted unexpected dimensions" in body
     # declared dims appear as cells even though the evaluator didn't emit them
     assert "relevance:" in body and "tone:" in body
     assert "SURPRISE:" in body
