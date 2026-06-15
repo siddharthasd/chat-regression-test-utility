@@ -1,78 +1,196 @@
-<!doctype html>
-<html lang="en">
-<head><meta charset="utf-8"><title>{{ mode_label }}</title></head>
-<body>
-<h1>{{ mode_label }}</h1>
+{% extends "base.html" %}
+{% block title %}{{ mode_label }}{% endblock %}
 
-<form method="post"
-      action="{% if reg %}{{ url_for('evaluator_registry.update_evaluator', evaluation_agent_id=reg.evaluation_agent_id) }}{% else %}{{ url_for('evaluator_registry.create_evaluator') }}{% endif %}">
-  {% if reg %}
-    <input type="hidden" name="evaluation_agent_id" value="{{ reg.evaluation_agent_id }}">
-    <p>Evaluator ID (read-only): <code>{{ reg.evaluation_agent_id }}</code></p>
-  {% endif %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-8">
+    <nav aria-label="breadcrumb" class="mb-3">
+      <ol class="breadcrumb small">
+        <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('evaluator_registry.list_evaluators') }}">Evaluators</a></li>
+        <li class="breadcrumb-item active">{{ mode_label }}</li>
+      </ol>
+    </nav>
 
-  <p><label>Display name
-    <input name="display_name" value="{{ form.get('display_name') or (reg.display_name if reg else '') }}"></label>
-    {% if errors.display_name %}<span class="field-error">{{ errors.display_name }}</span>{% endif %}</p>
+    <div class="card shadow-sm border-0">
+      <div class="card-header bg-white border-bottom py-3">
+        <h5 class="mb-0 fw-bold">{{ mode_label }}</h5>
+      </div>
+      <div class="card-body p-4">
+        <form method="post"
+              action="{% if reg %}{{ url_for('evaluator_registry.update_evaluator', evaluation_agent_id=reg.evaluation_agent_id) }}{% else %}{{ url_for('evaluator_registry.create_evaluator') }}{% endif %}">
+          <input type="hidden" name="next" value="{{ next_url }}">
+          {% if reg %}
+            <input type="hidden" name="evaluation_agent_id" value="{{ reg.evaluation_agent_id }}">
+            <div class="mb-3">
+              <label class="form-label small text-muted">Evaluator ID</label>
+              <div><code class="small">{{ reg.evaluation_agent_id }}</code></div>
+            </div>
+          {% endif %}
 
-  <p><label>Description (required)
-    <input name="description" value="{{ form.get('description') or (reg.description if reg else '') }}"></label>
-    {% if errors.description %}<span class="field-error">{{ errors.description }}</span>{% endif %}</p>
+          <div class="row g-3 mb-3">
+            <div class="col-12 col-md-6">
+              <label class="form-label fw-semibold" for="display_name">Display name</label>
+              <input class="form-control {% if errors.display_name %}is-invalid{% endif %}"
+                     id="display_name" name="display_name"
+                     value="{{ form.get('display_name') or (reg.display_name if reg else '') }}">
+              {% if errors.display_name %}<div class="invalid-feedback">{{ errors.display_name }}</div>{% endif %}
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label fw-semibold" for="endpoint_url">Endpoint URL</label>
+              <input class="form-control {% if errors.endpoint_url %}is-invalid{% endif %}"
+                     id="endpoint_url" name="endpoint_url"
+                     value="{{ form.get('endpoint_url') or (reg.endpoint_url if reg else '') }}"
+                     placeholder="https://…">
+              {% if errors.endpoint_url %}<div class="invalid-feedback">{{ errors.endpoint_url }}</div>{% endif %}
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-semibold" for="description">Description <span class="text-danger">*</span></label>
+              <input class="form-control {% if errors.description %}is-invalid{% endif %}"
+                     id="description" name="description"
+                     value="{{ form.get('description') or (reg.description if reg else '') }}">
+              {% if errors.description %}<div class="invalid-feedback">{{ errors.description }}</div>{% endif %}
+            </div>
+          </div>
 
-  <p><label>Endpoint URL
-    <input name="endpoint_url" value="{{ form.get('endpoint_url') or (reg.endpoint_url if reg else '') }}"></label>
-    {% if errors.endpoint_url %}<span class="field-error">{{ errors.endpoint_url }}</span>{% endif %}</p>
+          <div class="row g-3 mb-3">
+            <div class="col-12 col-md-4">
+              <label class="form-label fw-semibold" for="auth_mode">Auth mode</label>
+              {% set current_mode = form.get('auth_mode') or (reg.auth_mode if reg else 'none') %}
+              <select class="form-select {% if errors.auth_mode %}is-invalid{% endif %}"
+                      id="auth_mode" name="auth_mode" onchange="toggleCredFields(this.value)">
+                {% for m in ['none', 'bearer', 'api-key-header', 'basic', 'client-credentials'] %}
+                  <option value="{{ m }}" {% if current_mode == m %}selected{% endif %}>{{ m }}</option>
+                {% endfor %}
+              </select>
+              {% if errors.auth_mode %}<div class="invalid-feedback">{{ errors.auth_mode }}</div>{% endif %}
+            </div>
+            <div class="col-12 col-md-4">
+              <label class="form-label fw-semibold" for="timeout_seconds">Timeout (seconds)</label>
+              <input type="number" class="form-control {% if errors.timeout_seconds %}is-invalid{% endif %}"
+                     id="timeout_seconds" name="timeout_seconds"
+                     value="{{ form.get('timeout_seconds') or (reg.timeout_seconds if reg else 60) }}">
+              {% if errors.timeout_seconds %}<div class="invalid-feedback">{{ errors.timeout_seconds }}</div>{% endif %}
+            </div>
+          </div>
 
-  <p><label>Auth mode
-    <select name="auth_mode">
-      {% set current_mode = form.get('auth_mode') or (reg.auth_mode if reg else 'none') %}
-      {% for m in ['none', 'bearer', 'api-key-header', 'basic', 'client-credentials'] %}
-        <option value="{{ m }}" {% if current_mode == m %}selected{% endif %}>{{ m }}</option>
-      {% endfor %}
-    </select></label>
-    {% if errors.auth_mode %}<span class="field-error">{{ errors.auth_mode }}</span>{% endif %}</p>
+          <!-- Credential fields -->
+          <div class="credential-card mb-3">
+            <div class="fw-semibold small mb-2">Credentials</div>
+            {% if reg %}
+            <div class="form-check mb-3">
+              <input class="form-check-input" type="checkbox" name="replace_credential" value="1" id="replace_credential">
+              <label class="form-check-label small" for="replace_credential">Replace stored credential</label>
+            </div>
+            {% endif %}
 
-  <fieldset>
-    <legend>Credential (per auth mode)</legend>
-    {% if reg %}<p><label><input type="checkbox" name="replace_credential" value="1"> Replace credential</label></p>{% endif %}
-    <p><label>Bearer token <input type="password" name="token" autocomplete="off"></label>
-      {% if errors.token %}<span class="field-error">{{ errors.token }}</span>{% endif %}</p>
-    <p><label>API-key header name
-      <input name="header_name" value="{{ form.get('header_name') or (reg.header_name if reg else '') }}"></label>
-      {% if errors.header_name %}<span class="field-error">{{ errors.header_name }}</span>{% endif %}</p>
-    <p><label>API-key header value <input type="password" name="header_value" autocomplete="off"></label>
-      {% if errors.header_value %}<span class="field-error">{{ errors.header_value }}</span>{% endif %}</p>
-    <p><label>Basic username
-      <input name="username" value="{{ form.get('username') or (reg.username if reg else '') }}"></label>
-      {% if errors.username %}<span class="field-error">{{ errors.username }}</span>{% endif %}</p>
-    <p><label>Basic password <input type="password" name="password" autocomplete="off"></label>
-      {% if errors.password %}<span class="field-error">{{ errors.password }}</span>{% endif %}</p>
-    <p><label>OAuth2 token URL
-      <input name="token_url" value="{{ form.get('token_url') or (reg.token_url if reg else '') }}"></label>
-      {% if errors.token_url %}<span class="field-error">{{ errors.token_url }}</span>{% endif %}</p>
-    <p><label>OAuth2 client ID
-      <input name="client_id" value="{{ form.get('client_id') or (reg.client_id if reg else '') }}"></label>
-      {% if errors.client_id %}<span class="field-error">{{ errors.client_id }}</span>{% endif %}</p>
-    <p><label>OAuth2 client secret <input type="password" name="client_secret" autocomplete="off"></label>
-      {% if errors.client_secret %}<span class="field-error">{{ errors.client_secret }}</span>{% endif %}</p>
-    <p><label>OAuth2 scope (optional, space-delimited)
-      <input name="scope" value="{{ form.get('scope') or (reg.scope if reg else '') }}"></label></p>
-    <p><label>OAuth2 audience (optional)
-      <input name="audience" value="{{ form.get('audience') or (reg.audience if reg else '') }}"></label></p>
-  </fieldset>
+            <div id="cred-bearer" class="cred-section">
+              <label class="form-label small fw-semibold">Bearer token</label>
+              <input type="password" class="form-control form-control-sm {% if errors.token %}is-invalid{% endif %}"
+                     name="token" autocomplete="off">
+              {% if errors.token %}<div class="invalid-feedback">{{ errors.token }}</div>{% endif %}
+            </div>
 
-  <p><label>Timeout seconds
-    <input type="number" name="timeout_seconds"
-           value="{{ form.get('timeout_seconds') or (reg.timeout_seconds if reg else 60) }}"></label>
-    {% if errors.timeout_seconds %}<span class="field-error">{{ errors.timeout_seconds }}</span>{% endif %}</p>
+            <div id="cred-api-key-header" class="cred-section">
+              <div class="row g-2">
+                <div class="col-6">
+                  <label class="form-label small fw-semibold">Header name</label>
+                  <input class="form-control form-control-sm {% if errors.header_name %}is-invalid{% endif %}"
+                         name="header_name" value="{{ form.get('header_name') or (reg.header_name if reg else '') }}">
+                  {% if errors.header_name %}<div class="invalid-feedback">{{ errors.header_name }}</div>{% endif %}
+                </div>
+                <div class="col-6">
+                  <label class="form-label small fw-semibold">Header value</label>
+                  <input type="password" class="form-control form-control-sm {% if errors.header_value %}is-invalid{% endif %}"
+                         name="header_value" autocomplete="off">
+                  {% if errors.header_value %}<div class="invalid-feedback">{{ errors.header_value }}</div>{% endif %}
+                </div>
+              </div>
+            </div>
 
-  <p><label>Declared scoring dimensions (one per line, order matters)<br>
-    <textarea name="dimensions" rows="5">{{ form.get('dimensions') or (reg.dimensions_text if reg else '') }}</textarea></label></p>
+            <div id="cred-basic" class="cred-section">
+              <div class="row g-2">
+                <div class="col-6">
+                  <label class="form-label small fw-semibold">Username</label>
+                  <input class="form-control form-control-sm {% if errors.username %}is-invalid{% endif %}"
+                         name="username" value="{{ form.get('username') or (reg.username if reg else '') }}">
+                  {% if errors.username %}<div class="invalid-feedback">{{ errors.username }}</div>{% endif %}
+                </div>
+                <div class="col-6">
+                  <label class="form-label small fw-semibold">Password</label>
+                  <input type="password" class="form-control form-control-sm {% if errors.password %}is-invalid{% endif %}"
+                         name="password" autocomplete="off">
+                  {% if errors.password %}<div class="invalid-feedback">{{ errors.password }}</div>{% endif %}
+                </div>
+              </div>
+            </div>
 
-  <button type="submit">Save</button>
-</form>
+            <div id="cred-client-credentials" class="cred-section">
+              <div class="row g-2">
+                <div class="col-6">
+                  <label class="form-label small fw-semibold">Token URL</label>
+                  <input class="form-control form-control-sm {% if errors.token_url %}is-invalid{% endif %}"
+                         name="token_url" value="{{ form.get('token_url') or (reg.token_url if reg else '') }}">
+                  {% if errors.token_url %}<div class="invalid-feedback">{{ errors.token_url }}</div>{% endif %}
+                </div>
+                <div class="col-6">
+                  <label class="form-label small fw-semibold">Client ID</label>
+                  <input class="form-control form-control-sm {% if errors.client_id %}is-invalid{% endif %}"
+                         name="client_id" value="{{ form.get('client_id') or (reg.client_id if reg else '') }}">
+                  {% if errors.client_id %}<div class="invalid-feedback">{{ errors.client_id }}</div>{% endif %}
+                </div>
+                <div class="col-6">
+                  <label class="form-label small fw-semibold">Client secret</label>
+                  <input type="password" class="form-control form-control-sm {% if errors.client_secret %}is-invalid{% endif %}"
+                         name="client_secret" autocomplete="off">
+                  {% if errors.client_secret %}<div class="invalid-feedback">{{ errors.client_secret }}</div>{% endif %}
+                </div>
+                <div class="col-3">
+                  <label class="form-label small fw-semibold">Scope <span class="text-muted fw-normal">(opt)</span></label>
+                  <input class="form-control form-control-sm" name="scope"
+                         value="{{ form.get('scope') or (reg.scope if reg else '') }}">
+                </div>
+                <div class="col-3">
+                  <label class="form-label small fw-semibold">Audience <span class="text-muted fw-normal">(opt)</span></label>
+                  <input class="form-control form-control-sm" name="audience"
+                         value="{{ form.get('audience') or (reg.audience if reg else '') }}">
+                </div>
+              </div>
+            </div>
+          </div>
 
-<p class="hint">Test connection POSTs a sample Standard Evaluation Contract and validates the
-  response as an EvaluationResult; dimensions emitted outside your declared list are surfaced as a soft warning.</p>
-</body>
-</html>
+          <div class="mb-4">
+            <label class="form-label fw-semibold" for="dimensions">
+              Declared scoring dimensions
+              <span class="text-muted fw-normal small">(one per line, order matters)</span>
+            </label>
+            <textarea class="form-control" id="dimensions" name="dimensions" rows="4"
+                      placeholder="accuracy&#10;fluency&#10;relevance">{{ form.get('dimensions') or (reg.dimensions_text if reg else '') }}</textarea>
+          </div>
+
+          <div class="d-flex justify-content-between align-items-center">
+            <small class="text-muted">Test connection POSTs a sample Standard Evaluation Contract.</small>
+            <button type="submit" class="btn btn-primary px-4 fw-semibold">Save Evaluator</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var CRED_IDS = ['bearer','api-key-header','basic','client-credentials'];
+function toggleCredFields(mode) {
+  CRED_IDS.forEach(function(id) {
+    var el = document.getElementById('cred-' + id);
+    if (el) el.style.display = (id === mode) ? 'block' : 'none';
+  });
+}
+toggleCredFields('{{ form.get("auth_mode") or (reg.auth_mode if reg else "none") }}');
+document.getElementById('auth_mode').addEventListener('change', function() {
+  toggleCredFields(this.value);
+});
+</script>
+{% endblock %}

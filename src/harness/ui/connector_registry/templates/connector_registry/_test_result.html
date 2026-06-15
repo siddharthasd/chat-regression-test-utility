@@ -1,6 +1,6 @@
 <div class="test-result test-result-{{ result.category }}" role="status">
   <strong>{{ 'PASS' if result.ok else 'FAIL' }}</strong>
-  <span class="test-result-category">[{{ result.category }}]</span>
-  {% if result.status_code %}<span class="test-result-status">HTTP {{ result.status_code }}</span>{% endif %}
-  <p class="test-result-detail">{{ result.detail }}</p>
+  <span class="ms-2 text-muted small">[{{ result.category }}]</span>
+  {% if result.status_code %}<span class="ms-2 small">HTTP {{ result.status_code }}</span>{% endif %}
+  <p class="mb-0 mt-1 small">{{ result.detail }}</p>
 </div>

@@ -1,48 +1,82 @@
-<!doctype html>
-<html lang="en">
-<head><meta charset="utf-8"><title>Create Job — Step 4</title></head>
-<body>
-<h1>Select Evaluation Agent</h1>
-<p class="steps">Step 4 of 5: Select Evaluation Agent</p>
+{% extends "base.html" %}
+{% block title %}Create Job — Step 4{% endblock %}
 
-<p><a href="{{ url_for('wizard.step3', job_id=job_id) }}">&larr; Back</a></p>
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-7">
+    <nav aria-label="breadcrumb" class="mb-3">
+      <ol class="breadcrumb small">
+        <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+        <li class="breadcrumb-item active">New Job</li>
+      </ol>
+    </nav>
 
-{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+    <div class="card shadow-sm border-0 mb-4">
+      <div class="card-header bg-white border-bottom py-3">
+        <h5 class="mb-0 fw-bold">Select Evaluation Agent</h5>
+        <div class="progress mt-2" style="height:4px">
+          <div class="progress-bar" style="width:80%"></div>
+        </div>
+        <div class="d-flex justify-content-between mt-1">
+          <small class="wizard-step-label text-muted">1. Name</small>
+          <small class="wizard-step-label text-muted">2. CSV</small>
+          <small class="wizard-step-label text-muted">3. Connector</small>
+          <small class="wizard-step-label fw-semibold text-primary">4. Evaluator</small>
+          <small class="wizard-step-label text-muted">5. Review</small>
+        </div>
+      </div>
+      <div class="card-body p-4">
+        <div class="mb-3">
+          <a href="{{ url_for('wizard.step3', job_id=job_id) }}" class="btn btn-sm btn-outline-secondary">← Back</a>
+        </div>
 
-{% if not entries %}
-  <p class="empty-state" role="alert">
-    No evaluation agents are registered yet.
-    <a href="{{ url_for('evaluator_registry.new_evaluator') }}">Register an evaluator</a>
-    to continue, then return here.
-  </p>
-{% else %}
-<form method="post" action="{{ url_for('wizard.step4_save', job_id=job_id) }}">
-  <p>
-    <label>Evaluation agent (required)<br>
-      <select name="evaluation_agent_id" required>
-        <option value="">-- choose an evaluator --</option>
-        {% for e in entries %}
-          <option value="{{ e.evaluation_agent_id }}" {% if e.evaluation_agent_id == selected %}selected{% endif %}>
-            {{ e.display_name }} ({{ e.evaluation_agent_id[:8] }})
-          </option>
-        {% endfor %}
-      </select>
-    </label>
-  </p>
-  <details>
-    <summary>Evaluator details</summary>
-    <ul>
-    {% for e in entries %}
-      <li><strong>{{ e.display_name }}</strong>: {{ e.description }}
-        {% if e.declared_scoring_dimensions %}
-          — dimensions: {{ e.declared_scoring_dimensions | join(', ') }}
+        {% if error %}
+        <div class="alert alert-danger alert-harness-error" role="alert">{{ error }}</div>
         {% endif %}
-      </li>
-    {% endfor %}
-    </ul>
-  </details>
-  <button type="submit">Next</button>
-</form>
-{% endif %}
-</body>
-</html>
+
+        {% if not entries %}
+        <div class="alert alert-warning" role="alert">
+          No evaluation agents are registered yet.
+          <a href="{{ url_for('evaluator_registry.new_evaluator') }}" class="alert-link">Register an evaluator</a>
+          to continue, then return here.
+        </div>
+        {% else %}
+        <form method="post" action="{{ url_for('wizard.step4_save', job_id=job_id) }}">
+          <div class="mb-3">
+            <label class="form-label fw-semibold" for="evaluation_agent_id">
+              Evaluation agent <span class="text-danger">*</span>
+            </label>
+            <select class="form-select" name="evaluation_agent_id" id="evaluation_agent_id" required>
+              <option value="">— choose an evaluator —</option>
+              {% for e in entries %}
+                <option value="{{ e.evaluation_agent_id }}" {% if e.evaluation_agent_id == selected %}selected{% endif %}>
+                  {{ e.display_name }} ({{ e.evaluation_agent_id[:8] }})
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <details class="mb-4">
+            <summary class="small fw-semibold text-secondary" style="cursor:pointer">Evaluator details</summary>
+            <ul class="list-group list-group-flush mt-2">
+            {% for e in entries %}
+              <li class="list-group-item py-2 px-0 small">
+                <strong>{{ e.display_name }}</strong>: {{ e.description }}
+                {% if e.declared_scoring_dimensions %}
+                <br><span class="text-muted">Dimensions: {{ e.declared_scoring_dimensions | join(', ') }}</span>
+                {% endif %}
+              </li>
+            {% endfor %}
+            </ul>
+          </details>
+
+          <div class="d-flex justify-content-end">
+            <button type="submit" class="btn btn-primary px-4">Next →</button>
+          </div>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

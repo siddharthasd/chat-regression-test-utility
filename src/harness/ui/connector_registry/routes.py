@@ -61,11 +61,13 @@ def new_connector():
         reg=None,
         errors={},
         form={},
+        next_url=request.args.get("next", ""),
     )
 
 
 @bp.route("/connectors", methods=["POST"])
 def create_connector():
+    next_url = request.form.get("next", "")
     payload, errors = parse_connector_form(request.form, require_credential=True)
     if errors:
         return (
@@ -75,11 +77,14 @@ def create_connector():
                 reg=None,
                 errors=errors,
                 form=request.form,
+                next_url=next_url,
             ),
             400,
         )
     with get_session() as session:
         ConnectorRegistryService(session).create(payload)
+    if next_url == "dashboard":
+        return redirect(url_for("dashboard.index"))
     return redirect(url_for("connector_registry.list_connectors"))
 
 
@@ -91,7 +96,7 @@ def edit_connector(connector_id: str):
             abort(404)
         view = _reg_to_view(reg)
     return render_template(
-        "connector_registry/form.html", mode_label="Edit connector", reg=view, errors={}, form={}
+        "connector_registry/form.html", mode_label="Edit connector", reg=view, errors={}, form={}, next_url=""
     )
 
 
@@ -116,6 +121,7 @@ def update_connector(connector_id: str):
                     reg=view,
                     errors=errors,
                     form=request.form,
+                    next_url="",
                 ),
                 400,
             )

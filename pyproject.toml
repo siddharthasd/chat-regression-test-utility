@@ -1,7 +1,7 @@
 [project]
-name = "harness"
+name = "agent-regression-test-utility"
 version = "0.1.0"
-description = "AI Chatbot Regression Test Harness"
+description = "Agent Regression Test Utility — regression testing for AI chatbots/agents"
 requires-python = ">=3.11"
 dependencies = [
     "flask>=3.0",
@@ -34,6 +34,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "harness.contract.schemas" = ["*.json"]
+"harness.ui" = ["templates/*.html", "static/*.css"]
 "harness.ui.dashboard" = ["templates/dashboard/*.html"]
 "harness.ui.detail" = ["templates/detail/*.html"]
 "harness.ui.connector_registry" = ["templates/connector_registry/*.html"]

@@ -69,11 +69,13 @@ def new_evaluator():
         reg=None,
         errors={},
         form={},
+        next_url=request.args.get("next", ""),
     )
 
 
 @bp.route("/evaluators", methods=["POST"])
 def create_evaluator():
+    next_url = request.form.get("next", "")
     payload, errors = parse_evaluator_form(request.form, require_credential=True)
     if errors:
         return (
@@ -83,11 +85,14 @@ def create_evaluator():
                 reg=None,
                 errors=errors,
                 form=request.form,
+                next_url=next_url,
             ),
             400,
         )
     with get_session() as session:
         EvaluatorRegistryService(session).create(payload)
+    if next_url == "dashboard":
+        return redirect(url_for("dashboard.index"))
     return redirect(url_for("evaluator_registry.list_evaluators"))
 
 
@@ -99,7 +104,7 @@ def edit_evaluator(evaluation_agent_id: str):
             abort(404)
         view = _reg_to_view(reg)
     return render_template(
-        "evaluator_registry/form.html", mode_label="Edit evaluator", reg=view, errors={}, form={}
+        "evaluator_registry/form.html", mode_label="Edit evaluator", reg=view, errors={}, form={}, next_url=""
     )
 
 
@@ -124,6 +129,7 @@ def update_evaluator(evaluation_agent_id: str):
                     reg=view,
                     errors=errors,
                     form=request.form,
+                    next_url="",
                 ),
                 400,
             )

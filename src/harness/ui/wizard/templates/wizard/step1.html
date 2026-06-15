@@ -1,25 +1,53 @@
-<!doctype html>
-<html lang="en">
-<head><meta charset="utf-8"><title>Create Job — Step 1</title></head>
-<body>
-<h1>Create Job</h1>
-<p class="steps">Step 1 of 5: Create Job</p>
+{% extends "base.html" %}
+{% block title %}Create Job — Step 1{% endblock %}
 
-{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-7">
+    <nav aria-label="breadcrumb" class="mb-3">
+      <ol class="breadcrumb small">
+        <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+        <li class="breadcrumb-item active">New Job</li>
+      </ol>
+    </nav>
 
-<form method="post"
-      action="{% if job %}{{ url_for('wizard.step1_save', job_id=job.job_id) }}{% else %}{{ url_for('wizard.create_job') }}{% endif %}">
-  <p>
-    <label>Job name (required)<br>
-      <input type="text" name="job_name" value="{{ form.get('job_name', '') }}" required>
-    </label>
-  </p>
-  <p>
-    <label>Description (optional)<br>
-      <textarea name="description" rows="3">{{ form.get('description', '') }}</textarea>
-    </label>
-  </p>
-  <button type="submit">Next</button>
-</form>
-</body>
-</html>
+    <div class="card shadow-sm border-0 mb-4">
+      <div class="card-header bg-white border-bottom py-3">
+        <h5 class="mb-0 fw-bold">Create Job</h5>
+        <div class="progress mt-2" style="height:4px">
+          <div class="progress-bar" style="width:20%"></div>
+        </div>
+        <div class="d-flex justify-content-between mt-1">
+          <small class="wizard-step-label fw-semibold text-primary">1. Name</small>
+          <small class="wizard-step-label text-muted">2. CSV</small>
+          <small class="wizard-step-label text-muted">3. Connector</small>
+          <small class="wizard-step-label text-muted">4. Evaluator</small>
+          <small class="wizard-step-label text-muted">5. Review</small>
+        </div>
+      </div>
+      <div class="card-body p-4">
+        {% if error %}
+        <div class="alert alert-danger alert-harness-error" role="alert">{{ error }}</div>
+        {% endif %}
+
+        <form method="post"
+              action="{% if job %}{{ url_for('wizard.step1_save', job_id=job.job_id) }}{% else %}{{ url_for('wizard.create_job') }}{% endif %}">
+          <div class="mb-3">
+            <label class="form-label fw-semibold" for="job_name">Job name <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="job_name" name="job_name"
+                   value="{{ form.get('job_name', '') }}" required placeholder="e.g. Q4 regression run">
+          </div>
+          <div class="mb-4">
+            <label class="form-label fw-semibold" for="description">Description <span class="text-muted fw-normal">(optional)</span></label>
+            <textarea class="form-control" id="description" name="description" rows="3"
+                      placeholder="Briefly describe the purpose of this job">{{ form.get('description', '') }}</textarea>
+          </div>
+          <div class="d-flex justify-content-end">
+            <button type="submit" class="btn btn-primary px-4">Next →</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,72 @@
+/* ── Harness UI – custom styles ─────────────────────────────────────────── */
+
+/* Layout */
+body { background: #f0f2f5; }
+.harness-navbar { background: #1a237e; }
+
+/* Status badges (used by JS live-update too – keep class names stable) */
+.badge { font-size: .75rem; padding: .35em .65em; border-radius: .35rem; color: #fff; font-weight: 600; }
+.badge-draft          { background: #6c757d; }
+.badge-queued         { background: #0d6efd; }
+.badge-running        { background: #0dcaf0; color: #000; }
+.badge-completed      { background: #198754; }
+.badge-completed-errors { background: #fd7e14; }
+.badge-failed         { background: #dc3545; }
+.badge-cancelled      { background: #6c757d; }
+.badge-cancelling     { background: #ffc107; color: #000; }
+.badge-archived       { background: #adb5bd; color: #000; }
+
+/* Verdict colours */
+.verdict { font-weight: 700; font-size: .8rem; }
+.verdict-pass  { color: #198754; }
+.verdict-fail  { color: #dc3545; }
+.verdict-warn  { color: #fd7e14; }
+.verdict-error { color: #dc3545; }
+
+/* Error / notice banners */
+.alert-harness-error  { border-left: 4px solid #dc3545; }
+.alert-harness-notice { border-left: 4px solid #0dcaf0; }
+
+/* Tables */
+.harness-table th { white-space: nowrap; font-size: .82rem; background: #f8f9fa; }
+.harness-table td { font-size: .82rem; vertical-align: middle; }
+.harness-table .row-link { font-weight: 600; color: #1a237e; text-decoration: none; }
+.harness-table .row-link:hover { text-decoration: underline; }
+
+/* Sort links in table headers */
+.sort-link { color: inherit; text-decoration: none; white-space: nowrap; }
+.sort-link:hover { color: #1a237e; text-decoration: underline; }
+
+/* Wizard progress bar labels */
+.wizard-step-label { font-size: .72rem; }
+
+/* Scores list in detail table */
+.scores { list-style: none; margin: 0; padding: 0; font-size: .78rem; }
+.scores li { white-space: nowrap; }
+.scores li.unexpected { color: #fd7e14; }
+
+/* Artifact pre blocks in trace expand */
+.artifact pre { background: #1e1e2e; color: #cdd6f4; border-radius: .4rem;
+                padding: .75rem 1rem; font-size: .72rem; max-height: 220px;
+                overflow: auto; white-space: pre-wrap; word-break: break-all; }
+
+/* Test-connection result partial */
+.test-result { padding: .6rem .9rem; border-radius: .4rem; margin-top: .75rem;
+               border-left: 4px solid #6c757d; background: #f8f9fa; font-size: .82rem; }
+.test-result-ok      { border-color: #198754; background: #d1e7dd; }
+.test-result-error   { border-color: #dc3545; background: #f8d7da; }
+.test-result-timeout { border-color: #fd7e14; background: #fff3cd; }
+.test-result-auth_fail, .test-result-auth_decrypt_failed { border-color: #ffc107; background: #fff3cd; }
+
+/* Credential subsection card */
+.credential-card { background: #f8f9fa; border: 1px solid #dee2e6;
+                   border-radius: .4rem; padding: 1rem; margin-top: .5rem; }
+
+/* Logged-in footer chip */
+.harness-logged-in-as { font-size: .78rem; color: #6c757d; }
+
+/* Empty state */
+.empty-state-icon { font-size: 3rem; opacity: .3; }
+
+/* Annot badge (unexpected dims warning) */
+.annot { font-size: .7rem; color: #fd7e14; margin-left: .3rem; }

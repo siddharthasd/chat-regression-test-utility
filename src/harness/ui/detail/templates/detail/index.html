@@ -1,189 +1,262 @@
-<!doctype html>
-<html lang="en">
-<head><meta charset="utf-8"><title>Job: {{ meta.job_name }}</title></head>
-<body data-job-id="{{ meta.job_id }}" data-terminal="{{ '1' if meta.terminal else '0' }}"
-      data-row-count="{{ visible_m }}">
-<header>
-  <p><a href="{{ url_for('dashboard.index') }}">&larr; Dashboard</a></p>
-  {% include "_logged_in_as.html" ignore missing %}
-</header>
+{% extends "base.html" %}
+{% block title %}{{ meta.job_name }}{% endblock %}
 
-{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+{% block content %}
+<div data-job-id="{{ meta.job_id }}" data-terminal="{{ '1' if meta.terminal else '0' }}"
+     data-row-count="{{ visible_m }}">
 
-<!-- ============================ Job Metadata Panel ============================ -->
-<section class="metadata-panel">
-  <h1>{{ meta.job_name }}
-    <span class="badge {{ meta.badge_class }}" id="status-badge">{{ meta.status_label }}</span></h1>
-  {% if meta.description %}<p>{{ meta.description }}</p>{% endif %}
-  {% if meta.error_details %}<p class="error">Error: {{ meta.error_details }}</p>{% endif %}
+<!-- Breadcrumb -->
+<nav aria-label="breadcrumb" class="mb-3">
+  <ol class="breadcrumb small">
+    <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+    <li class="breadcrumb-item active">{{ meta.job_name }}</li>
+  </ol>
+</nav>
 
-  <dl>
-    <dt>Created By</dt><dd>{{ meta.created_by }}</dd>
-    <dt>Created</dt><dd title="{{ meta.created_at[1] }}">{{ meta.created_at[0] }}</dd>
-    <dt>Started</dt><dd title="{{ meta.started_at[1] }}">{{ meta.started_at[0] }}</dd>
-    <dt>Completed</dt><dd title="{{ meta.completed_at[1] }}">{{ meta.completed_at[0] }}</dd>
-    <dt>Harness</dt><dd>{{ meta.harness_version }}</dd>
+{% if error %}
+<div class="alert alert-danger alert-harness-error" role="alert">{{ error }}</div>
+{% endif %}
 
-    <dt>Connector</dt><dd>{{ meta.connector_name or '—' }}
-      <small>({{ meta.connector_id or 'n/a' }})</small></dd>
-    <dt>Connector endpoint</dt><dd>{{ meta.connector_endpoint_url }}</dd>
-    <dt>Connector auth</dt><dd>
-      {% for k, v in meta.connector_auth.items() %}{{ k }}={{ v }} {% endfor %}</dd>
-    <dt>Connector timeout</dt><dd>{{ meta.connector_timeout_seconds }}s</dd>
-    <dt>Per-row password</dt><dd>{{ 'yes' if meta.connector_expects_per_row_password else 'no' }}</dd>
-
-    <dt>Evaluator</dt><dd>{{ meta.evaluation_agent_name or '—' }}
-      <small>({{ meta.evaluation_agent_id or 'n/a' }})</small></dd>
-    <dt>Evaluator endpoint</dt><dd>{{ meta.evaluator_endpoint_url }}</dd>
-    <dt>Evaluator auth</dt><dd>
-      {% for k, v in meta.evaluator_auth.items() %}{{ k }}={{ v }} {% endfor %}</dd>
-    <dt>Evaluator timeout</dt><dd>{{ meta.evaluator_timeout_seconds }}s</dd>
-    <dt>Scoring dimensions</dt><dd>{{ meta.declared_dimensions | join(', ') or '(none)' }}</dd>
-
-    <dt>Source CSV</dt><dd>
-      {% if meta.source_csv_filename %}
-        {{ meta.source_csv_filename }} —
-        <a href="{{ url_for('detail.download_csv', job_id=meta.job_id) }}">download (reconstructed)</a>
-      {% else %}<em>not uploaded</em>{% endif %}</dd>
-    <dt>Counts</dt><dd id="counts">
-      Total {{ meta.total_utterance_count if meta.total_utterance_count is not none else '—' }} ·
-      Processed {{ meta.processed_count }} · Failed {{ meta.failed_count }}</dd>
-  </dl>
-
-  {% if can_export %}
-  <form class="export" method="get" action="{{ url_for('export.export', job_id=meta.job_id) }}">
-    <label>Download Results
-      <select name="format">
-        <option value="csv">CSV</option>
-        <option value="json">JSON</option>
-        <option value="zip">Both (zip)</option>
-      </select>
-    </label>
-    <button type="submit">Download Results</button>
-  </form>
-  {% endif %}
-
-  <div class="actions">
+<!-- Job header -->
+<div class="d-flex justify-content-between align-items-start mb-3">
+  <div>
+    <h4 class="fw-bold mb-1">
+      {{ meta.job_name }}
+      <span class="badge {{ meta.badge_class }} ms-2" id="status-badge">{{ meta.status_label }}</span>
+    </h4>
+    {% if meta.description %}<p class="text-muted mb-0">{{ meta.description }}</p>{% endif %}
+    {% if meta.error_details %}<p class="text-danger mb-0 small">Error: {{ meta.error_details }}</p>{% endif %}
+  </div>
+  <div class="d-flex gap-2">
+    {% if meta.status == 'draft' %}
+    <a href="{{ url_for('wizard.resume', job_id=meta.job_id) }}"
+       class="btn btn-sm btn-warning fw-semibold">Continue setup →</a>
+    {% endif %}
     {% if can_cancel %}
     <form method="post" action="{{ url_for('detail.cancel', job_id=meta.job_id) }}"
-          onsubmit="return confirm('Cancel this job? In-flight rows finish; the rest are cancelled.');"
-          style="display:inline">
-      <button type="submit">Cancel Job</button>
+          onsubmit="return confirm('Cancel this job? In-flight rows finish; the rest are cancelled.');">
+      <button type="submit" class="btn btn-sm btn-warning">Cancel Job</button>
     </form>
     {% endif %}
     {% if can_delete %}
     <form method="post" action="{{ url_for('detail.delete', job_id=meta.job_id) }}"
-          onsubmit="return confirm('Permanently delete this job and all its rows?');"
-          style="display:inline">
-      <button type="submit">Delete Job</button>
+          onsubmit="return confirm('Permanently delete this job and all its rows?');">
+      <button type="submit" class="btn btn-sm btn-outline-danger">Delete Job</button>
     </form>
     {% endif %}
   </div>
-</section>
+</div>
 
-<!-- ============================== Results Table =============================== -->
-<section class="results">
-  <form method="get" action="{{ url_for('detail.detail', job_id=meta.job_id) }}" class="filters">
-    <input type="search" name="q" value="{{ q }}" placeholder="Search utterance / response">
-    <fieldset><legend>Verdict</legend>
-      {% for v in ['pass', 'warn', 'fail'] %}
-        <label><input type="checkbox" name="verdict" value="{{ v }}"
-          {% if v in selected.verdict %}checked{% endif %}> {{ v }}</label>
-      {% endfor %}
-    </fieldset>
-    <label><input type="checkbox" name="error_only" value="1"
-      {% if error_only %}checked{% endif %}> Errors only</label>
-    <fieldset><legend>testId</legend>
-      {% for t in test_id_options %}
-        <label><input type="checkbox" name="test_id" value="{{ t }}"
-          {% if t in selected.test_id %}checked{% endif %}> {{ t }}</label>
-      {% endfor %}
-    </fieldset>
-    <button type="submit">Apply</button>
-    <a href="{{ url_for('detail.detail', job_id=meta.job_id) }}">Clear</a>
-  </form>
+<div class="row g-3 mb-4">
+  <!-- Metadata card -->
+  <div class="col-12 col-xl-5">
+    <div class="card shadow-sm border-0 h-100">
+      <div class="card-header bg-white fw-semibold small border-bottom py-2">Job Details</div>
+      <div class="card-body p-3">
+        <dl class="row row-cols-2 g-1 mb-0" style="font-size:.82rem">
+          <dt class="col-5 text-muted">Created By</dt><dd class="col-7">{{ meta.created_by }}</dd>
+          <dt class="col-5 text-muted">Created</dt><dd class="col-7" title="{{ meta.created_at[1] }}">{{ meta.created_at[0] }}</dd>
+          <dt class="col-5 text-muted">Started</dt><dd class="col-7" title="{{ meta.started_at[1] }}">{{ meta.started_at[0] }}</dd>
+          <dt class="col-5 text-muted">Completed</dt><dd class="col-7" title="{{ meta.completed_at[1] }}">{{ meta.completed_at[0] }}</dd>
+          <dt class="col-5 text-muted">Harness</dt><dd class="col-7">{{ meta.harness_version }}</dd>
+          <dt class="col-5 text-muted">Source CSV</dt>
+          <dd class="col-7">
+            {% if meta.source_csv_filename %}
+              {{ meta.source_csv_filename }}&nbsp;
+              <a href="{{ url_for('detail.download_csv', job_id=meta.job_id) }}" class="small">↓ download</a>
+            {% else %}<em class="text-muted">not uploaded</em>{% endif %}
+          </dd>
+          <dt class="col-5 text-muted">Counts</dt>
+          <dd class="col-7" id="counts">
+            Total {{ meta.total_utterance_count if meta.total_utterance_count is not none else '—' }} ·
+            Processed {{ meta.processed_count }} · Failed {{ meta.failed_count }}
+          </dd>
+        </dl>
+      </div>
+    </div>
+  </div>
 
-  {% if filtered %}<p class="visible-count">Visible: {{ visible_n }} of {{ visible_m }}</p>{% endif %}
+  <!-- Connector + Evaluator card -->
+  <div class="col-12 col-xl-4">
+    <div class="card shadow-sm border-0 h-100">
+      <div class="card-header bg-white fw-semibold small border-bottom py-2">Connector &amp; Evaluator</div>
+      <div class="card-body p-3">
+        <dl class="row g-1 mb-0" style="font-size:.82rem">
+          <dt class="col-5 text-muted">Connector</dt>
+          <dd class="col-7">{{ meta.connector_name or '—' }}<br>
+            <small class="text-muted" title="{{ meta.connector_endpoint_url }}">{{ (meta.connector_endpoint_url or '')[:45] }}</small></dd>
+          <dt class="col-5 text-muted">Auth</dt>
+          <dd class="col-7 small">{% for k, v in meta.connector_auth.items() %}{{ k }}={{ v }} {% endfor %}</dd>
+          <dt class="col-5 text-muted">Timeout</dt><dd class="col-7">{{ meta.connector_timeout_seconds }}s</dd>
+          <dt class="col-5 text-muted">Per-row pwd</dt><dd class="col-7">{{ 'yes' if meta.connector_expects_per_row_password else 'no' }}</dd>
+          <dt class="col-5 text-muted">Evaluator</dt>
+          <dd class="col-7">{{ meta.evaluation_agent_name or '—' }}<br>
+            <small class="text-muted" title="{{ meta.evaluator_endpoint_url }}">{{ (meta.evaluator_endpoint_url or '')[:45] }}</small></dd>
+          <dt class="col-5 text-muted">Eval Auth</dt>
+          <dd class="col-7 small">{% for k, v in meta.evaluator_auth.items() %}{{ k }}={{ v }} {% endfor %}</dd>
+          <dt class="col-5 text-muted">Dimensions</dt>
+          <dd class="col-7 small">{{ meta.declared_dimensions | join(', ') or '(none)' }}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
 
-  {% macro sortlink(col, label) %}
-    {% set next_dir = 'desc' if (sort == col and dir == 'asc') else 'asc' %}
-    <a href="{{ url_for('detail.detail', job_id=meta.job_id, sort=col, dir=next_dir, q=q,
-        verdict=selected.verdict, test_id=selected.test_id,
-        error_only='1' if error_only else None) }}">
-      {{ label }}{% if sort == col %} {{ '▲' if dir == 'asc' else '▼' }}{% endif %}</a>
-  {% endmacro %}
+  <!-- Export card -->
+  <div class="col-12 col-xl-3">
+    <div class="card shadow-sm border-0 h-100">
+      <div class="card-header bg-white fw-semibold small border-bottom py-2">Export Results</div>
+      <div class="card-body p-3 d-flex flex-column justify-content-center">
+        {% if can_export %}
+        <form method="get" action="{{ url_for('export.export', job_id=meta.job_id) }}" class="d-flex flex-column gap-2">
+          <select name="format" class="form-select form-select-sm">
+            <option value="csv">CSV</option>
+            <option value="json">JSON</option>
+            <option value="zip">Both (zip)</option>
+          </select>
+          <button type="submit" class="btn btn-success btn-sm fw-semibold">↓ Download Results</button>
+        </form>
+        {% else %}
+        <p class="text-muted small text-center mb-0">Export is available once the job has rows.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
 
-  <table>
-    <thead><tr>
-      <th>{{ sortlink('row_index', '#') }}</th>
-      <th>{{ sortlink('test_id', 'testId') }}</th>
-      <th>{{ sortlink('utterance_text', 'Utterance') }}</th>
-      <th>{{ sortlink('chatbot_response', 'Response') }}</th>
-      <th>{{ sortlink('verdict', 'Verdict') }}</th>
-      <th>Scores</th>
-      <th>{{ sortlink('error_status', 'Error') }}</th>
-    </tr></thead>
-    <tbody>
-    {% for r in rows %}
-      <tr class="result-row" data-row-index="{{ r.row_index }}">
-        <td>{{ r.row_index }}</td>
-        <td>{{ r.test_id }}</td>
-        <td title="{{ r.utterance_text }}">{{ r.utterance_text_short }}</td>
-        <td title="{{ r.chatbot_response }}">{{ r.chatbot_response_short or '—' }}</td>
-        <td>{% if r.verdict %}<span class="verdict verdict-{{ r.verdict }}">{{ r.verdict }}</span>{% else %}—{% endif %}
-          {% if r.has_unexpected_dims %}<span class="annot" title="evaluator emitted unexpected dimensions">⚠ unexpected</span>{% endif %}
-        </td>
-        <td>
-          <ul class="scores">
-          {% for c in r.scores_cells %}
-            <li{% if c.unexpected %} class="unexpected"{% endif %}>{{ c.name }}: {{ c.score }}</li>
+<!-- Results section -->
+<div class="card shadow-sm border-0">
+  <div class="card-header bg-white fw-semibold small border-bottom py-2 d-flex justify-content-between align-items-center">
+    <span>Utterance Results</span>
+    {% if filtered %}<span class="text-muted fw-normal">Visible: {{ visible_n }} of {{ visible_m }}</span>{% endif %}
+  </div>
+  <div class="card-body p-3">
+    <!-- Filters -->
+    <form method="get" action="{{ url_for('detail.detail', job_id=meta.job_id) }}" class="row g-2 align-items-end mb-3">
+      <div class="col-12 col-md-4">
+        <input type="search" class="form-control form-control-sm" name="q" value="{{ q }}" placeholder="Search utterance / response…">
+      </div>
+      <div class="col-auto">
+        <label class="form-label small mb-1 fw-semibold">Verdict</label>
+        <div class="d-flex gap-2">
+          {% for v in ['pass', 'warn', 'fail'] %}
+          <div class="form-check form-check-inline mb-0">
+            <input class="form-check-input" type="checkbox" name="verdict" value="{{ v }}" id="vd-{{ v }}"
+              {% if v in selected.verdict %}checked{% endif %}>
+            <label class="form-check-label small" for="vd-{{ v }}">{{ v }}</label>
+          </div>
           {% endfor %}
-          </ul>
-        </td>
-        <td>{% if r.error_status %}<span class="error-status" title="{{ r.error_stage }}">{{ r.error_status }}</span>{% else %}ok{% endif %}</td>
-      </tr>
-      <tr class="expand-row"><td colspan="7">
-        <details>
-          <summary>Trace</summary>
-          <p><strong>Input</strong>: testId={{ r.test_id }}; {{ r.utterance_text }}
-            {% if r.extra_metadata %}<br>metadata: {{ r.extra_metadata }}{% endif %}</p>
-          {% if r.error_status %}
-            <p class="error">Error: {{ r.error_status }} / {{ r.error_stage }} — {{ r.error_details }}</p>
-          {% endif %}
-          {% for label, artifact in [
-              ('Raw chatbot response', r.raw_chatbot_response),
-              ('Normalized contract', r.normalized_contract),
-              ('Evaluation scores', r.evaluation_scores),
-              ('Result metadata', r.result_metadata),
-              ('Harness annotations', r.harness_annotations)] %}
-            <div class="artifact">
-              <strong>{{ label }}</strong>
-              {% if artifact is not none %}
-                <button type="button" class="copy-btn" onclick="copyPre(this)">Copy</button>
-                <pre>{{ artifact | tojson(indent=2) }}</pre>
-              {% else %}<em> (none)</em>{% endif %}
-            </div>
-          {% endfor %}
-        </details>
-      </td></tr>
-    {% else %}
-      <tr><td colspan="7" class="empty-state">No rows match the current filters.</td></tr>
-    {% endfor %}
-    </tbody>
-  </table>
-</section>
+        </div>
+      </div>
+      <div class="col-auto">
+        <div class="form-check mb-0">
+          <input class="form-check-input" type="checkbox" name="error_only" value="1" id="err-only"
+            {% if error_only %}checked{% endif %}>
+          <label class="form-check-label small" for="err-only">Errors only</label>
+        </div>
+      </div>
+      <div class="col-auto d-flex gap-2">
+        <button type="submit" class="btn btn-sm btn-secondary">Apply</button>
+        <a href="{{ url_for('detail.detail', job_id=meta.job_id) }}" class="btn btn-sm btn-outline-secondary">Clear</a>
+      </div>
+    </form>
 
+    {% macro sortlink(col, label) %}
+      {% set next_dir = 'desc' if (sort == col and dir == 'asc') else 'asc' %}
+      <a class="sort-link" href="{{ url_for('detail.detail', job_id=meta.job_id, sort=col, dir=next_dir, q=q,
+          verdict=selected.verdict, test_id=selected.test_id,
+          error_only='1' if error_only else None) }}">
+        {{ label }}{% if sort == col %}&nbsp;{{ '▲' if dir == 'asc' else '▼' }}{% endif %}</a>
+    {% endmacro %}
+
+    <div class="table-responsive">
+      <table class="table table-hover harness-table mb-0">
+        <thead>
+          <tr>
+            <th>{{ sortlink('row_index', '#') }}</th>
+            <th>{{ sortlink('test_id', 'testId') }}</th>
+            <th>{{ sortlink('utterance_text', 'Utterance') }}</th>
+            <th>{{ sortlink('chatbot_response', 'Response') }}</th>
+            <th>{{ sortlink('verdict', 'Verdict') }}</th>
+            <th>Scores</th>
+            <th>{{ sortlink('error_status', 'Error') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for r in rows %}
+          <tr class="result-row" data-row-index="{{ r.row_index }}">
+            <td class="text-muted small">{{ r.row_index }}</td>
+            <td class="small">{{ r.test_id }}</td>
+            <td class="small" title="{{ r.utterance_text }}">{{ r.utterance_text_short }}</td>
+            <td class="small" title="{{ r.chatbot_response }}">{{ r.chatbot_response_short or '—' }}</td>
+            <td>
+              {% if r.verdict %}<span class="verdict verdict-{{ r.verdict }}">{{ r.verdict }}</span>{% else %}—{% endif %}
+              {% if r.has_unexpected_dims %}<span class="annot" title="evaluator emitted unexpected dimensions">⚠</span>{% endif %}
+            </td>
+            <td>
+              <ul class="scores">
+              {% for c in r.scores_cells %}
+                <li{% if c.unexpected %} class="unexpected"{% endif %}>{{ c.name }}: {{ c.score }}</li>
+              {% endfor %}
+              </ul>
+            </td>
+            <td class="small">
+              {% if r.error_status %}<span class="text-danger" title="{{ r.error_stage }}">{{ r.error_status }}</span>{% else %}<span class="text-success">ok</span>{% endif %}
+            </td>
+          </tr>
+          <tr class="expand-row table-light">
+            <td colspan="7" class="py-0">
+              <details>
+                <summary class="py-2 small fw-semibold" style="cursor:pointer">Trace</summary>
+                <div class="p-3 pt-1">
+                  <p class="small mb-2"><strong>Input:</strong> testId={{ r.test_id }}; {{ r.utterance_text }}
+                    {% if r.extra_metadata %}<br><span class="text-muted">metadata: {{ r.extra_metadata }}</span>{% endif %}</p>
+                  {% if r.error_status %}
+                    <p class="text-danger small">Error: {{ r.error_status }} / {{ r.error_stage }} — {{ r.error_details }}</p>
+                  {% endif %}
+                  {% for label, artifact in [
+                      ('Raw chatbot response', r.raw_chatbot_response),
+                      ('Normalized contract', r.normalized_contract),
+                      ('Evaluation scores', r.evaluation_scores),
+                      ('Result metadata', r.result_metadata),
+                      ('Harness annotations', r.harness_annotations)] %}
+                    <div class="artifact mb-2">
+                      <div class="d-flex align-items-center gap-2 mb-1">
+                        <strong class="small">{{ label }}</strong>
+                        {% if artifact is not none %}
+                        <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:.7rem" onclick="copyPre(this)">Copy</button>
+                        {% endif %}
+                      </div>
+                      {% if artifact is not none %}
+                        <pre>{{ artifact | tojson(indent=2) }}</pre>
+                      {% else %}<span class="text-muted small">(none)</span>{% endif %}
+                    </div>
+                  {% endfor %}
+                </div>
+              </details>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="7" class="text-center text-muted py-4">No rows match the current filters.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</div><!-- /data-job-id wrapper -->
+{% endblock %}
+
+{% block scripts %}
 <script>
 function copyPre(btn) {
-  var pre = btn.parentElement.querySelector('pre');
+  var pre = btn.closest('.artifact').querySelector('pre');
   if (pre && navigator.clipboard) navigator.clipboard.writeText(pre.textContent);
 }
-// Live updates (FR-015/016/020): poll until terminal; reload when rows grow.
 (function () {
-  var body = document.body;
-  if (body.dataset.terminal === '1') return;
-  var baseline = parseInt(body.dataset.rowCount, 10) || 0;
-  var jobId = body.dataset.jobId;
+  var wrapper = document.querySelector('[data-job-id]');
+  if (!wrapper || wrapper.dataset.terminal === '1') return;
+  var baseline = parseInt(wrapper.dataset.rowCount, 10) || 0;
+  var jobId = wrapper.dataset.jobId;
   var timer = setInterval(poll, 3000);
   function poll() {
     fetch("/jobs/" + jobId + "/detail.json").then(function (resp) {
@@ -192,15 +265,14 @@ function copyPre(btn) {
     }).then(function (d) {
       if (!d) return;
       var badge = document.getElementById('status-badge');
-      if (badge) { badge.textContent = d.status_label; badge.className = 'badge ' + d.badge_class; }
+      if (badge) { badge.textContent = d.status_label; badge.className = 'badge ' + d.badge_class + ' ms-2'; }
       var counts = document.getElementById('counts');
       if (counts) counts.textContent = 'Total ' + (d.total === null ? '—' : d.total) +
         ' · Processed ' + d.processed + ' · Failed ' + d.failed;
       if (d.row_count > baseline) { window.location.reload(); }
       if (d.terminal) clearInterval(timer);
-    }).catch(function () { /* transient */ });
+    }).catch(function () {});
   }
 })();
 </script>
-</body>
-</html>
+{% endblock %}
