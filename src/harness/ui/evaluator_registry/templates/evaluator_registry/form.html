@@ -6,8 +6,8 @@
   <div class="col-12 col-lg-8">
     <nav aria-label="breadcrumb" class="mb-3">
       <ol class="breadcrumb small">
-        <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
-        <li class="breadcrumb-item"><a href="{{ url_for('evaluator_registry.list_evaluators') }}">Evaluators</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Dashboard</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('list_evaluators') }}">Evaluators</a></li>
         <li class="breadcrumb-item active">{{ mode_label }}</li>
       </ol>
     </nav>
@@ -18,7 +18,7 @@
       </div>
       <div class="card-body p-4">
         <form method="post"
-              action="{% if reg %}{{ url_for('evaluator_registry.update_evaluator', evaluation_agent_id=reg.evaluation_agent_id) }}{% else %}{{ url_for('evaluator_registry.create_evaluator') }}{% endif %}">
+              action="{% if reg %}{{ url_for('update_evaluator', evaluation_agent_id=reg.evaluation_agent_id) }}{% else %}{{ url_for('create_evaluator') }}{% endif %}">
           <input type="hidden" name="next" value="{{ next_url }}">
           {% if reg %}
             <input type="hidden" name="evaluation_agent_id" value="{{ reg.evaluation_agent_id }}">
@@ -204,7 +204,7 @@ document.getElementById('test-conn-btn').addEventListener('click', function() {
   btn.textContent = 'Testing…';
   resultArea.style.display = 'none';
   var data = new FormData(form);
-  fetch('{{ url_for("evaluator_registry.test_connection_route") }}', {
+  fetch('{{ url_for("test_connection_evaluator") }}', {
     method: 'POST', body: data
   }).then(function(r) { return r.text(); })
     .then(function(html) {

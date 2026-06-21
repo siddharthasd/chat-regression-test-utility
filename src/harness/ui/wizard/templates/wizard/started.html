@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% block title %}Job Started{% endblock %}
 
 {% block content %}
@@ -14,8 +14,8 @@
           The execution engine will pick it up shortly.
         </p>
         <div class="d-flex justify-content-center gap-3">
-          <a href="{{ url_for('dashboard.index') }}" class="btn btn-primary">← Back to Dashboard</a>
-          <a href="{{ url_for('wizard.new_job') }}" class="btn btn-outline-secondary">Create another job</a>
+          <a href="{{ url_for('index') }}" class="btn btn-primary">← Back to Dashboard</a>
+          <a href="{{ url_for('new_job') }}" class="btn btn-outline-secondary">Create another job</a>
         </div>
       </div>
     </div>

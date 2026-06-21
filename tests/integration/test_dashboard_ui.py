@@ -18,8 +18,9 @@ def client(tmp_path, monkeypatch):
     encryption._reset_key_cache_for_tests()
     engine.init_db(tmp_path / "ui.db")
     from harness.ui import create_app
+    from starlette.testclient import TestClient
 
-    return create_app().test_client()
+    return TestClient(create_app(), raise_server_exceptions=True, follow_redirects=False)
 
 
 def _seed(
@@ -37,7 +38,7 @@ def _seed(
 
 
 def _html(client, path="/"):
-    return client.get(path).get_data(as_text=True)
+    return client.get(path).text
 
 
 # --------------------------------------------------------------------------- US1
@@ -126,7 +127,7 @@ def test_no_matches_state_distinct_from_empty(client) -> None:
 def test_jobs_json_live_state(client) -> None:
     _seed(status=JobStatus.RUNNING, name="Live", processed=4, total=10, failed=1)
     _seed(status=JobStatus.COMPLETED, name="Done")
-    data = client.get("/dashboard/jobs.json").get_json()
+    data = client.get("/dashboard/jobs.json").json()
     by_status = {j["status"]: j for j in data["jobs"]}
     assert by_status["running"]["terminal"] is False
     assert by_status["running"]["processed"] == 4 and by_status["running"]["total"] == 10
@@ -137,7 +138,7 @@ def test_jobs_json_live_state(client) -> None:
 def test_delete_failed_job(client) -> None:
     job_id = _seed(status=JobStatus.FAILED, name="ToDelete")
     resp = client.post(f"/dashboard/jobs/{job_id}/delete")
-    assert resp.status_code == 302
+    assert resp.status_code in (302, 303)
     assert "ToDelete" not in _html(client)
 
 
@@ -154,7 +155,7 @@ def test_delete_completed_with_errors_has_delete_button(client) -> None:
     body = _html(client)
     assert f"/dashboard/jobs/{job_id}/delete" in body
     resp = client.post(f"/dashboard/jobs/{job_id}/delete")
-    assert resp.status_code == 302
+    assert resp.status_code in (302, 303)
     assert "ErrorDone" not in _html(client)
 
 
@@ -176,7 +177,7 @@ def test_clear_terminal_removes_failed_cancelled_and_completed_with_errors(clien
     _seed(status=JobStatus.COMPLETED, name="CompletedWithErrorsToDelete", failed=5)
     _seed(status=JobStatus.COMPLETED, name="CleanCompletedToKeep", failed=0)
     _seed(status=JobStatus.RUNNING, name="RunningJobToKeep")
-    assert client.post("/dashboard/clear-terminal").status_code == 302
+    assert client.post("/dashboard/clear-terminal").status_code in (302, 303)
     body = _html(client)
     assert "FailedJobToDelete" not in body
     assert "CancelledJobToDelete" not in body

@@ -9,60 +9,82 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from flask import Blueprint, abort, jsonify, redirect, render_template, request, url_for
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import RedirectResponse
 
+from harness.auth.middleware import require_auth
 from harness.persistence import get_session
 from harness.persistence.enums import JobStatus
 from harness.persistence.repositories import JobRepository
+from harness.ui._context import ctx
+from harness.ui._templates import templates
 from harness.ui.dashboard import view
 
-bp = Blueprint("dashboard", __name__, template_folder="templates")
+router = APIRouter()
 
 _DELETABLE = {JobStatus.FAILED.value, JobStatus.CANCELLED.value, JobStatus.COMPLETED.value}
 
 
-@bp.route("/", methods=["GET"])
-def index():
-    statuses = request.args.getlist("status")
-    connectors = request.args.getlist("connector")
-    created_bys = request.args.getlist("created_by")
-    q = request.args.get("q") or ""
-    sort = request.args.get("sort") or "created_at"
-    direction = request.args.get("dir") or "desc"
+def _list_jobs(session, user: dict):
+    repo = JobRepository(session)
+    if user and user.get("role") == "admin":
+        return repo.list_all()
+    oid = user.get("oid") if user else None
+    if oid:
+        return repo.list_by_owner_id(oid)
+    return repo.list_all()
 
+
+@router.get("/")
+def index(
+    request: Request,
+    status: list[str] = Query([]),
+    connector: list[str] = Query([]),
+    created_by: list[str] = Query([]),
+    q: str = Query(""),
+    sort: str = Query("created_at"),
+    dir: str = Query("desc"),
+    user: dict = Depends(require_auth),
+):
+    is_admin = user.get("role") == "admin" if user else True
     now = datetime.now(UTC)
     with get_session() as session:
-        jobs = JobRepository(session).list_all()
+        jobs = _list_jobs(session, user)
         all_rows = [view.row_view(j, now) for j in jobs]
 
     facets = view.distinct_facets(all_rows)
     rows = view.apply_filters(
-        all_rows, statuses=statuses, connectors=connectors, created_bys=created_bys, q=q
+        all_rows, statuses=status, connectors=connector, created_bys=created_by, q=q
     )
-    rows = view.sort_rows(rows, sort, direction)
+    rows = view.sort_rows(rows, sort, dir)
     terminal_clearable = sum(1 for r in all_rows if r["deletable"])
 
-    return render_template(
+    return templates.TemplateResponse(
+        request,
         "dashboard/index.html",
-        rows=rows,
-        total_jobs=len(all_rows),
-        facets=facets,
-        selected={"status": statuses, "connector": connectors, "created_by": created_bys},
-        q=q,
-        sort=sort,
-        dir=direction,
-        terminal_clearable=terminal_clearable,
+        {
+            "rows": rows,
+            "total_jobs": len(all_rows),
+            "facets": facets,
+            "selected": {"status": status, "connector": connector, "created_by": created_by},
+            "q": q,
+            "sort": sort,
+            "dir": dir,
+            "terminal_clearable": terminal_clearable,
+            "is_admin": is_admin,
+            **ctx(request),
+        },
     )
 
 
-@bp.route("/dashboard/jobs.json", methods=["GET"])
-def jobs_json():
+@router.get("/dashboard/jobs.json")
+def jobs_json(request: Request, user: dict = Depends(require_auth)):
     """Live state for the poller (FR-012/013)."""
     now = datetime.now(UTC)
     with get_session() as session:
-        rows = [view.row_view(j, now) for j in JobRepository(session).list_all()]
-    return jsonify(
-        jobs=[
+        rows = [view.row_view(j, now) for j in _list_jobs(session, user)]
+    return {
+        "jobs": [
             {
                 "job_id": r["job_id"],
                 "status": r["status"],
@@ -75,43 +97,52 @@ def jobs_json():
             }
             for r in rows
         ]
-    )
+    }
 
 
-@bp.route("/dashboard/jobs/<job_id>/delete", methods=["POST"])
-def delete_job(job_id: str):
+@router.post("/dashboard/jobs/{job_id}/delete")
+def delete_job(
+    request: Request,
+    job_id: str,
+    user: dict = Depends(require_auth),
+):
     """Delete a single failed/cancelled job (FR-010b), re-checking status at execute time."""
+    is_admin = user.get("role") == "admin" if user else True
     with get_session() as session:
         repo = JobRepository(session)
-        job = repo.get(job_id)
+        job = repo.get(job_id) if is_admin else (
+            repo.get_owned(job_id, user.get("oid")) if user and user.get("oid") else None
+        )
         if job is None:
-            abort(404)
+            raise HTTPException(status_code=404)
         if job.status not in _DELETABLE:
-            # Status changed between confirm and execute, or never deletable here.
             now = datetime.now(UTC)
-            all_rows = [view.row_view(j, now) for j in repo.list_all()]
-            return (
-                render_template(
-                    "dashboard/index.html",
-                    rows=view.sort_rows(all_rows, "created_at", "desc"),
-                    total_jobs=len(all_rows),
-                    facets=view.distinct_facets(all_rows),
-                    selected={"status": [], "connector": [], "created_by": []},
-                    q="",
-                    sort="created_at",
-                    dir="desc",
-                    terminal_clearable=sum(1 for r in all_rows if r["deletable"]),
-                    error=f"Job is '{job.status}' and cannot be deleted from the dashboard.",
-                ),
-                409,
+            all_rows = [view.row_view(j, now) for j in _list_jobs(session, user)]
+            return templates.TemplateResponse(
+                request,
+                "dashboard/index.html",
+                {
+                    "rows": view.sort_rows(all_rows, "created_at", "desc"),
+                    "total_jobs": len(all_rows),
+                    "facets": view.distinct_facets(all_rows),
+                    "selected": {"status": [], "connector": [], "created_by": []},
+                    "q": "",
+                    "sort": "created_at",
+                    "dir": "desc",
+                    "terminal_clearable": sum(1 for r in all_rows if r["deletable"]),
+                    "error": f"Job is '{job.status}' and cannot be deleted from the dashboard.",
+                    "is_admin": is_admin,
+                    **ctx(request),
+                },
+                status_code=409,
             )
         repo.delete(job_id)
-    return redirect(url_for("dashboard.index"))
+    return RedirectResponse(request.url_for("index"), status_code=303)
 
 
-@bp.route("/dashboard/clear-terminal", methods=["POST"])
-def clear_terminal():
+@router.post("/dashboard/clear-terminal")
+def clear_terminal(request: Request, user: dict = Depends(require_auth)):
     """Delete every failed, cancelled, and completed-with-errors job atomically (FR-010c)."""
     with get_session() as session:
         JobRepository(session).delete_all_clearable()
-    return redirect(url_for("dashboard.index"))
+    return RedirectResponse(request.url_for("index"), status_code=303)

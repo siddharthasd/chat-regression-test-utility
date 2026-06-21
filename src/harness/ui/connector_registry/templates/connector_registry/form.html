@@ -6,8 +6,8 @@
   <div class="col-12 col-lg-8">
     <nav aria-label="breadcrumb" class="mb-3">
       <ol class="breadcrumb small">
-        <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
-        <li class="breadcrumb-item"><a href="{{ url_for('connector_registry.list_connectors') }}">Connectors</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Dashboard</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('list_connectors') }}">Connectors</a></li>
         <li class="breadcrumb-item active">{{ mode_label }}</li>
       </ol>
     </nav>
@@ -18,7 +18,7 @@
       </div>
       <div class="card-body p-4">
         <form method="post"
-              action="{% if reg %}{{ url_for('connector_registry.update_connector', connector_id=reg.connector_id) }}{% else %}{{ url_for('connector_registry.create_connector') }}{% endif %}">
+              action="{% if reg %}{{ url_for('update_connector', connector_id=reg.connector_id) }}{% else %}{{ url_for('create_connector') }}{% endif %}">
           <input type="hidden" name="next" value="{{ next_url }}">
           {% if reg %}
             <input type="hidden" name="connector_id" value="{{ reg.connector_id }}">
@@ -201,7 +201,7 @@ document.getElementById('test-conn-btn').addEventListener('click', function() {
   btn.textContent = 'Testing…';
   resultArea.style.display = 'none';
   var data = new FormData(form);
-  fetch('{{ url_for("connector_registry.test_connection_route") }}', {
+  fetch('{{ url_for("test_connection_connector") }}', {
     method: 'POST', body: data
   }).then(function(r) { return r.text(); })
     .then(function(html) {

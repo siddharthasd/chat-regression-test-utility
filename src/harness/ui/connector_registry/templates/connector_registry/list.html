@@ -4,7 +4,7 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
   <h4 class="fw-bold mb-0">Connector Registry</h4>
-  <a href="{{ url_for('connector_registry.new_connector') }}" class="btn btn-primary btn-sm">+ Register Connector</a>
+  <a href="{{ url_for('new_connector') }}" class="btn btn-primary btn-sm">+ Register Connector</a>
 </div>
 
 {% if error %}
@@ -16,18 +16,18 @@
     <ul class="nav nav-pills nav-sm" style="gap:.25rem">
       <li class="nav-item">
         <a class="nav-link py-1 px-3 small {% if filter == 'active' %}active{% endif %}"
-           href="{{ url_for('connector_registry.list_connectors', filter='active', q=q) }}">Active</a>
+           href="{{ url_for('list_connectors', filter='active', q=q) }}">Active</a>
       </li>
       <li class="nav-item">
         <a class="nav-link py-1 px-3 small {% if filter == 'archived' %}active{% endif %}"
-           href="{{ url_for('connector_registry.list_connectors', filter='archived', q=q) }}">Archived</a>
+           href="{{ url_for('list_connectors', filter='archived', q=q) }}">Archived</a>
       </li>
       <li class="nav-item">
         <a class="nav-link py-1 px-3 small {% if filter == 'all' %}active{% endif %}"
-           href="{{ url_for('connector_registry.list_connectors', filter='all', q=q) }}">All</a>
+           href="{{ url_for('list_connectors', filter='all', q=q) }}">All</a>
       </li>
     </ul>
-    <form method="get" action="{{ url_for('connector_registry.list_connectors') }}" class="d-flex gap-2">
+    <form method="get" action="{{ url_for('list_connectors') }}" class="d-flex gap-2">
       <input type="hidden" name="filter" value="{{ filter }}">
       <input type="search" class="form-control form-control-sm" style="width:200px" name="q" value="{{ q }}" placeholder="Search name…">
       <button type="submit" class="btn btn-sm btn-outline-secondary">Search</button>
@@ -38,7 +38,7 @@
   <div class="card-body text-center py-5">
     <div class="empty-state-icon mb-3">🔌</div>
     <h5 class="text-muted">No connectors registered yet</h5>
-    <a href="{{ url_for('connector_registry.new_connector') }}" class="btn btn-primary btn-sm mt-2">Register your first connector</a>
+    <a href="{{ url_for('new_connector') }}" class="btn btn-primary btn-sm mt-2">Register your first connector</a>
   </div>
   {% else %}
   <div class="table-responsive">
@@ -64,21 +64,21 @@
           <td class="small text-muted">{{ r.updated_at }}</td>
           <td>
             <div class="d-flex gap-1 flex-wrap">
-              <a href="{{ url_for('connector_registry.edit_connector', connector_id=r.connector_id) }}"
+              <a href="{{ url_for('edit_connector', connector_id=r.connector_id) }}"
                  class="btn btn-sm btn-outline-primary py-0">Edit</a>
               {% if r.archived %}
                 <form method="post" style="display:inline"
-                      action="{{ url_for('connector_registry.restore_connector', connector_id=r.connector_id) }}">
+                      action="{{ url_for('restore_connector', connector_id=r.connector_id) }}">
                   <button type="submit" class="btn btn-sm btn-outline-success py-0">Restore</button>
                 </form>
               {% else %}
                 <form method="post" style="display:inline"
-                      action="{{ url_for('connector_registry.archive_connector', connector_id=r.connector_id) }}">
+                      action="{{ url_for('archive_connector', connector_id=r.connector_id) }}">
                   <button type="submit" class="btn btn-sm btn-outline-secondary py-0">Archive</button>
                 </form>
               {% endif %}
               <form method="post" style="display:inline"
-                    action="{{ url_for('connector_registry.delete_connector', connector_id=r.connector_id) }}"
+                    action="{{ url_for('delete_connector', connector_id=r.connector_id) }}"
                     onsubmit="return confirm('Delete this connector permanently?')">
                 <button type="submit" class="btn btn-sm btn-outline-danger py-0">Delete</button>
               </form>

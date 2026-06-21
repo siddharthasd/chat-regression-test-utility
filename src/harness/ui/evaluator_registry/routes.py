@@ -1,9 +1,11 @@
-"""Evaluator Registry management routes (014). Mirrors the connector registry blueprint."""
+"""Evaluator Registry management routes (014). Mirrors the connector registry router."""
 
 from __future__ import annotations
 
-from flask import Blueprint, abort, redirect, render_template, request, url_for
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
+from fastapi.responses import RedirectResponse
 
+from harness.auth.middleware import require_auth
 from harness.evaluator_registry import (
     EvaluatorRegistryService,
     RegistrationInUseError,
@@ -14,8 +16,10 @@ from harness.evaluator_registry.forms import parse_dimensions
 from harness.evaluator_registry.test_connection import TestConnectionResult
 from harness.persistence import get_session
 from harness.persistence.exceptions import HarnessKeyMismatchError
+from harness.ui._context import ctx
+from harness.ui._templates import templates
 
-bp = Blueprint("evaluator_registry", __name__, template_folder="templates")
+router = APIRouter()
 
 _TRUTHY = {"1", "true", "on", "yes"}
 _PREVIEW = 3
@@ -49,156 +53,297 @@ def _reg_to_view(reg) -> dict:
     }
 
 
-@bp.route("/evaluators", methods=["GET"])
-def list_evaluators():
-    filter_ = request.args.get("filter", "active")
-    q = request.args.get("q") or None
+@router.get("/evaluators")
+def list_evaluators(
+    request: Request,
+    filter: str = Query("active"),
+    q: str = Query(""),
+    user: dict = Depends(require_auth),
+):
+    filter_ = filter
+    q_val = q or None
     with get_session() as session:
-        regs = EvaluatorRegistryService(session).list_registrations(filter=filter_, q=q)
+        regs = EvaluatorRegistryService(session).list_registrations(filter=filter_, q=q_val)
         views = [_reg_to_view(r) for r in regs]
-    return render_template(
-        "evaluator_registry/list.html", registrations=views, filter=filter_, q=q or "", error=None
+    return templates.TemplateResponse(
+        request,
+        "evaluator_registry/list.html",
+        {
+            "registrations": views,
+            "filter": filter_,
+            "q": q or "",
+            "error": None,
+            **ctx(request),
+        },
     )
 
 
-@bp.route("/evaluators/new", methods=["GET"])
-def new_evaluator():
-    return render_template(
+@router.get("/evaluators/new")
+def new_evaluator(
+    request: Request,
+    next: str = Query(""),
+    user: dict = Depends(require_auth),
+):
+    return templates.TemplateResponse(
+        request,
         "evaluator_registry/form.html",
-        mode_label="Register new evaluator",
-        reg=None,
-        errors={},
-        form={},
-        next_url=request.args.get("next", ""),
+        {
+            "mode_label": "Register new evaluator",
+            "reg": None,
+            "errors": {},
+            "form": {},
+            "next_url": next,
+            **ctx(request),
+        },
     )
 
 
-@bp.route("/evaluators", methods=["POST"])
-def create_evaluator():
-    next_url = request.form.get("next", "")
-    payload, errors = parse_evaluator_form(request.form, require_credential=True)
+@router.post("/evaluators")
+def create_evaluator(
+    request: Request,
+    display_name: str = Form(None),
+    description: str = Form(None),
+    endpoint_url: str = Form(None),
+    auth_mode: str = Form(None),
+    token: str = Form(None),
+    header_name: str = Form(None),
+    header_value: str = Form(None),
+    username: str = Form(None),
+    password: str = Form(None),
+    token_url: str = Form(None),
+    client_id: str = Form(None),
+    client_secret: str = Form(None),
+    scope: str = Form(None),
+    audience: str = Form(None),
+    timeout_seconds: str = Form(None),
+    dimensions: str = Form(None),
+    replace_credential: str = Form(None),
+    next_url: str = Form(None, alias="next"),
+    evaluation_agent_id: str = Form(None),
+    user: dict = Depends(require_auth),
+):
+    form = {k: v for k, v in {
+        "display_name": display_name, "description": description,
+        "endpoint_url": endpoint_url, "auth_mode": auth_mode, "token": token,
+        "header_name": header_name, "header_value": header_value,
+        "username": username, "password": password, "token_url": token_url,
+        "client_id": client_id, "client_secret": client_secret,
+        "scope": scope, "audience": audience, "timeout_seconds": timeout_seconds,
+        "dimensions": dimensions, "replace_credential": replace_credential,
+        "next": next_url, "evaluation_agent_id": evaluation_agent_id,
+    }.items() if v is not None}
+    next_redirect = next_url or ""
+    payload, errors = parse_evaluator_form(form, require_credential=True)
     if errors:
-        return (
-            render_template(
-                "evaluator_registry/form.html",
-                mode_label="Register new evaluator",
-                reg=None,
-                errors=errors,
-                form=request.form,
-                next_url=next_url,
-            ),
-            400,
+        return templates.TemplateResponse(
+            request,
+            "evaluator_registry/form.html",
+            {
+                "mode_label": "Register new evaluator",
+                "reg": None,
+                "errors": errors,
+                "form": form,
+                "next_url": next_redirect,
+                **ctx(request),
+            },
+            status_code=400,
         )
     with get_session() as session:
         EvaluatorRegistryService(session).create(payload)
-    if next_url == "dashboard":
-        return redirect(url_for("dashboard.index"))
-    return redirect(url_for("evaluator_registry.list_evaluators"))
+    if next_redirect == "dashboard":
+        return RedirectResponse(request.url_for("index"), status_code=303)
+    return RedirectResponse(request.url_for("list_evaluators"), status_code=303)
 
 
-@bp.route("/evaluators/<evaluation_agent_id>/edit", methods=["GET"])
-def edit_evaluator(evaluation_agent_id: str):
-    with get_session() as session:
-        reg = EvaluatorRegistryService(session).get(evaluation_agent_id)
-        if reg is None:
-            abort(404)
-        view = _reg_to_view(reg)
-    return render_template(
-        "evaluator_registry/form.html", mode_label="Edit evaluator", reg=view, errors={}, form={}, next_url=""
-    )
-
-
-@bp.route("/evaluators/<evaluation_agent_id>", methods=["POST"])
-def update_evaluator(evaluation_agent_id: str):
-    replace = (request.form.get("replace_credential") or "").lower() in _TRUTHY
-    with get_session() as session:
-        service = EvaluatorRegistryService(session)
-        existing = service.get(evaluation_agent_id)
-        if existing is None:
-            abort(404)
-        stored_mode = (existing.auth_descriptor or {}).get("mode")
-        new_mode = (request.form.get("auth_mode") or "").strip()
-        require_credential = replace or (new_mode != stored_mode)
-        payload, errors = parse_evaluator_form(request.form, require_credential=require_credential)
-        if errors:
-            view = _reg_to_view(existing)
-            return (
-                render_template(
-                    "evaluator_registry/form.html",
-                    mode_label="Edit evaluator",
-                    reg=view,
-                    errors=errors,
-                    form=request.form,
-                    next_url="",
-                ),
-                400,
-            )
-        service.update(evaluation_agent_id, payload, replace_credential=require_credential)
-    return redirect(url_for("evaluator_registry.list_evaluators"))
-
-
-@bp.route("/evaluators/<evaluation_agent_id>/archive", methods=["POST"])
-def archive_evaluator(evaluation_agent_id: str):
-    with get_session() as session:
-        EvaluatorRegistryService(session).archive(evaluation_agent_id)
-    return redirect(url_for("evaluator_registry.list_evaluators"))
-
-
-@bp.route("/evaluators/<evaluation_agent_id>/restore", methods=["POST"])
-def restore_evaluator(evaluation_agent_id: str):
-    with get_session() as session:
-        EvaluatorRegistryService(session).restore(evaluation_agent_id)
-    return redirect(url_for("evaluator_registry.list_evaluators"))
-
-
-@bp.route("/evaluators/<evaluation_agent_id>/delete", methods=["POST"])
-def delete_evaluator(evaluation_agent_id: str):
-    with get_session() as session:
-        service = EvaluatorRegistryService(session)
-        try:
-            service.hard_delete(evaluation_agent_id)
-        except RegistrationInUseError as exc:
-            views = [_reg_to_view(r) for r in service.list_registrations(filter="all")]
-            return (
-                render_template(
-                    "evaluator_registry/list.html",
-                    registrations=views,
-                    filter="all",
-                    q="",
-                    error=str(exc),
-                ),
-                409,
-            )
-    return redirect(url_for("evaluator_registry.list_evaluators"))
-
-
-@bp.route("/evaluators/test-connection", methods=["POST"])
-def test_connection_route():
-    form = request.form
+@router.post("/evaluators/test-connection")
+def test_connection_evaluator(
+    request: Request,
+    endpoint_url: str = Form(None),
+    auth_mode: str = Form(None),
+    token: str = Form(None),
+    header_name: str = Form(None),
+    header_value: str = Form(None),
+    username: str = Form(None),
+    password: str = Form(None),
+    token_url: str = Form(None),
+    client_id: str = Form(None),
+    client_secret: str = Form(None),
+    scope: str = Form(None),
+    audience: str = Form(None),
+    timeout_seconds: str = Form(None),
+    dimensions: str = Form(None),
+    evaluation_agent_id: str = Form(None),
+    user: dict = Depends(require_auth),
+):
+    form = {k: v for k, v in {
+        "endpoint_url": endpoint_url, "auth_mode": auth_mode, "token": token,
+        "header_name": header_name, "header_value": header_value,
+        "username": username, "password": password, "token_url": token_url,
+        "client_id": client_id, "client_secret": client_secret,
+        "scope": scope, "audience": audience, "timeout_seconds": timeout_seconds,
+        "dimensions": dimensions, "evaluation_agent_id": evaluation_agent_id,
+    }.items() if v is not None}
     endpoint = (form.get("endpoint_url") or "").strip()
     mode = (form.get("auth_mode") or "none").strip()
     try:
         timeout = int(form.get("timeout_seconds") or 60)
     except ValueError:
         timeout = 60
-    dimensions = parse_dimensions(form.get("dimensions"))
-    evaluation_agent_id = (form.get("evaluation_agent_id") or "").strip()
+    dims_val = parse_dimensions(form.get("dimensions"))
+    eid = (form.get("evaluation_agent_id") or "").strip()
 
     descriptor, needs_stored = _descriptor_from_form(form, mode)
-    if needs_stored and evaluation_agent_id:
+    if needs_stored and eid:
         with get_session() as session:
             try:
-                descriptor = EvaluatorRegistryService(session).get_auth_descriptor_decrypted(
-                    evaluation_agent_id
-                )
+                descriptor = EvaluatorRegistryService(session).get_auth_descriptor_decrypted(eid)
             except HarnessKeyMismatchError:
                 result = TestConnectionResult(
                     False, "auth_decrypt_failed", detail="machine-local key missing or wrong"
                 )
-                return render_template("evaluator_registry/_test_result.html", result=result)
+                return templates.TemplateResponse(
+                    request, "evaluator_registry/_test_result.html", {"result": result}
+                )
 
-    result = run_test_connection(endpoint, descriptor, timeout, dimensions)
-    return render_template("evaluator_registry/_test_result.html", result=result)
+    result = run_test_connection(endpoint, descriptor, timeout, dims_val)
+    return templates.TemplateResponse(
+        request, "evaluator_registry/_test_result.html", {"result": result}
+    )
+
+
+@router.get("/evaluators/{evaluation_agent_id}/edit")
+def edit_evaluator(
+    request: Request,
+    evaluation_agent_id: str,
+    user: dict = Depends(require_auth),
+):
+    with get_session() as session:
+        reg = EvaluatorRegistryService(session).get(evaluation_agent_id)
+        if reg is None:
+            raise HTTPException(status_code=404)
+        reg_view = _reg_to_view(reg)
+    return templates.TemplateResponse(
+        request,
+        "evaluator_registry/form.html",
+        {
+            "mode_label": "Edit evaluator",
+            "reg": reg_view,
+            "errors": {},
+            "form": {},
+            "next_url": "",
+            **ctx(request),
+        },
+    )
+
+
+@router.post("/evaluators/{evaluation_agent_id}")
+def update_evaluator(
+    request: Request,
+    evaluation_agent_id: str,
+    display_name: str = Form(None),
+    description: str = Form(None),
+    endpoint_url: str = Form(None),
+    auth_mode: str = Form(None),
+    token: str = Form(None),
+    header_name: str = Form(None),
+    header_value: str = Form(None),
+    username: str = Form(None),
+    password: str = Form(None),
+    token_url: str = Form(None),
+    client_id: str = Form(None),
+    client_secret: str = Form(None),
+    scope: str = Form(None),
+    audience: str = Form(None),
+    timeout_seconds: str = Form(None),
+    dimensions: str = Form(None),
+    replace_credential: str = Form(None),
+    user: dict = Depends(require_auth),
+):
+    form = {k: v for k, v in {
+        "display_name": display_name, "description": description,
+        "endpoint_url": endpoint_url, "auth_mode": auth_mode, "token": token,
+        "header_name": header_name, "header_value": header_value,
+        "username": username, "password": password, "token_url": token_url,
+        "client_id": client_id, "client_secret": client_secret,
+        "scope": scope, "audience": audience, "timeout_seconds": timeout_seconds,
+        "dimensions": dimensions, "replace_credential": replace_credential,
+    }.items() if v is not None}
+    replace = (form.get("replace_credential") or "").lower() in _TRUTHY
+    with get_session() as session:
+        service = EvaluatorRegistryService(session)
+        existing = service.get(evaluation_agent_id)
+        if existing is None:
+            raise HTTPException(status_code=404)
+        stored_mode = (existing.auth_descriptor or {}).get("mode")
+        new_mode = (form.get("auth_mode") or "").strip()
+        require_cred = replace or (new_mode != stored_mode)
+        payload, errors = parse_evaluator_form(form, require_credential=require_cred)
+        if errors:
+            reg_view = _reg_to_view(existing)
+            return templates.TemplateResponse(
+                request,
+                "evaluator_registry/form.html",
+                {
+                    "mode_label": "Edit evaluator",
+                    "reg": reg_view,
+                    "errors": errors,
+                    "form": form,
+                    "next_url": "",
+                    **ctx(request),
+                },
+                status_code=400,
+            )
+        service.update(evaluation_agent_id, payload, replace_credential=require_cred)
+    return RedirectResponse(request.url_for("list_evaluators"), status_code=303)
+
+
+@router.post("/evaluators/{evaluation_agent_id}/archive")
+def archive_evaluator(
+    request: Request,
+    evaluation_agent_id: str,
+    user: dict = Depends(require_auth),
+):
+    with get_session() as session:
+        EvaluatorRegistryService(session).archive(evaluation_agent_id)
+    return RedirectResponse(request.url_for("list_evaluators"), status_code=303)
+
+
+@router.post("/evaluators/{evaluation_agent_id}/restore")
+def restore_evaluator(
+    request: Request,
+    evaluation_agent_id: str,
+    user: dict = Depends(require_auth),
+):
+    with get_session() as session:
+        EvaluatorRegistryService(session).restore(evaluation_agent_id)
+    return RedirectResponse(request.url_for("list_evaluators"), status_code=303)
+
+
+@router.post("/evaluators/{evaluation_agent_id}/delete")
+def delete_evaluator(
+    request: Request,
+    evaluation_agent_id: str,
+    user: dict = Depends(require_auth),
+):
+    with get_session() as session:
+        service = EvaluatorRegistryService(session)
+        try:
+            service.hard_delete(evaluation_agent_id)
+        except RegistrationInUseError as exc:
+            views = [_reg_to_view(r) for r in service.list_registrations(filter="all")]
+            return templates.TemplateResponse(
+                request,
+                "evaluator_registry/list.html",
+                {
+                    "registrations": views,
+                    "filter": "all",
+                    "q": "",
+                    "error": str(exc),
+                    **ctx(request),
+                },
+                status_code=409,
+            )
+    return RedirectResponse(request.url_for("list_evaluators"), status_code=303)
 
 
 def _descriptor_from_form(form, mode: str) -> tuple[dict, bool]:

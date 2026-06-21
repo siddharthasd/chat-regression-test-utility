@@ -1,0 +1,23 @@
+services:
+  app:
+    build: .
+    environment:
+      - HARNESS_AUTH_ENABLED=false
+      - HARNESS_DB_PATH=/data/harness.db
+      - HARNESS_KEY_FILE=/data/master.key
+      - LOG_LEVEL=debug
+    volumes:
+      - harness_data:/data
+    ports:
+      - "8000:8000"
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./src/harness/ui/static:/app/src/harness/ui/static:ro
+    depends_on:
+      - app
+volumes:
+  harness_data:

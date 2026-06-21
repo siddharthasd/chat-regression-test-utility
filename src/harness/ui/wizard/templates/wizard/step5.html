@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% block title %}Create Job — Step 5{% endblock %}
 
 {% block content %}
@@ -6,7 +6,7 @@
   <div class="col-12 col-lg-7">
     <nav aria-label="breadcrumb" class="mb-3">
       <ol class="breadcrumb small">
-        <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Dashboard</a></li>
         <li class="breadcrumb-item active">New Job</li>
       </ol>
     </nav>
@@ -27,7 +27,7 @@
       </div>
       <div class="card-body p-4">
         <div class="mb-3">
-          <a href="{{ url_for('wizard.step4', job_id=job_id) }}" class="btn btn-sm btn-outline-secondary">← Back</a>
+          <a href="{{ url_for('step4', job_id=job_id) }}" class="btn btn-sm btn-outline-secondary">← Back</a>
         </div>
 
         {% if error %}
@@ -65,7 +65,7 @@
         {% endif %}
 
         <div class="d-flex justify-content-end">
-          <form method="post" action="{{ url_for('wizard.start', job_id=job_id) }}">
+          <form method="post" action="{{ url_for('start', job_id=job_id) }}">
             <button type="submit" class="btn btn-success px-5 fw-semibold"
                     {% if not start_ready %}disabled{% endif %}>
               ▶ Start Job

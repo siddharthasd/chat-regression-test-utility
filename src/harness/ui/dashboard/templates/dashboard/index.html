@@ -8,13 +8,13 @@
     <small class="text-muted">{{ total_jobs }} job{{ 's' if total_jobs != 1 else '' }} total</small>
   </div>
   <div class="d-flex gap-2">
-    <form method="post" action="{{ url_for('dashboard.clear_terminal') }}"
+    <form method="post" action="{{ url_for('clear_terminal') }}"
           onsubmit="return confirm('Delete all {{ terminal_clearable }} failed/cancelled/completed-with-errors job(s)? This cannot be undone.');">
       <button type="submit" class="btn btn-sm btn-outline-danger" {% if not terminal_clearable %}disabled{% endif %}>
         Clear errors ({{ terminal_clearable }})
       </button>
     </form>
-    <a class="btn btn-primary btn-sm fw-semibold" href="{{ url_for('wizard.new_job') }}">+ New Job</a>
+    <a class="btn btn-primary btn-sm fw-semibold" href="{{ url_for('new_job') }}">+ New Job</a>
   </div>
 </div>
 
@@ -28,7 +28,7 @@
     <div class="empty-state-icon mb-3">📋</div>
     <h5 class="text-muted">No jobs yet</h5>
     <p class="text-muted mb-4">Create your first regression test job to get started.</p>
-    <a href="{{ url_for('wizard.new_job') }}" class="btn btn-primary">Create your first job</a>
+    <a href="{{ url_for('new_job') }}" class="btn btn-primary">Create your first job</a>
   </div>
 </div>
 {% else %}
@@ -36,7 +36,7 @@
 <!-- Filters -->
 <div class="card shadow-sm border-0 mb-3">
   <div class="card-body py-2">
-    <form method="get" action="{{ url_for('dashboard.index') }}" class="row g-2 align-items-end">
+    <form method="get" action="{{ url_for('index') }}" class="row g-2 align-items-end">
       <div class="col-12 col-md-3">
         <input type="search" class="form-control form-control-sm" name="q" value="{{ q }}" placeholder="Search job name…">
       </div>
@@ -66,7 +66,7 @@
       </div>
       <div class="col-12 col-md-3 d-flex gap-2">
         <button type="submit" class="btn btn-sm btn-secondary">Apply</button>
-        <a href="{{ url_for('dashboard.index') }}" class="btn btn-sm btn-outline-secondary">Clear</a>
+        <a href="{{ url_for('index') }}" class="btn btn-sm btn-outline-secondary">Clear</a>
       </div>
     </form>
   </div>
@@ -74,7 +74,7 @@
 
 {% macro sortlink(col, label) %}
   {% set next_dir = 'desc' if (sort == col and dir == 'asc') else 'asc' %}
-  <a class="sort-link" href="{{ url_for('dashboard.index', sort=col, dir=next_dir, q=q,
+  <a class="sort-link" href="{{ url_for('index', sort=col, dir=next_dir, q=q,
       status=selected.status, connector=selected.connector, created_by=selected.created_by) }}">
     {{ label }}{% if sort == col %}&nbsp;{{ '▲' if dir == 'asc' else '▼' }}{% endif %}</a>
 {% endmacro %}
@@ -82,7 +82,7 @@
 {% if not rows %}
 <div class="card shadow-sm border-0 text-center py-4">
   <p class="text-muted mb-2">No jobs match the current filters.</p>
-  <a href="{{ url_for('dashboard.index') }}" class="btn btn-sm btn-outline-secondary mx-auto" style="width:fit-content">Clear filters</a>
+  <a href="{{ url_for('index') }}" class="btn btn-sm btn-outline-secondary mx-auto" style="width:fit-content">Clear filters</a>
 </div>
 {% else %}
 <div class="card shadow-sm border-0">
@@ -123,14 +123,14 @@
             </td>
             <td class="d-flex gap-1 flex-wrap">
               {% if r.status == 'draft' %}
-              <a href="{{ url_for('wizard.resume', job_id=r.job_id) }}"
+              <a href="{{ url_for('resume', job_id=r.job_id) }}"
                  class="btn btn-sm btn-warning py-0 fw-semibold">Resume</a>
               {% elif r.status in ('failed', 'cancelled', 'completed') %}
-              <form method="post" action="{{ url_for('wizard.clone_job', job_id=r.job_id) }}">
+              <form method="post" action="{{ url_for('clone_job', job_id=r.job_id) }}">
                 <button type="submit" class="btn btn-sm btn-outline-primary py-0">Clone &amp; Rerun</button>
               </form>
               {% if r.deletable %}
-              <form method="post" action="{{ url_for('dashboard.delete_job', job_id=r.job_id) }}"
+              <form method="post" action="{{ url_for('delete_job', job_id=r.job_id) }}"
                     onsubmit="return confirm('Permanently delete this {{ r.status }} job?');">
                 <button type="submit" class="btn btn-sm btn-outline-danger py-0">Delete</button>
               </form>
@@ -153,7 +153,7 @@
 (function () {
   var timer = setInterval(refresh, 3000);
   function refresh() {
-    fetch("{{ url_for('dashboard.jobs_json') }}").then(function (r) { return r.json(); })
+    fetch("{{ url_for('jobs_json') }}").then(function (r) { return r.json(); })
       .then(function (data) {
         var anyLive = false;
         data.jobs.forEach(function (j) {

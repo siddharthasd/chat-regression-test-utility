@@ -1,7 +1,7 @@
-"""Evaluator Registry management Flask blueprint (014). Registered by create_app()."""
+"""Evaluator Registry management (014). Registered by create_app()."""
 
 from __future__ import annotations
 
-from harness.ui.evaluator_registry.routes import bp
+from harness.ui.evaluator_registry.routes import router
 
-__all__ = ["bp"]
+__all__ = ["router"]

@@ -24,8 +24,9 @@ def client(tmp_path, monkeypatch):
     encryption._reset_key_cache_for_tests()
     engine.init_db(tmp_path / "ui.db")
     from harness.ui import create_app
+    from starlette.testclient import TestClient
 
-    return create_app().test_client()
+    return TestClient(create_app(), raise_server_exceptions=True, follow_redirects=False)
 
 
 def _seed(
@@ -96,7 +97,7 @@ def _completed_result(text="Hi there", verdict="pass", scores=None, annotations=
 
 
 def _html(client, job_id, qs=""):
-    return client.get(f"/jobs/{job_id}/detail{qs}").get_data(as_text=True)
+    return client.get(f"/jobs/{job_id}/detail{qs}").text
 
 
 # --------------------------------------------------------------------------- US1
@@ -123,7 +124,7 @@ def test_download_csv_omits_password(client) -> None:
     job_id = _seed(rows=[{"text": "hello", "test_id": "t1", "result": _completed_result()}])
     resp = client.get(f"/jobs/{job_id}/download.csv")
     assert resp.status_code == 200
-    text = resp.get_data(as_text=True)
+    text = resp.text
     assert "utteranceText,testId" in text
     assert "password" not in text
     assert "reconstructed" in resp.headers["Content-Disposition"]
@@ -133,7 +134,7 @@ def test_download_csv_partial_marker_for_running(client) -> None:
     job_id = _seed(status=JobStatus.RUNNING, rows=[{"text": "hi", "test_id": "t1"}])
     resp = client.get(f"/jobs/{job_id}/download.csv")
     assert "partial" in resp.headers["Content-Disposition"]
-    assert "# partial download" in resp.get_data(as_text=True)
+    assert "# partial download" in resp.text
 
 
 # --------------------------------------------------------------------------- US2
@@ -209,8 +210,8 @@ def test_detail_json_live_and_terminal(client) -> None:
     running = _seed(status=JobStatus.RUNNING, rows=[{"text": "hi", "test_id": "t1"}])
     done = _seed(status=JobStatus.COMPLETED, rows=[{"text": "hi", "test_id": "t1",
                                                     "result": _completed_result()}])
-    assert client.get(f"/jobs/{running}/detail.json").get_json()["terminal"] is False
-    dj = client.get(f"/jobs/{done}/detail.json").get_json()
+    assert client.get(f"/jobs/{running}/detail.json").json()["terminal"] is False
+    dj = client.get(f"/jobs/{done}/detail.json").json()
     assert dj["terminal"] is True and dj["row_count"] == 1
 
 
@@ -236,7 +237,7 @@ def test_delete_control_visibility(client) -> None:
 def test_cancel_transitions_to_cancelling(client) -> None:
     job_id = _seed(status=JobStatus.RUNNING, rows=[])
     resp = client.post(f"/jobs/{job_id}/cancel")
-    assert resp.status_code == 302
+    assert resp.status_code in (302, 303)
     with get_session() as session:
         assert JobRepository(session).get(job_id).status == "cancelling"
 
@@ -249,7 +250,7 @@ def test_cancel_terminal_rejected(client) -> None:
 def test_delete_redirects_to_dashboard(client) -> None:
     job_id = _seed(status=JobStatus.FAILED, rows=[{"text": "hi", "test_id": "t1"}])
     resp = client.post(f"/jobs/{job_id}/delete")
-    assert resp.status_code == 302 and resp.headers["Location"].endswith("/")
+    assert resp.status_code in (302, 303) and resp.headers["Location"].endswith("/")
     with get_session() as session:
         assert JobRepository(session).get(job_id) is None
 

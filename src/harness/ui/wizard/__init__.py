@@ -1,10 +1,10 @@
-"""Job Creation & Configuration Wizard Flask blueprint (003).
+"""Job Creation & Configuration Wizard (003).
 
 Registered into the app by `harness.ui.create_app()`.
 """
 
 from __future__ import annotations
 
-from harness.ui.wizard.routes import bp
+from harness.ui.wizard.routes import router
 
-__all__ = ["bp"]
+__all__ = ["router"]
