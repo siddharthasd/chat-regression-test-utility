@@ -16,7 +16,7 @@ from importlib.metadata import PackageNotFoundError, version
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
-from harness.persistence.enums import DELETABLE_STATUSES, JobStatus
+from harness.persistence.enums import DELETABLE_STATUSES, TERMINAL_STATUSES, JobStatus
 from harness.persistence.exceptions import (
     InactiveRegistrationError,
     InvalidTransitionError,
@@ -259,6 +259,32 @@ class JobRepository:
                         (Job.status == JobStatus.COMPLETED.value)
                         & (Job.failed_count > 0)
                     )
+                )
+            )
+        )
+        for job_id in job_ids:
+            self._session.delete(self._session.get(Job, job_id))
+        self._session.flush()
+        return len(job_ids)
+
+    def delete_all_terminal(self) -> int:
+        """Delete every terminal job (failed/cancelled/completed) across all owners."""
+        _vals = [s.value for s in TERMINAL_STATUSES]
+        job_ids = list(
+            self._session.scalars(select(Job.job_id).where(Job.status.in_(_vals)))
+        )
+        for job_id in job_ids:
+            self._session.delete(self._session.get(Job, job_id))
+        self._session.flush()
+        return len(job_ids)
+
+    def delete_all_terminal_by_owner(self, owner_id: str) -> int:
+        """Delete every terminal job owned by owner_id (user-scoped clear-all)."""
+        _vals = [s.value for s in TERMINAL_STATUSES]
+        job_ids = list(
+            self._session.scalars(
+                select(Job.job_id).where(
+                    Job.status.in_(_vals), Job.created_by == owner_id
                 )
             )
         )

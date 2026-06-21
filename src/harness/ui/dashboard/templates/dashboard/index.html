@@ -14,6 +14,12 @@
         Clear errors ({{ terminal_clearable }})
       </button>
     </form>
+    <form method="post" action="{{ url_for('clear_all') }}"
+          onsubmit="return confirm('Delete all {{ total_clearable }} terminal job(s) including completed? This cannot be undone.');">
+      <button type="submit" class="btn btn-sm btn-danger" {% if not total_clearable %}disabled{% endif %}>
+        {% if is_admin %}Clear all jobs{% else %}Clear my jobs{% endif %} ({{ total_clearable }})
+      </button>
+    </form>
     <a class="btn btn-primary btn-sm fw-semibold" href="{{ url_for('new_job') }}">+ New Job</a>
   </div>
 </div>

@@ -58,6 +58,7 @@ def index(
     )
     rows = view.sort_rows(rows, sort, dir)
     terminal_clearable = sum(1 for r in all_rows if r["deletable"])
+    total_clearable = sum(1 for r in all_rows if r["terminal"])
 
     return templates.TemplateResponse(
         request,
@@ -71,6 +72,7 @@ def index(
             "sort": sort,
             "dir": dir,
             "terminal_clearable": terminal_clearable,
+            "total_clearable": total_clearable,
             "is_admin": is_admin,
             **ctx(request),
         },
@@ -145,4 +147,18 @@ def clear_terminal(request: Request, user: dict = Depends(require_auth)):
     """Delete every failed, cancelled, and completed-with-errors job atomically (FR-010c)."""
     with get_session() as session:
         JobRepository(session).delete_all_clearable()
+    return RedirectResponse(request.url_for("index"), status_code=303)
+
+
+@router.post("/dashboard/clear-all", name="clear_all")
+def clear_all(request: Request, user: dict = Depends(require_auth)):
+    """Delete all terminal jobs — scoped to owner for users, global for admins."""
+    is_admin = user.get("role") == "admin" if user else True
+    oid = user.get("oid") if user else None
+    with get_session() as session:
+        repo = JobRepository(session)
+        if is_admin or not oid:
+            repo.delete_all_terminal()
+        else:
+            repo.delete_all_terminal_by_owner(oid)
     return RedirectResponse(request.url_for("index"), status_code=303)
