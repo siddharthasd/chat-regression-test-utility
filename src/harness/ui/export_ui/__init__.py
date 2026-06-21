@@ -1,10 +1,10 @@
-"""Results Export Flask blueprint (005). Streams downloads; the control lives on 004's page.
+"""Results Export (005). Streams downloads; the control lives on 004's page.
 
 Registered into the app by `harness.ui.create_app()`.
 """
 
 from __future__ import annotations
 
-from harness.ui.export_ui.routes import bp
+from harness.ui.export_ui.routes import router
 
-__all__ = ["bp"]
+__all__ = ["router"]

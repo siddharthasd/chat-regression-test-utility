@@ -25,8 +25,9 @@ def ui_client(tmp_path, monkeypatch):
     # would NOT re-run init_db across tests — bind it explicitly here for isolation.
     engine.init_db(tmp_path / "ui.db")
     from harness.ui import create_app
+    from starlette.testclient import TestClient
 
-    return create_app().test_client()
+    return TestClient(create_app(), raise_server_exceptions=True, follow_redirects=False)
 
 
 def _create(client, **over):
@@ -50,7 +51,7 @@ def _connector_id(name: str) -> str:
 def test_create_then_listed(ui_client) -> None:
     resp = _create(ui_client, display_name="MyConn")
     assert resp.status_code == 200
-    listing = ui_client.get("/connectors").get_data(as_text=True)
+    listing = ui_client.get("/connectors").text
     assert "MyConn" in listing
 
 
@@ -58,7 +59,7 @@ def test_create_validation_error_blocks(ui_client) -> None:
     bad = {"display_name": "", "endpoint_url": "bad", "auth_mode": "none", "timeout_seconds": "30"}
     resp = ui_client.post("/connectors", data=bad)
     assert resp.status_code == 400
-    body = resp.get_data(as_text=True).lower()
+    body = resp.text.lower()
     assert "required" in body or "valid" in body
 
 
@@ -66,8 +67,8 @@ def test_create_validation_error_blocks(ui_client) -> None:
 def test_credential_never_rendered_plaintext(ui_client) -> None:
     _create(ui_client, display_name="Secret", auth_mode="bearer", token="DEADBEEF-12345")
     cid = _connector_id("Secret")
-    assert "DEADBEEF-12345" not in ui_client.get("/connectors").get_data(as_text=True)
-    assert "DEADBEEF-12345" not in ui_client.get(f"/connectors/{cid}/edit").get_data(as_text=True)
+    assert "DEADBEEF-12345" not in ui_client.get("/connectors").text
+    assert "DEADBEEF-12345" not in ui_client.get(f"/connectors/{cid}/edit").text
 
 
 def test_edit_updates_display_name(ui_client) -> None:
@@ -84,7 +85,7 @@ def test_edit_updates_display_name(ui_client) -> None:
         follow_redirects=True,
     )
     assert resp.status_code == 200
-    listing = ui_client.get("/connectors").get_data(as_text=True)
+    listing = ui_client.get("/connectors").text
     assert "NewName" in listing
     assert "OldName" not in listing
     with get_session() as session:
@@ -96,8 +97,8 @@ def test_archive_hides_from_active_filter(ui_client) -> None:
     _create(ui_client, display_name="ToArchive")
     cid = _connector_id("ToArchive")
     ui_client.post(f"/connectors/{cid}/archive", follow_redirects=True)
-    assert "ToArchive" not in ui_client.get("/connectors?filter=active").get_data(as_text=True)
-    assert "ToArchive" in ui_client.get("/connectors?filter=archived").get_data(as_text=True)
+    assert "ToArchive" not in ui_client.get("/connectors?filter=active").text
+    assert "ToArchive" in ui_client.get("/connectors?filter=archived").text
 
 
 # ------------------------------------------------------------------ US5
@@ -111,7 +112,7 @@ def test_hard_delete_blocked_when_referenced(ui_client) -> None:
         jobs.set_connector_snapshot(job.job_id, reg)
     resp = ui_client.post(f"/connectors/{cid}/delete")
     assert resp.status_code == 409
-    assert "referenced by" in resp.get_data(as_text=True)
+    assert "referenced by" in resp.text
 
 
 def test_hard_delete_succeeds_when_unreferenced(ui_client) -> None:
@@ -119,7 +120,7 @@ def test_hard_delete_succeeds_when_unreferenced(ui_client) -> None:
     cid = _connector_id("Disposable")
     resp = ui_client.post(f"/connectors/{cid}/delete", follow_redirects=True)
     assert resp.status_code == 200
-    assert "Disposable" not in ui_client.get("/connectors?filter=all").get_data(as_text=True)
+    assert "Disposable" not in ui_client.get("/connectors?filter=all").text
 
 
 # ------------------------------------------------------------------ Test connection (SC-008)
@@ -129,7 +130,7 @@ def test_test_connection_returns_fragment_no_persist(ui_client) -> None:
         data={"endpoint_url": "http://127.0.0.1:1/", "auth_mode": "none", "timeout_seconds": "1"},
     )
     assert resp.status_code == 200
-    assert "test-result" in resp.get_data(as_text=True)
+    assert "test-result" in resp.text
     # test-connection persists nothing — no registrations created
     with get_session() as session:
         assert ConnectorRegistryService(session).list_registrations(filter="all") == []

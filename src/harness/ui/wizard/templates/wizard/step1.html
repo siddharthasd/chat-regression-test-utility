@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% block title %}Create Job — Step 1{% endblock %}
 
 {% block content %}
@@ -6,7 +6,7 @@
   <div class="col-12 col-lg-7">
     <nav aria-label="breadcrumb" class="mb-3">
       <ol class="breadcrumb small">
-        <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Dashboard</a></li>
         <li class="breadcrumb-item active">New Job</li>
       </ol>
     </nav>
@@ -31,7 +31,7 @@
         {% endif %}
 
         <form method="post"
-              action="{% if job %}{{ url_for('wizard.step1_save', job_id=job.job_id) }}{% else %}{{ url_for('wizard.create_job') }}{% endif %}">
+              action="{% if job %}{{ url_for('step1_save', job_id=job.job_id) }}{% else %}{{ url_for('create_job') }}{% endif %}">
           <div class="mb-3">
             <label class="form-label fw-semibold" for="job_name">Job name <span class="text-danger">*</span></label>
             <input type="text" class="form-control" id="job_name" name="job_name"

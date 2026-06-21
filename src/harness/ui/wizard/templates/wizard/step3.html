@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% block title %}Create Job — Step 3{% endblock %}
 
 {% block content %}
@@ -6,7 +6,7 @@
   <div class="col-12 col-lg-7">
     <nav aria-label="breadcrumb" class="mb-3">
       <ol class="breadcrumb small">
-        <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Dashboard</a></li>
         <li class="breadcrumb-item active">New Job</li>
       </ol>
     </nav>
@@ -27,7 +27,7 @@
       </div>
       <div class="card-body p-4">
         <div class="mb-3">
-          <a href="{{ url_for('wizard.step2', job_id=job_id) }}" class="btn btn-sm btn-outline-secondary">← Back</a>
+          <a href="{{ url_for('step2', job_id=job_id) }}" class="btn btn-sm btn-outline-secondary">← Back</a>
         </div>
 
         {% if error %}
@@ -37,11 +37,11 @@
         {% if not entries %}
         <div class="alert alert-warning" role="alert">
           No connectors are registered yet.
-          <a href="{{ url_for('connector_registry.new_connector') }}" class="alert-link">Register a connector</a>
+          <a href="{{ url_for('new_connector') }}" class="alert-link">Register a connector</a>
           to continue, then return here.
         </div>
         {% else %}
-        <form method="post" action="{{ url_for('wizard.step3_save', job_id=job_id) }}">
+        <form method="post" action="{{ url_for('step3_save', job_id=job_id) }}">
           <div class="mb-4">
             <label class="form-label fw-semibold" for="connector_id">
               Connector <span class="text-danger">*</span>

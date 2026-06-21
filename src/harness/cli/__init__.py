@@ -22,7 +22,7 @@ def harness_group() -> None:
     # separate process, so `IdentityContext._initialize_once()` fires exactly
     # once per process across both the CLI and UI surfaces (per
     # contracts/harness-info-cli.md's separate-processes rule).
-    initialize_harness(None)
+    initialize_harness()
 
 
 # Subcommand registration — kept here so importing harness.cli is enough to

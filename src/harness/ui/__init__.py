@@ -1,37 +1,58 @@
-"""Flask UI surface. App factory + blueprints (added by later specs)."""
+"""FastAPI UI surface. App factory + routers."""
 
 from __future__ import annotations
 
-from flask import Flask
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from starlette.middleware.sessions import SessionMiddleware
 
 from harness.bootstrap import initialize_harness
-from harness.ui.context_processors import inject_tester_identity
 
 
-def create_app() -> Flask:
-    """Construct the harness Flask app.
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    initialize_harness()
+    yield
 
-    Performs the one-time harness initialization via `initialize_harness(app)`
-    before registering any blueprints or routes — so every request handler can
-    rely on `IdentityContext.current()` being populated. Registers the
-    tester-identity context processor so every template render gets the
-    `tester_identity` variable (per 010 FR-005, US3).
+
+def create_app() -> FastAPI:
+    """Construct the harness FastAPI app.
+
+    Performs the one-time harness initialization via `initialize_harness()`
+    in the lifespan hook, then mounts all domain routers.
     """
-    app = Flask(__name__)
-    initialize_harness(app)
-    app.context_processor(inject_tester_identity)
-    # Blueprints / routes registered by spec modules.
-    from harness.ui.connector_registry import bp as connector_registry_bp
-    from harness.ui.dashboard import bp as dashboard_bp
-    from harness.ui.detail import bp as detail_bp
-    from harness.ui.evaluator_registry import bp as evaluator_registry_bp
-    from harness.ui.export_ui import bp as export_bp
-    from harness.ui.wizard import bp as wizard_bp
+    import os
+    from pathlib import Path
 
-    app.register_blueprint(dashboard_bp)
-    app.register_blueprint(connector_registry_bp)
-    app.register_blueprint(evaluator_registry_bp)
-    app.register_blueprint(wizard_bp)
-    app.register_blueprint(detail_bp)
-    app.register_blueprint(export_bp)
+    from harness.auth.config import get_auth_config
+
+    cfg = get_auth_config()
+    secret_key = cfg.get("secret_key") or os.urandom(32).hex()
+
+    app = FastAPI(lifespan=_lifespan, title="AI Regression Test Harness")
+
+    app.add_middleware(SessionMiddleware, secret_key=secret_key)
+
+    # Static files
+    _static_dir = Path(__file__).parent / "static"
+    if _static_dir.exists():
+        app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
+
+    # Domain routers
+    from harness.ui.connector_registry import router as connector_registry_router
+    from harness.ui.dashboard import router as dashboard_router
+    from harness.ui.detail import router as detail_router
+    from harness.ui.evaluator_registry import router as evaluator_registry_router
+    from harness.ui.export_ui import router as export_router
+    from harness.ui.wizard import router as wizard_router
+
+    app.include_router(dashboard_router)
+    app.include_router(connector_registry_router)
+    app.include_router(evaluator_registry_router)
+    app.include_router(wizard_router)
+    app.include_router(detail_router)
+    app.include_router(export_router)
+
     return app

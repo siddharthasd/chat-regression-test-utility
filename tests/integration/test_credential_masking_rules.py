@@ -123,7 +123,8 @@ def run(tmp_path_factory):
 
     from harness.ui import create_app
 
-    client = create_app().test_client()
+    from starlette.testclient import TestClient
+    client = TestClient(create_app(), raise_server_exceptions=True, follow_redirects=False)
     yield SimpleNamespace(
         db_path=db_path, job_id=job_id, logs=log_buf.getvalue(), client=client, conn_url=conn_url
     )
@@ -139,13 +140,13 @@ def run(tmp_path_factory):
 
 
 def _export(run, fmt: str) -> bytes:
-    return run.client.get(f"/jobs/{run.job_id}/export?format={fmt}").get_data()
+    return run.client.get(f"/jobs/{run.job_id}/export?format={fmt}").content
 
 
 def _detail_results_section(run) -> str:
     """The Results Table section of the detail page (excludes the metadata panel,
     which legitimately shows a 'Per-row password' config-flag label)."""
-    html = run.client.get(f"/jobs/{run.job_id}/detail").get_data(as_text=True)
+    html = run.client.get(f"/jobs/{run.job_id}/detail").text
     # Split at the results card header — everything after it is the utterance table.
     marker = "Utterance Results"
     assert marker in html, f"Could not find '{marker}' landmark in detail page HTML"

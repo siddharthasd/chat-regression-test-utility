@@ -4,7 +4,7 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
   <h4 class="fw-bold mb-0">Evaluator Registry</h4>
-  <a href="{{ url_for('evaluator_registry.new_evaluator') }}" class="btn btn-primary btn-sm">+ Register Evaluator</a>
+  <a href="{{ url_for('new_evaluator') }}" class="btn btn-primary btn-sm">+ Register Evaluator</a>
 </div>
 
 {% if error %}
@@ -16,18 +16,18 @@
     <ul class="nav nav-pills nav-sm" style="gap:.25rem">
       <li class="nav-item">
         <a class="nav-link py-1 px-3 small {% if filter == 'active' %}active{% endif %}"
-           href="{{ url_for('evaluator_registry.list_evaluators', filter='active', q=q) }}">Active</a>
+           href="{{ url_for('list_evaluators', filter='active', q=q) }}">Active</a>
       </li>
       <li class="nav-item">
         <a class="nav-link py-1 px-3 small {% if filter == 'archived' %}active{% endif %}"
-           href="{{ url_for('evaluator_registry.list_evaluators', filter='archived', q=q) }}">Archived</a>
+           href="{{ url_for('list_evaluators', filter='archived', q=q) }}">Archived</a>
       </li>
       <li class="nav-item">
         <a class="nav-link py-1 px-3 small {% if filter == 'all' %}active{% endif %}"
-           href="{{ url_for('evaluator_registry.list_evaluators', filter='all', q=q) }}">All</a>
+           href="{{ url_for('list_evaluators', filter='all', q=q) }}">All</a>
       </li>
     </ul>
-    <form method="get" action="{{ url_for('evaluator_registry.list_evaluators') }}" class="d-flex gap-2">
+    <form method="get" action="{{ url_for('list_evaluators') }}" class="d-flex gap-2">
       <input type="hidden" name="filter" value="{{ filter }}">
       <input type="search" class="form-control form-control-sm" style="width:200px" name="q" value="{{ q }}" placeholder="Search name…">
       <button type="submit" class="btn btn-sm btn-outline-secondary">Search</button>
@@ -38,7 +38,7 @@
   <div class="card-body text-center py-5">
     <div class="empty-state-icon mb-3">🧪</div>
     <h5 class="text-muted">No evaluators registered yet</h5>
-    <a href="{{ url_for('evaluator_registry.new_evaluator') }}" class="btn btn-primary btn-sm mt-2">Register your first evaluator</a>
+    <a href="{{ url_for('new_evaluator') }}" class="btn btn-primary btn-sm mt-2">Register your first evaluator</a>
   </div>
   {% else %}
   <div class="table-responsive">
@@ -64,21 +64,21 @@
           <td class="small text-muted">{{ r.updated_at }}</td>
           <td>
             <div class="d-flex gap-1 flex-wrap">
-              <a href="{{ url_for('evaluator_registry.edit_evaluator', evaluation_agent_id=r.evaluation_agent_id) }}"
+              <a href="{{ url_for('edit_evaluator', evaluation_agent_id=r.evaluation_agent_id) }}"
                  class="btn btn-sm btn-outline-primary py-0">Edit</a>
               {% if r.archived %}
                 <form method="post" style="display:inline"
-                      action="{{ url_for('evaluator_registry.restore_evaluator', evaluation_agent_id=r.evaluation_agent_id) }}">
+                      action="{{ url_for('restore_evaluator', evaluation_agent_id=r.evaluation_agent_id) }}">
                   <button type="submit" class="btn btn-sm btn-outline-success py-0">Restore</button>
                 </form>
               {% else %}
                 <form method="post" style="display:inline"
-                      action="{{ url_for('evaluator_registry.archive_evaluator', evaluation_agent_id=r.evaluation_agent_id) }}">
+                      action="{{ url_for('archive_evaluator', evaluation_agent_id=r.evaluation_agent_id) }}">
                   <button type="submit" class="btn btn-sm btn-outline-secondary py-0">Archive</button>
                 </form>
               {% endif %}
               <form method="post" style="display:inline"
-                    action="{{ url_for('evaluator_registry.delete_evaluator', evaluation_agent_id=r.evaluation_agent_id) }}"
+                    action="{{ url_for('delete_evaluator', evaluation_agent_id=r.evaluation_agent_id) }}"
                     onsubmit="return confirm('Delete this evaluator permanently?')">
                 <button type="submit" class="btn btn-sm btn-outline-danger py-0">Delete</button>
               </form>
