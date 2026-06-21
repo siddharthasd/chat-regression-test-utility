@@ -222,6 +222,23 @@ class JobRepository:
         job.completed_at = _utcnow()
         self._session.flush()
 
+    # ----------------------------------------------------------------------- counts
+    def count_all(self) -> int:
+        """Return total number of jobs regardless of status."""
+        return self._session.scalar(select(func.count()).select_from(Job))
+
+    def count_clearable(self) -> int:
+        """Return count of jobs eligible for bulk clear (failed/cancelled/completed-with-errors)."""
+        return self._session.scalar(
+            select(func.count()).where(
+                Job.status.in_([JobStatus.FAILED.value, JobStatus.CANCELLED.value])
+                | (
+                    (Job.status == JobStatus.COMPLETED.value)
+                    & (Job.failed_count > 0)
+                )
+            )
+        )
+
     # ----------------------------------------------------------------------- delete
     def delete(self, job_id: str) -> None:
         job = self._require(job_id)

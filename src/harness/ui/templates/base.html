@@ -63,19 +63,21 @@
             <li><a class="dropdown-item" href="/evaluators/new?next=dashboard">Register New Evaluator</a></li>
           </ul>
         </li>
+        {% if not auth_enabled or (current_user and current_user.role == 'admin') %}
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle px-3" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            Admin
+          </a>
+          <ul class="dropdown-menu dropdown-menu-dark" style="background:#283593">
+            <li><a class="dropdown-item" href="{{ url_for('admin_maintenance') }}">Job Maintenance</a></li>
+            <li><hr class="dropdown-divider" style="border-color:#3949ab"></li>
+            <li><a class="dropdown-item" href="{{ url_for('admin_users') }}">Users</a></li>
+          </ul>
+        </li>
+        {% endif %}
       </ul>
       <div class="d-flex align-items-center gap-2">
         {% if auth_enabled and current_user %}
-          {% if current_user.role == 'admin' %}
-          <li class="nav-item">
-            <a class="nav-link px-3" href="{{ url_for('admin_users') }}">
-              <svg width="14" height="14" fill="currentColor" class="me-1" viewBox="0 0 16 16">
-                <path d="M7 14s-1 0-1-1 1-4 5-4 5 3 5 4-1 1-1 1zm4-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6m-5.784 6A2.24 2.24 0 0 1 5 13c0-1.355.68-2.75 1.936-3.72A6.3 6.3 0 0 0 5 9c-4 0-5 3-5 4s1 1 1 1zM4.5 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5"/>
-              </svg>
-              Users
-            </a>
-          </li>
-          {% endif %}
           <span class="badge {{ 'bg-warning text-dark' if current_user.role == 'admin' else 'bg-secondary' }} small">
             {{ current_user.role }}
           </span>

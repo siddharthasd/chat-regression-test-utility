@@ -1,6 +1,9 @@
-"""Admin user management routes (015) — RBAC-protected, admin-only."""
+"""Admin routes (015/016) — user management + job maintenance, admin-only."""
 
 from __future__ import annotations
+
+import os
+import sqlite3
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
@@ -8,12 +11,33 @@ from fastapi.responses import RedirectResponse
 from harness.auth.middleware import require_role
 from harness.auth.session import get_session_user
 from harness.persistence import get_session
+from harness.persistence.engine import resolve_db_path
 from harness.persistence.exceptions import SelfRemovalError
+from harness.persistence.repositories.job import JobRepository
 from harness.persistence.repositories.user_registration import UserRegistrationRepository
 from harness.ui._context import ctx
 from harness.ui._templates import templates
 
 router = APIRouter()
+
+
+def _db_size_mb() -> float | str:
+    try:
+        return round(os.path.getsize(resolve_db_path()) / (1024 * 1024), 2)
+    except OSError:
+        return "unknown"
+
+
+def _vacuum_db() -> None:
+    # Must use a raw sqlite3 connection — SQLAlchemy's enable_transactional_ddl
+    # listener auto-emits BEGIN on every engine connection, and SQLite refuses
+    # VACUUM inside an open transaction.
+    conn = sqlite3.connect(str(resolve_db_path()))
+    try:
+        conn.execute("VACUUM")
+    finally:
+        conn.close()
+
 
 _ROLES = ("admin", "user")
 
@@ -110,3 +134,43 @@ def admin_remove_user(
 
     _flash(request, f"Removed {email}.", "success")
     return RedirectResponse(request.url_for("admin_users"), status_code=303)
+
+
+# ----------------------------------------------------------------- maintenance
+@router.get("/admin/maintenance", name="admin_maintenance")
+def admin_maintenance(
+    request: Request,
+    user: dict = Depends(require_role("admin")),
+):
+    with get_session() as db:
+        repo = JobRepository(db)
+        total_jobs = repo.count_all()
+        clearable_jobs = repo.count_clearable()
+    return templates.TemplateResponse(
+        request,
+        "admin/maintenance.html",
+        {
+            "total_jobs": total_jobs,
+            "clearable_jobs": clearable_jobs,
+            "db_size_mb": _db_size_mb(),
+            **ctx(request),
+        },
+    )
+
+
+@router.post("/admin/maintenance", name="admin_maintenance_run")
+def admin_maintenance_run(
+    request: Request,
+    user: dict = Depends(require_role("admin")),
+):
+    size_before = _db_size_mb()
+    with get_session() as db:
+        deleted = JobRepository(db).delete_all_clearable()
+    _vacuum_db()
+    size_after = _db_size_mb()
+    _flash(
+        request,
+        f"Deleted {deleted} job(s). Database size: {size_before} MB → {size_after} MB.",
+        "success",
+    )
+    return RedirectResponse(request.url_for("admin_maintenance"), status_code=303)

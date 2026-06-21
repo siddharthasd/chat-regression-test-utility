@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Job Maintenance{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2 class="h4 mb-0 fw-semibold">Job Maintenance</h2>
+</div>
+
+{% for category, message in flashes %}
+<div class="alert alert-{{ 'success' if category == 'success' else 'warning' }} alert-dismissible fade show" role="alert">
+  {{ message }}
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endfor %}
+
+<div class="row g-3 mb-4">
+  <div class="col-sm-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body text-center py-4">
+        <div class="display-6 fw-bold text-primary">{{ total_jobs }}</div>
+        <div class="text-muted small mt-1">Total Jobs</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body text-center py-4">
+        <div class="display-6 fw-bold {{ 'text-danger' if clearable_jobs > 0 else 'text-success' }}">{{ clearable_jobs }}</div>
+        <div class="text-muted small mt-1">Clearable Jobs</div>
+        <div class="text-muted" style="font-size:0.75rem">Failed · Cancelled · Completed with errors</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body text-center py-4">
+        <div class="display-6 fw-bold text-secondary">{{ db_size_mb }}</div>
+        <div class="text-muted small mt-1">Database Size (MB)</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="card-body p-4">
+    <h5 class="card-title fw-semibold mb-1">Clear &amp; Vacuum</h5>
+    <p class="text-muted small mb-3">
+      Permanently deletes all failed, cancelled, and completed-with-errors jobs
+      (including their utterance and evaluation records), then compacts the database
+      file. Successfully completed jobs are not affected. This action cannot be undone.
+    </p>
+    <form method="post" action="{{ url_for('admin_maintenance_run') }}">
+      <button
+        type="submit"
+        class="btn btn-danger"
+        onclick="return confirm('This will permanently delete {{ clearable_jobs }} clearable jobs and compact the database. Continue?')"
+      >
+        Clear &amp; Vacuum
+      </button>
+    </form>
+  </div>
+</div>
+{% endblock %}
