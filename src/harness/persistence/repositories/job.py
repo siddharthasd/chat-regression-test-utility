@@ -76,6 +76,22 @@ class JobRepository:
         """All jobs, newest first — the dashboard's default listing (002 FR-002/009a)."""
         return list(self._session.scalars(select(Job).order_by(Job.created_at.desc())))
 
+    def list_by_owner_id(self, owner_id: str) -> list[Job]:
+        """Jobs owned by the given OID, newest first (015 RBAC)."""
+        return list(
+            self._session.scalars(
+                select(Job)
+                .where(Job.created_by == owner_id)
+                .order_by(Job.created_at.desc())
+            )
+        )
+
+    def get_owned(self, job_id: str, owner_id: str) -> Job | None:
+        """Return job if it belongs to owner_id, else None (015 RBAC)."""
+        return self._session.scalar(
+            select(Job).where(Job.job_id == job_id, Job.created_by == owner_id)
+        )
+
     def count_by_connector_id(self, connector_id: str) -> int:
         """Count Jobs whose snapshot references this connector (013 FR-019 gate)."""
         return int(

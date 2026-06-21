@@ -103,3 +103,10 @@ class InactiveRegistrationError(HarnessPersistenceError):
             f"Job {job_id!r} cannot be queued: {reg_type} {reg_id!r} is not an "
             "active (non-archived) registration"
         )
+
+
+class SelfRemovalError(HarnessPersistenceError):
+    """Admin attempted to remove their own account (015)."""
+
+    def __init__(self) -> None:
+        super().__init__("You cannot remove your own account")

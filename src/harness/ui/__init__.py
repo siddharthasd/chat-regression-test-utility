@@ -55,4 +55,11 @@ def create_app() -> FastAPI:
     app.include_router(detail_router)
     app.include_router(export_router)
 
+    # Auth and admin routers — always included; handlers check is_auth_enabled() internally
+    from harness.ui.admin import router as admin_router
+    from harness.ui.auth import router as auth_router
+
+    app.include_router(auth_router)
+    app.include_router(admin_router)
+
     return app

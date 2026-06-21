@@ -34,4 +34,5 @@ from harness.cli import (  # noqa: E402, F401  (registers subcommands)
     evaluator,
     info,
     serve,
+    users,
 )

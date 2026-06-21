@@ -18,6 +18,7 @@ dependencies = [
     "cryptography>=42.0",
     "jsonschema>=4.21",
     "httpx>=0.27",
+    "msal>=1.28",
 ]
 
 [project.optional-dependencies]
@@ -46,6 +47,8 @@ where = ["src"]
 "harness.ui.connector_registry" = ["templates/connector_registry/*.html"]
 "harness.ui.evaluator_registry" = ["templates/evaluator_registry/*.html"]
 "harness.ui.wizard" = ["templates/wizard/*.html"]
+"harness.ui.auth" = ["templates/auth/*.html"]
+"harness.ui.admin" = ["templates/admin/*.html"]
 
 [tool.ruff]
 line-length = 100

@@ -22,16 +22,26 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
+_INITIAL_TABLES = (
+    "connector_registration",
+    "evaluation_agent_registration",
+    "evaluation_result",
+    "job",
+    "utterance",
+)
+
+
 def upgrade() -> None:
-    # Import models to populate Base.metadata, then create every table.
     import harness.persistence.models  # noqa: F401
     from harness.persistence.base import Base
 
-    Base.metadata.create_all(bind=op.get_bind())
+    tables = [Base.metadata.tables[t] for t in _INITIAL_TABLES if t in Base.metadata.tables]
+    Base.metadata.create_all(bind=op.get_bind(), tables=tables)
 
 
 def downgrade() -> None:
     import harness.persistence.models  # noqa: F401
     from harness.persistence.base import Base
 
-    Base.metadata.drop_all(bind=op.get_bind())
+    tables = [Base.metadata.tables[t] for t in _INITIAL_TABLES if t in Base.metadata.tables]
+    Base.metadata.drop_all(bind=op.get_bind(), tables=tables)

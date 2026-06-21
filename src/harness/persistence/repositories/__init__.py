@@ -1,4 +1,4 @@
-"""Re-exports for the five repository classes (contract repository-api.md)."""
+"""Re-exports for all repository classes (contract repository-api.md)."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from harness.persistence.repositories.evaluator_registration import (
     EvaluationAgentRegistrationRepository,
 )
 from harness.persistence.repositories.job import JobRepository
+from harness.persistence.repositories.user_registration import UserRegistrationRepository
 from harness.persistence.repositories.utterance import UtteranceRepository
 
 __all__ = [
@@ -17,5 +18,6 @@ __all__ = [
     "EvaluationAgentRegistrationRepository",
     "EvaluationResultRepository",
     "JobRepository",
+    "UserRegistrationRepository",
     "UtteranceRepository",
 ]

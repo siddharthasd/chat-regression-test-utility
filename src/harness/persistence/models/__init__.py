@@ -10,6 +10,7 @@ from harness.persistence.models.connector_registration import ConnectorRegistrat
 from harness.persistence.models.evaluation_result import EvaluationResult
 from harness.persistence.models.evaluator_registration import EvaluationAgentRegistration
 from harness.persistence.models.job import Job
+from harness.persistence.models.user_registration import UserRegistration
 from harness.persistence.models.utterance import Utterance
 
 __all__ = [
@@ -17,5 +18,6 @@ __all__ = [
     "EvaluationAgentRegistration",
     "EvaluationResult",
     "Job",
+    "UserRegistration",
     "Utterance",
 ]
