@@ -337,12 +337,19 @@ def chat_interface(
         )
         turns = list(reversed(turns))
         turn_views = [session_view.turn_view(t) for t in turns]
+        eval_turns = [
+            {"turnIndex": idx, "events": tv["evaluation_events"], "finalResult": tv["final_evaluation_result"]}
+            for idx, tv in enumerate(turn_views, start=1)
+            if tv["evaluation_events"] or tv["final_evaluation_result"]
+        ]
+        eval_turns_json = json.dumps(eval_turns)
     return templates.TemplateResponse(
         request,
         "chat_session/interface.html",
         {
             "chat_session": chat_session,
             "turns": turn_views,
+            "eval_turns_json": eval_turns_json,
             "is_owner": not _is_admin(user) or _owner_oid(user) == chat_session.owner_oid,
             **ctx(request),
         },

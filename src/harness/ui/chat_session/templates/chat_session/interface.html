@@ -89,29 +89,15 @@
   <!-- RIGHT PANE: evaluation -->
   <div class="col-md-6 d-flex flex-column">
     <div class="card shadow-sm flex-grow-1 d-flex flex-column" style="overflow:hidden">
-      <div class="card-header py-2">
+      <div class="card-header py-2 d-flex justify-content-between align-items-center">
         <span class="fw-semibold small">Evaluation</span>
+        <div class="btn-group btn-group-sm" role="group" aria-label="Evaluation view mode">
+          <button type="button" id="evalUserViewBtn" class="btn btn-primary btn-sm">User View</button>
+          <button type="button" id="evalDevViewBtn" class="btn btn-outline-secondary btn-sm">Developer View</button>
+        </div>
       </div>
       <div id="evalPane" class="flex-grow-1 overflow-y-auto p-3" style="font-size:0.9rem">
-        {% for turn in turns %}
-          {% if turn.evaluation_events or turn.final_evaluation_result %}
-            <div class="mb-3 border-bottom pb-2">
-              <div class="text-muted small mb-1">Turn {{ loop.index }}</div>
-              {% for ev in turn.evaluation_events %}
-                <div class="mb-1">
-                  <span class="badge bg-secondary">{{ ev.event_type }}</span>
-                  <code class="small ms-1">{{ ev.payload | tojson }}</code>
-                </div>
-              {% endfor %}
-              {% if turn.final_evaluation_result %}
-                <div class="mt-1 p-2 bg-light rounded small">
-                  <strong>Final:</strong>
-                  <code>{{ turn.final_evaluation_result | tojson }}</code>
-                </div>
-              {% endif %}
-            </div>
-          {% endif %}
-        {% endfor %}
+        <div id="evalStaticContent"></div>
         <!-- Live eval events target -->
         <div id="liveEvalPane" style="display:none!important">
           <div id="evaluatingIndicator" class="text-muted small mb-2" style="display:none">
@@ -132,6 +118,9 @@
 <!-- DOMPurify v3 for sanitization -->
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
 <script>
+const EVAL_TURNS = {{ eval_turns_json | safe }};
+</script>
+<script>
 (function () {
   'use strict';
 
@@ -145,24 +134,141 @@
     return DOMPurify.sanitize(marked.parse(text || ''));
   }
 
-  // Render existing turn responses using GFM
+  function scrollToBottom(el) {
+    el.scrollTop = el.scrollHeight;
+  }
+
+  // ── Eval view mode ────────────────────────────────────────────────────────
+  let devMode = false;
+  const evalUserViewBtn = document.getElementById('evalUserViewBtn');
+  const evalDevViewBtn  = document.getElementById('evalDevViewBtn');
+
+  function setEvalMode(dev) {
+    devMode = dev;
+    evalUserViewBtn.className = dev ? 'btn btn-outline-secondary btn-sm' : 'btn btn-primary btn-sm';
+    evalDevViewBtn.className  = dev ? 'btn btn-primary btn-sm' : 'btn btn-outline-secondary btn-sm';
+    renderStaticEvalPane();
+    renderLiveEvalEvents();
+  }
+
+  evalUserViewBtn.addEventListener('click', function () { setEvalMode(false); });
+  evalDevViewBtn.addEventListener('click',  function () { setEvalMode(true);  });
+
+  // User View: events to suppress entirely
+  const USER_VIEW_HIDDEN = new Set(['token', 'final']);
+
+  function extractEventText(payload) {
+    if (!payload || typeof payload !== 'object') return null;
+    for (const k of ['message', 'content', 'text', 'reasoning', 'thinking', 'step']) {
+      if (typeof payload[k] === 'string' && payload[k]) return payload[k];
+    }
+    return null;
+  }
+
+  function buildDevEventEl(ev) {
+    const div = document.createElement('div');
+    div.className = 'mb-1';
+    const badge = document.createElement('span');
+    badge.className = 'badge bg-secondary';
+    badge.textContent = ev.event_type || '';
+    const code = document.createElement('code');
+    code.className = 'small ms-1';
+    code.textContent = JSON.stringify(ev.payload || {});
+    div.appendChild(badge);
+    div.appendChild(document.createTextNode(' '));
+    div.appendChild(code);
+    return div;
+  }
+
+  function buildUserEventEl(ev) {
+    const et = ev.event_type || '';
+    if (USER_VIEW_HIDDEN.has(et)) return null;
+    const text = extractEventText(ev.payload);
+    if (!text) return null;
+    const outer = document.createElement('div');
+    outer.className = 'mb-2';
+    if (et === 'thinking') {
+      const lbl = document.createElement('div');
+      lbl.className = 'text-muted small fw-semibold mb-1';
+      lbl.textContent = 'Thinking';
+      outer.appendChild(lbl);
+    }
+    const content = document.createElement('div');
+    content.innerHTML = renderGfm(text);
+    outer.appendChild(content);
+    return outer;
+  }
+
+  function buildTurnEl(turn, isLast) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'mb-3' + (isLast ? '' : ' border-bottom pb-2');
+    const label = document.createElement('div');
+    label.className = 'text-muted small mb-1';
+    label.textContent = 'Turn ' + turn.turnIndex;
+    wrapper.appendChild(label);
+    let hasContent = false;
+    for (const ev of (turn.events || [])) {
+      const el = devMode ? buildDevEventEl(ev) : buildUserEventEl(ev);
+      if (el) { wrapper.appendChild(el); hasContent = true; }
+    }
+    if (devMode && turn.finalResult) {
+      const fd = document.createElement('div');
+      fd.className = 'mt-1 p-2 bg-light rounded small';
+      const safe = JSON.stringify(turn.finalResult)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      fd.innerHTML = '<strong>Final:</strong> <code>' + safe + '</code>';
+      wrapper.appendChild(fd);
+      hasContent = true;
+    }
+    return hasContent ? wrapper : null;
+  }
+
+  function renderStaticEvalPane() {
+    const container = document.getElementById('evalStaticContent');
+    container.innerHTML = '';
+    for (let i = 0; i < EVAL_TURNS.length; i++) {
+      const el = buildTurnEl(EVAL_TURNS[i], i === EVAL_TURNS.length - 1);
+      if (el) container.appendChild(el);
+    }
+  }
+
+  // ── Live eval events ──────────────────────────────────────────────────────
+  let liveEvents = [];
+
+  function renderLiveEvalEvents() {
+    const container = document.getElementById('liveEvalEvents');
+    container.innerHTML = '';
+    for (const ev of liveEvents) {
+      const el = devMode ? buildDevEventEl(ev) : buildUserEventEl(ev);
+      if (el) container.appendChild(el);
+    }
+  }
+
+  // ── Page load ─────────────────────────────────────────────────────────────
+  const chatPane = document.getElementById('chatPane');
+  const evalPane = document.getElementById('evalPane');
+
+  // GFM-render existing connector responses
   document.querySelectorAll('.gfm-content').forEach(function (el) {
     el.innerHTML = renderGfm(el.textContent);
   });
 
-  // Form submit
-  const form = document.getElementById('chatForm');
-  const input = document.getElementById('messageInput');
-  const sendBtn = document.getElementById('sendBtn');
-  const chatPane = document.getElementById('chatPane');
-  const evalPane = document.getElementById('evalPane');
-  const liveUserMsg = document.getElementById('liveUserMsg');
-  const liveConnectorPane = document.getElementById('liveConnectorPane');
+  // Render eval pane from embedded data then autoscroll both panes
+  renderStaticEvalPane();
+  scrollToBottom(chatPane);
+  scrollToBottom(evalPane);
+
+  // ── Streaming ─────────────────────────────────────────────────────────────
+  const form          = document.getElementById('chatForm');
+  const input         = document.getElementById('messageInput');
+  const sendBtn       = document.getElementById('sendBtn');
+  const liveUserMsg   = document.getElementById('liveUserMsg');
+  const liveConnectorPane    = document.getElementById('liveConnectorPane');
   const liveConnectorContent = document.getElementById('liveConnectorContent');
-  const liveEvalPane = document.getElementById('liveEvalPane');
-  const liveEvalEvents = document.getElementById('liveEvalEvents');
-  const evaluatingIndicator = document.getElementById('evaluatingIndicator');
-  const sendingIndicator = document.getElementById('sendingIndicator');
+  const liveEvalPane         = document.getElementById('liveEvalPane');
+  const liveEvalEventsEl     = document.getElementById('liveEvalEvents');
+  const evaluatingIndicator  = document.getElementById('evaluatingIndicator');
+  const sendingIndicator     = document.getElementById('sendingIndicator');
 
   let streaming = false;
   let tokenBuffer = '';
@@ -174,10 +280,6 @@
     sendingIndicator.style.display = active ? '' : 'none';
   }
 
-  function scrollToBottom(el) {
-    el.scrollTop = el.scrollHeight;
-  }
-
   form.addEventListener('submit', async function (e) {
     e.preventDefault();
     const msg = input.value.trim();
@@ -185,14 +287,13 @@
 
     setStreamingState(true);
     tokenBuffer = '';
-    liveEvalEvents.innerHTML = '';
+    liveEvents = [];
+    liveEvalEventsEl.innerHTML = '';
 
-    // Show user message bubble
     liveUserMsg.style.removeProperty('display');
     liveUserMsg.innerHTML = '<div class="bg-primary text-white rounded p-2 px-3" style="max-width:80%;white-space:pre-wrap">' +
       msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>';
 
-    // Show connector pane
     liveConnectorPane.style.removeProperty('display');
     liveConnectorContent.innerHTML = '';
     liveEvalPane.style.removeProperty('display');
@@ -236,15 +337,12 @@
 
     es.addEventListener('evaluator_event', function (e) {
       const data = JSON.parse(e.data);
-      const div = document.createElement('div');
-      div.className = 'mb-1';
-      div.innerHTML = '<span class="badge bg-secondary">' + (data.event_type || '') + '</span>' +
-        ' <code class="small">' + JSON.stringify(data.payload || {}).replace(/</g,'&lt;') + '</code>';
-      liveEvalEvents.appendChild(div);
+      liveEvents.push(data);
+      renderLiveEvalEvents();
       scrollToBottom(evalPane);
     });
 
-    es.addEventListener('turn_complete', function (e) {
+    es.addEventListener('turn_complete', function () {
       evaluatingIndicator.style.display = 'none';
       setStreamingState(false);
       es.close();
@@ -253,9 +351,10 @@
     es.addEventListener('turn_failed', function (e) {
       const data = JSON.parse(e.data);
       evaluatingIndicator.style.display = 'none';
-      liveConnectorContent.innerHTML += '<div class="text-danger small mt-1">Turn failed (' +
-        (data.error_stage || '') + '): ' +
-        (data.error_details || '').replace(/</g,'&lt;') + '</div>';
+      const errDiv = document.createElement('div');
+      errDiv.className = 'text-danger small mt-1';
+      errDiv.textContent = 'Turn failed (' + (data.error_stage || '') + '): ' + (data.error_details || '');
+      liveConnectorContent.appendChild(errDiv);
       setStreamingState(false);
       es.close();
     });
