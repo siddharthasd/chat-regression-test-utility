@@ -37,13 +37,25 @@
             Dashboard
           </a>
         </li>
-        <li class="nav-item">
-          <a class="nav-link px-3 fw-semibold" style="color:#ffd740" href="{{ url_for('new_job') }}">
-            <svg width="15" height="15" fill="currentColor" class="me-1" viewBox="0 0 16 16">
-              <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/>
-            </svg>
-            New Job
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle px-3" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            Job Sessions
           </a>
+          <ul class="dropdown-menu dropdown-menu-dark" style="background:#283593">
+            <li><a class="dropdown-item" href="{{ url_for('index') }}">All Job Sessions</a></li>
+            <li><hr class="dropdown-divider" style="border-color:#3949ab"></li>
+            <li><a class="dropdown-item" href="{{ url_for('new_job') }}">+ New Job</a></li>
+          </ul>
+        </li>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle px-3" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            Chat Sessions
+          </a>
+          <ul class="dropdown-menu dropdown-menu-dark" style="background:#283593">
+            <li><a class="dropdown-item" href="{{ url_for('chat_session_list') }}">All Chat Sessions</a></li>
+            <li><hr class="dropdown-divider" style="border-color:#3949ab"></li>
+            <li><a class="dropdown-item" href="{{ url_for('wizard_step1') }}">+ New Chat Session</a></li>
+          </ul>
         </li>
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle px-3" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -63,16 +75,6 @@
             <li><a class="dropdown-item" href="{{ url_for('list_evaluators') }}">View All Evaluators</a></li>
             <li><hr class="dropdown-divider" style="border-color:#3949ab"></li>
             <li><a class="dropdown-item" href="/evaluators/new?next=dashboard">Register New Evaluator</a></li>
-          </ul>
-        </li>
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle px-3" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-            Chat Sessions
-          </a>
-          <ul class="dropdown-menu dropdown-menu-dark" style="background:#283593">
-            <li><a class="dropdown-item" href="{{ url_for('chat_session_list') }}">All Chat Sessions</a></li>
-            <li><hr class="dropdown-divider" style="border-color:#3949ab"></li>
-            <li><a class="dropdown-item" href="{{ url_for('wizard_step1') }}">+ New Chat Session</a></li>
           </ul>
         </li>
         <li class="nav-item dropdown">

@@ -298,7 +298,8 @@ def chat_session_list(
     with get_session() as db:
         repo = ChatSessionRepository(db)
         sessions = repo.list_all_sessions() if admin else repo.list_sessions_for_owner(oid or "")
-        rows = [session_view.session_row_view(s) for s in sessions]
+        turn_counts = repo.get_turn_counts([s.chat_session_id for s in sessions])
+        rows = [session_view.session_row_view(s, turn_counts[s.chat_session_id]) for s in sessions]
     rows = session_view.sort_sessions(rows, sort, dir)
     return templates.TemplateResponse(
         request,
@@ -320,6 +321,7 @@ def chat_interface(
         repo = ChatSessionRepository(db)
         chat_session = _require_session(repo, session_id, user)
         from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
         from harness.persistence.models.chat_turn import ChatTurn
         turns = list(
             db.scalars(
@@ -327,6 +329,10 @@ def chat_interface(
                 .where(ChatTurn.session_id == session_id)
                 .order_by(ChatTurn.created_at.desc())
                 .limit(50)
+                .options(
+                    selectinload(ChatTurn.result),
+                    selectinload(ChatTurn.evaluation_events),
+                )
             )
         )
         turns = list(reversed(turns))
@@ -360,13 +366,13 @@ async def chat_submit_turn(
 
     with get_session() as db:
         repo = ChatSessionRepository(db)
-        chat_session = _require_session(repo, session_id, user)
+        _require_session(repo, session_id, user)
         turn_svc = TurnService(db)
         turn = turn_svc.create_turn(session_id, user_message)
         turn_id = turn.turn_id
 
     bus = bus_registry.create_bus(turn_id)
-    background_tasks.add_task(run_turn, turn_id, chat_session, user_message, bus)
+    background_tasks.add_task(run_turn, turn_id, session_id, user_message, bus)
     return {"turn_id": turn_id}
 
 
@@ -395,11 +401,10 @@ async def chat_turn_stream(
             result = turn.result
             ev_rows = turn.evaluation_events or []
             if turn_status == "completed" and result:
-                for tok_chunk in (result.assembled_response or "").split(" "):
-                    if tok_chunk:
-                        events_from_db.append(
-                            {"event": "connector_token", "data": {"content": tok_chunk + " "}}
-                        )
+                if result.assembled_response:
+                    events_from_db.append(
+                        {"event": "connector_token", "data": {"content": result.assembled_response}}
+                    )
                 events_from_db.append({"event": "evaluating", "data": {}})
                 for ev in ev_rows:
                     events_from_db.append(
@@ -454,29 +459,58 @@ def chat_session_export(
 ):
     from harness.chat.export_service import build_session_export
 
+    fmt = format.lower()
+    if fmt not in ("json", "csv"):
+        raise HTTPException(status_code=400, detail="format must be 'json' or 'csv'")
+
     with get_session() as db:
         repo = ChatSessionRepository(db)
         chat_session = _require_session(repo, session_id, user)
         from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
         from harness.persistence.models.chat_turn import ChatTurn
         turns = list(
             db.scalars(
                 select(ChatTurn)
                 .where(ChatTurn.session_id == session_id)
                 .order_by(ChatTurn.created_at)
+                .options(
+                    selectinload(ChatTurn.result),
+                    selectinload(ChatTurn.evaluation_events),
+                )
             )
         )
-
-    fmt = format.lower()
-    if fmt not in ("json", "csv"):
-        raise HTTPException(status_code=400, detail="format must be 'json' or 'csv'")
-
-    filename, mimetype, content_bytes = build_session_export(chat_session, turns, fmt)
+        filename, mimetype, content_bytes = build_session_export(chat_session, turns, fmt)
     return StreamingResponse(
         iter([content_bytes]),
         media_type=mimetype,
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+# ---------------------------------------------------------------------------
+# Bulk clear (T045)
+
+@router.post("/chat/sessions/clear-errors", name="chat_clear_errors")
+def chat_clear_errors(request: Request, user: dict = Depends(require_auth)):
+    """Delete all sessions with at least one failed turn (owner-scoped for users, global for admins)."""
+    admin = _is_admin(user)
+    oid = _owner_oid(user)
+    with get_session() as db:
+        repo = ChatSessionRepository(db)
+        repo.delete_errored_sessions(owner_oid=None if admin else oid)
+    return RedirectResponse(request.url_for("chat_session_list"), status_code=303)
+
+
+@router.post("/chat/sessions/clear-all", name="chat_clear_all")
+def chat_clear_all(request: Request, user: dict = Depends(require_auth)):
+    """Delete all inactive sessions (owner-scoped for users, global for admins)."""
+    admin = _is_admin(user)
+    oid = _owner_oid(user)
+    with get_session() as db:
+        repo = ChatSessionRepository(db)
+        repo.delete_all_inactive_sessions(owner_oid=None if admin else oid)
+    return RedirectResponse(request.url_for("chat_session_list"), status_code=303)
 
 
 # ---------------------------------------------------------------------------
@@ -491,6 +525,7 @@ def chat_session_delete(
 ):
     admin = _is_admin(user)
     oid = _owner_oid(user)
+    stale_turn_id = None
     with get_session() as db:
         repo = ChatSessionRepository(db)
         chat_session = repo.get_session(session_id, owner_oid=None if admin else oid)
@@ -504,8 +539,11 @@ def chat_session_delete(
                 + f"?warn_in_progress={session_id}",
                 status_code=303,
             )
+        if in_progress is not None:
+            stale_turn_id = in_progress.turn_id
         repo.delete_session(session_id)
-    bus_registry.remove_bus(session_id)
+    if stale_turn_id:
+        bus_registry.remove_bus(stale_turn_id)
     return RedirectResponse(request.url_for("chat_session_list"), status_code=303)
 
 
@@ -527,7 +565,10 @@ def chat_session_admin_delete(
             raise HTTPException(status_code=404)
         in_progress = repo.get_in_progress_turn(session_id)
         if in_progress is not None:
-            # Silently skip — do not delete sessions with active turns
+            # Silently skip — do not delete sessions with active turns.
+            # No remove_bus needed: nothing is deleted, so no bus cleanup is required.
             return RedirectResponse(request.url_for("chat_session_list"), status_code=303)
         repo.delete_session(session_id)
+    # No in-progress turn existed (guard above prevents reaching here otherwise),
+    # so no live bus entry to clean up.
     return RedirectResponse(request.url_for("chat_session_list"), status_code=303)

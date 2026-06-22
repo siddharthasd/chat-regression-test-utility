@@ -290,6 +290,99 @@ Your evaluator is ready to register when it:
 
 ---
 
+## 11. Live Chat mode — SSE evaluator protocol
+
+When an evaluator is registered with the **Supports live chat** toggle enabled, it can be
+selected in the **Chat Sessions** wizard. In this mode the harness POSTs the Standard
+Evaluation Contract to your endpoint and expects an SSE stream of evaluation events in return.
+
+### What changes in SSE mode
+
+The **request** is identical to batch mode (§2): the same Standard Evaluation Contract JSON
+body. Only the **response** changes:
+
+- Respond with **`Content-Type: text/event-stream`** (Server-Sent Events).
+- Emit any number of named **intermediate events** (progress, reasoning steps, scores, …).
+- End the stream with exactly one **`final` event** whose payload is the completed
+  EvaluationResult (same shape as §3).
+
+### Response you must return (SSE stream)
+
+**1 — Optional intermediate events** (any event name except `final`):
+
+```
+event: thinking
+data: {"step": "Checking relevance against the knowledge base..."}
+
+event: score
+data: {"parameter_name": "relevance", "score": 0.9, "reasoning": "Directly answers the question."}
+
+```
+
+**2 — Exactly one `final` event** (the completed EvaluationResult — same schema as §3):
+
+```
+event: final
+data: {"utteranceId":"a3f1...","evaluationAgentId":"acme-llm-judge","evaluationTimestamp":"2026-06-05T14:32:05Z","evaluationVerdict":"pass","evaluationScores":[{"parameter_name":"relevance","score":0.92,"reasoning":"Directly answers the question."}],"metadata":{}}
+
+```
+
+The harness records **all events** — including intermediate ones — in the chat session
+transcript so testers can see your reasoning steps. The `final` event's payload is the
+authoritative result; only it is validated and stored as the EvaluationResult. The harness
+closes the SSE connection after receiving `final`.
+
+### SSE error stages
+
+| Stage | When it happens |
+|---|---|
+| `evaluator_stream` | Harness could not connect, received HTTP non-2xx, or the stream stalled for longer than `timeoutSeconds` without a new chunk |
+
+(Result validation errors — malformed `final` payload, wrong verdict, mismatched `utteranceId`
+— are recorded under the existing `evaluator_result` stage.)
+
+### Reference SSE evaluator (Python / FastAPI)
+
+```python
+import json
+from datetime import datetime, timezone
+from fastapi import FastAPI
+from fastapi.responses import StreamingResponse
+
+app = FastAPI()
+AGENT_ID = "acme-llm-judge"
+
+@app.post("/sse-evaluate")
+async def sse_evaluate(contract: dict):
+    utterance = contract["utteranceText"]
+    answer = contract["chatbotResponse"]["normalizedText"]
+
+    async def event_stream():
+        # Optional: stream intermediate reasoning
+        yield f"event: thinking\ndata: {json.dumps({'step': 'Evaluating relevance'})}\n\n"
+
+        verdict, scores = await run_my_judge(utterance, answer)   # <- your scoring logic
+
+        result = {
+            "utteranceId": contract["utteranceId"],          # echo it back
+            "evaluationAgentId": AGENT_ID,
+            "evaluationTimestamp": datetime.now(timezone.utc).isoformat(),
+            "evaluationVerdict": verdict,                    # "pass" | "fail" | "warn"
+            "evaluationScores": scores,                      # [{parameter_name, score, reasoning}, ...]
+            "metadata": {},
+        }
+        yield f"event: final\ndata: {json.dumps(result)}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+```
+
+**Registering an SSE evaluator.** In the Evaluator Registry, toggle **Supports live chat** on
+before saving. Only evaluators with this flag appear in the Chat Sessions wizard. All other
+registration fields (auth mode, timeout, dimensions, credentials) work identically to the
+batch mode.
+
+---
+
 ## Appendix — field quick reference
 
 **Request → evaluator:** a Standard Evaluation Contract

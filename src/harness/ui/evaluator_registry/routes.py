@@ -175,6 +175,7 @@ def test_connection_evaluator(
     audience: str = Form(None),
     timeout_seconds: str = Form(None),
     dimensions: str = Form(None),
+    supports_sse: str = Form(None),
     evaluation_agent_id: str = Form(None),
     user: dict = Depends(require_auth),
 ):
@@ -184,7 +185,8 @@ def test_connection_evaluator(
         "username": username, "password": password, "token_url": token_url,
         "client_id": client_id, "client_secret": client_secret,
         "scope": scope, "audience": audience, "timeout_seconds": timeout_seconds,
-        "dimensions": dimensions, "evaluation_agent_id": evaluation_agent_id,
+        "dimensions": dimensions, "supports_sse": supports_sse,
+        "evaluation_agent_id": evaluation_agent_id,
     }.items() if v is not None}
     endpoint = (form.get("endpoint_url") or "").strip()
     mode = (form.get("auth_mode") or "none").strip()
@@ -193,6 +195,7 @@ def test_connection_evaluator(
     except ValueError:
         timeout = 60
     dims_val = parse_dimensions(form.get("dimensions"))
+    sse = (form.get("supports_sse") or "").lower() in _TRUTHY
     eid = (form.get("evaluation_agent_id") or "").strip()
 
     descriptor, needs_stored = _descriptor_from_form(form, mode)
@@ -208,7 +211,7 @@ def test_connection_evaluator(
                     request, "evaluator_registry/_test_result.html", {"result": result}
                 )
 
-    result = run_test_connection(endpoint, descriptor, timeout, dims_val)
+    result = run_test_connection(endpoint, descriptor, timeout, dims_val, sse)
     return templates.TemplateResponse(
         request, "evaluator_registry/_test_result.html", {"result": result}
     )

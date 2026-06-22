@@ -60,28 +60,98 @@ class ChatSessionRepository:
             self._session.delete(s)
             self._session.flush()
 
+    def _inactive_sessions_stmt(self, cutoff_dt: datetime):
+        """SELECT statement for sessions inactive since cutoff_dt (single SQL roundtrip).
+
+        A session is inactive when:
+          - it has no in-progress turn, AND
+          - its last activity (max turn completed_at/created_at, or session created_at) < cutoff.
+
+        SQLite stores naive datetimes; timezone info is stripped from cutoff_dt.
+        """
+        from sqlalchemy import func
+
+        cutoff = cutoff_dt.replace(tzinfo=None) if cutoff_dt.tzinfo else cutoff_dt
+
+        max_turn_activity = (
+            select(func.max(func.coalesce(ChatTurn.completed_at, ChatTurn.created_at)))
+            .where(ChatTurn.session_id == ChatSession.chat_session_id)
+            .correlate(ChatSession)
+            .scalar_subquery()
+        )
+        last_activity = func.coalesce(max_turn_activity, ChatSession.created_at)
+
+        has_in_progress = (
+            select(ChatTurn.turn_id)
+            .where(
+                ChatTurn.session_id == ChatSession.chat_session_id,
+                ChatTurn.status == "in_progress",
+            )
+            .correlate(ChatSession)
+            .exists()
+        )
+
+        return select(ChatSession).where(~has_in_progress, last_activity < cutoff)
+
     def count_sessions_inactive_since(self, cutoff_dt: datetime) -> int:
-        """Count sessions whose most-recent turn completed before *cutoff_dt*,
-        or sessions with no turns whose created_at is before *cutoff_dt*.
-        Sessions with an in-progress turn are excluded."""
-        all_sessions = self.list_all_sessions()
-        count = 0
-        for s in all_sessions:
-            if self._is_inactive_since(s, cutoff_dt):
-                count += 1
-        return count
+        """Count sessions inactive since cutoff_dt (single SQL query)."""
+        from sqlalchemy import func
+
+        subq = self._inactive_sessions_stmt(cutoff_dt).subquery()
+        return self._session.scalar(select(func.count()).select_from(subq)) or 0
 
     def delete_sessions_inactive_since(self, cutoff_dt: datetime) -> int:
-        """Bulk-delete sessions inactive since *cutoff_dt*; skip in-progress ones."""
-        all_sessions = self.list_all_sessions()
-        deleted = 0
-        for s in all_sessions:
-            if self._is_inactive_since(s, cutoff_dt):
-                self._session.delete(s)
-                deleted += 1
-        if deleted:
+        """Bulk-delete sessions inactive since cutoff_dt; returns deleted count."""
+        sessions = list(self._session.scalars(self._inactive_sessions_stmt(cutoff_dt)))
+        for s in sessions:
+            self._session.delete(s)
+        if sessions:
             self._session.flush()
-        return deleted
+        return len(sessions)
+
+    def _no_in_progress_stmt(self):
+        return ~(
+            select(ChatTurn.turn_id)
+            .where(
+                ChatTurn.session_id == ChatSession.chat_session_id,
+                ChatTurn.status == "in_progress",
+            )
+            .correlate(ChatSession)
+            .exists()
+        )
+
+    def delete_errored_sessions(self, owner_oid: str | None = None) -> int:
+        """Delete sessions that have at least one failed turn and no in_progress turn."""
+        has_failed = (
+            select(ChatTurn.turn_id)
+            .where(
+                ChatTurn.session_id == ChatSession.chat_session_id,
+                ChatTurn.status == "failed",
+            )
+            .correlate(ChatSession)
+            .exists()
+        )
+        stmt = select(ChatSession).where(self._no_in_progress_stmt(), has_failed)
+        if owner_oid is not None:
+            stmt = stmt.where(ChatSession.owner_oid == owner_oid)
+        sessions = list(self._session.scalars(stmt))
+        for s in sessions:
+            self._session.delete(s)
+        if sessions:
+            self._session.flush()
+        return len(sessions)
+
+    def delete_all_inactive_sessions(self, owner_oid: str | None = None) -> int:
+        """Delete all sessions with no in_progress turn."""
+        stmt = select(ChatSession).where(self._no_in_progress_stmt())
+        if owner_oid is not None:
+            stmt = stmt.where(ChatSession.owner_oid == owner_oid)
+        sessions = list(self._session.scalars(stmt))
+        for s in sessions:
+            self._session.delete(s)
+        if sessions:
+            self._session.flush()
+        return len(sessions)
 
     def count_all_sessions(self) -> int:
         from sqlalchemy import func
@@ -91,31 +161,19 @@ class ChatSessionRepository:
         from sqlalchemy import func
         return self._session.scalar(select(func.count()).select_from(ChatTurn)) or 0
 
-    def _is_inactive_since(self, s: ChatSession, cutoff_dt: datetime) -> bool:
-        in_progress = self.get_in_progress_turn(s.chat_session_id)
-        if in_progress is not None:
-            return False
-        # Find the most recent completed_at among turns
-        turns = list(
-            self._session.scalars(
-                select(ChatTurn)
-                .where(ChatTurn.session_id == s.chat_session_id)
-                .order_by(ChatTurn.completed_at.desc())
-            )
-        )
-        if not turns:
-            # No turns — use session creation time
-            created = s.created_at
-            if created.tzinfo is None:
-                from datetime import timezone
-                created = created.replace(tzinfo=timezone.utc)
-            return created < cutoff_dt
-        last_turn = turns[0]
-        last_activity = last_turn.completed_at or last_turn.created_at
-        if last_activity.tzinfo is None:
-            from datetime import timezone
-            last_activity = last_activity.replace(tzinfo=timezone.utc)
-        return last_activity < cutoff_dt
+    def get_turn_counts(self, session_ids: list[str]) -> dict[str, int]:
+        """Return {session_id: turn_count} for each given session_id (single GROUP BY query)."""
+        from sqlalchemy import func
+
+        if not session_ids:
+            return {}
+        rows = self._session.execute(
+            select(ChatTurn.session_id, func.count(ChatTurn.turn_id).label("cnt"))
+            .where(ChatTurn.session_id.in_(session_ids))
+            .group_by(ChatTurn.session_id)
+        ).all()
+        counts = {row.session_id: row.cnt for row in rows}
+        return {sid: counts.get(sid, 0) for sid in session_ids}
 
     # ----------------------------------------------------------------- turns
 

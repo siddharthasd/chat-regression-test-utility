@@ -313,6 +313,128 @@ Your connector is ready to register when it:
 
 ---
 
+## 11. Live Chat mode — SSE connector protocol
+
+When a connector is registered with the **Supports live chat** toggle enabled, testers can
+select it in the **Chat Sessions** wizard. In this mode the harness streams turns one-by-one
+through your connector instead of batching the whole CSV.
+
+### What changes in SSE mode
+
+The harness sends the **same HTTP `POST`** to your `endpointUrl`, but:
+
+- The **request body** uses a different shape (see below).
+- You must respond with **`Content-Type: text/event-stream`** (Server-Sent Events) instead
+  of a single JSON object.
+- You stream **token events** as the chatbot replies, followed by a single **contract event**
+  containing the completed Standard Evaluation Contract.
+
+### Request the harness sends (SSE mode)
+
+```json
+{
+  "auth": {
+    "test_id": "hours-001",
+    "password": "hunter2"
+  },
+  "message": "What are your opening hours?"
+}
+```
+
+| Field | Notes |
+|---|---|
+| `auth.test_id` | The test ID configured at chat session creation. |
+| `auth.password` | The password configured at session creation (empty string if not set). |
+| `message` | The user's chat message for this turn. |
+
+### Response you must return (SSE stream)
+
+Return HTTP **`200`** with `Content-Type: text/event-stream`. Send events in this order:
+
+**1 — Zero or more `token` events** (streaming chunks of the chatbot's reply):
+
+```
+event: token
+data: {"content": "We're open "}
+
+event: token
+data: {"content": "9 to 5, Monday through Friday."}
+
+```
+
+**2 — Exactly one `contract` event** (the completed Standard Evaluation Contract — same schema as §3):
+
+```
+event: contract
+data: {"contractVersion":"1","utteranceId":"a3f1...","utteranceText":"What are your opening hours?","testId":"hours-001","conversationContext":null,"connectorId":"acme-support-bot","timestamp":"2026-06-05T14:32:00Z","chatbotResponse":{"rawPayload":{},"normalizedText":"We're open 9 to 5, Monday through Friday.","agentChain":[],"metadata":{}}}
+
+```
+
+The harness streams `token` events live to the tester's browser. After receiving the `contract`
+event it closes the SSE connection and proceeds to the evaluator. **The `contract` event must be
+the last event you emit.**
+
+Set `utteranceText` to the `message` from the request and `testId` to `auth.test_id`.
+
+### SSE error stages
+
+| Stage | When it happens |
+|---|---|
+| `connector_stream` | Harness could not connect, received HTTP non-2xx, or the stream stalled for longer than `timeoutSeconds` without a new chunk |
+| `connector_normalization` | The `contract` event data was not valid JSON or failed Standard Evaluation Contract validation (§3) |
+
+### Reference SSE connector (Python / FastAPI)
+
+```python
+import asyncio
+import json
+import uuid
+from datetime import datetime, timezone
+from fastapi import FastAPI
+from fastapi.responses import StreamingResponse
+
+app = FastAPI()
+
+@app.post("/sse-connect")
+async def sse_connect(body: dict):
+    test_id = body["auth"]["test_id"]
+    password = body["auth"].get("password", "")
+    message = body["message"]
+
+    async def event_stream():
+        reply = await call_my_chatbot(message, password)   # <- your integration
+        # Stream reply as tokens
+        for word in reply.split():
+            chunk = word + " "
+            yield f"event: token\ndata: {json.dumps({'content': chunk})}\n\n"
+            await asyncio.sleep(0)
+        # Finish with the full contract
+        contract = {
+            "contractVersion": "1",
+            "utteranceId": str(uuid.uuid4()),
+            "utteranceText": message,
+            "testId": test_id,
+            "conversationContext": None,
+            "connectorId": "acme-support-bot",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "chatbotResponse": {
+                "rawPayload": {"text": reply},
+                "normalizedText": reply,
+                "agentChain": [],
+                "metadata": {},
+            },
+        }
+        yield f"event: contract\ndata: {json.dumps(contract)}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+```
+
+**Registering an SSE connector.** In the Connector Registry, toggle **Supports live chat** on
+before saving. Only connectors with this flag appear in the Chat Sessions wizard. All other
+registration fields (auth mode, timeout, credentials) work identically to the batch mode.
+
+---
+
 ## Appendix — field quick reference
 
 **Request → connector:** `testId`, `utteranceText`, `password?`

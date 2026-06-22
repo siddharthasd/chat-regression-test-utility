@@ -136,14 +136,14 @@ def _seed_turn(eng, db_name):
         eid = db.scalar(select(EvaluationAgentRegistration.evaluation_agent_id))
         sess = ChatSessionService(db).create_session("S", cid, "uid", "pw", eid, "oid-1")
         turn = TurnService(db).create_turn(sess.chat_session_id, "hello")
-        return sess.chat_session_id, turn.turn_id, type(sess)
+        return sess.chat_session_id, turn.turn_id
 
 
 def test_run_turn_happy_path(monkeypatch, tmp_path) -> None:
     eng = _setup_db(tmp_path, monkeypatch, "orch1")
-    session_id, turn_id, sess_type = _seed_turn(eng, "orch1")
+    session_id, turn_id = _seed_turn(eng, "orch1")
 
-    contract_payload = json.dumps({"utterance": "hello", "chatbotResponse": {"normalizedText": "hi"}})
+    contract_payload = json.dumps({"utteranceId": "u-1", "utteranceText": "hello", "chatbotResponse": {"normalizedText": "hi"}})
     connector_body = _sse_body(
         ("token", json.dumps({"content": "hi"})),
         ("contract", contract_payload),
@@ -177,9 +177,7 @@ def test_run_turn_happy_path(monkeypatch, tmp_path) -> None:
     async def _test():
         bus = _Bus()
         from harness.chat.stream_orchestrator import run_turn
-        with eng.get_session() as db:
-            session_obj = db.get(sess_type, session_id)
-            await run_turn(turn_id, session_obj, "hello", bus)
+        await run_turn(turn_id, session_id, "hello", bus)
 
     _run(_test())
 
@@ -200,7 +198,7 @@ def test_run_turn_happy_path(monkeypatch, tmp_path) -> None:
 
 def test_run_turn_connector_http_error(monkeypatch, tmp_path) -> None:
     eng = _setup_db(tmp_path, monkeypatch, "orch2")
-    session_id, turn_id, sess_type = _seed_turn(eng, "orch2")
+    session_id, turn_id = _seed_turn(eng, "orch2")
 
     def handler(request):
         return httpx.Response(503)
@@ -221,9 +219,7 @@ def test_run_turn_connector_http_error(monkeypatch, tmp_path) -> None:
     async def _test():
         bus = _Bus()
         from harness.chat.stream_orchestrator import run_turn
-        with eng.get_session() as db:
-            session_obj = db.get(sess_type, session_id)
-            await run_turn(turn_id, session_obj, "hi", bus)
+        await run_turn(turn_id, session_id, "hi", bus)
 
     _run(_test())
 
@@ -239,7 +235,7 @@ def test_run_turn_connector_http_error(monkeypatch, tmp_path) -> None:
 
 def test_run_turn_contract_validation_failure(monkeypatch, tmp_path) -> None:
     eng = _setup_db(tmp_path, monkeypatch, "orch3")
-    session_id, turn_id, sess_type = _seed_turn(eng, "orch3")
+    session_id, turn_id = _seed_turn(eng, "orch3")
 
     bad_contract = json.dumps({"wrong_key": "value"})
     connector_body = _sse_body(
@@ -269,9 +265,7 @@ def test_run_turn_contract_validation_failure(monkeypatch, tmp_path) -> None:
     async def _test():
         bus = _Bus()
         from harness.chat.stream_orchestrator import run_turn
-        with eng.get_session() as db:
-            session_obj = db.get(sess_type, session_id)
-            await run_turn(turn_id, session_obj, "hi", bus)
+        await run_turn(turn_id, session_id, "hi", bus)
 
     _run(_test())
 
