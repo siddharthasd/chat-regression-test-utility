@@ -52,13 +52,21 @@ Each chat turn follows a strict sequential model:
 - Q: Can admins navigate into the chat interface of a session they do not own, or is admin access limited to list-level visibility and deletion? → A: Option B — admins are limited to list-level visibility (session metadata only) and deletion. Admins cannot open the chat interface of another user's session and cannot export another user's transcript. The chat interface and export are always scoped to the session owner.
 - Q: How should the system handle an evaluator SSE event whose type is not one of the five defined types? → A: Option A — forward to browser as-is and persist with the raw type string. Unknown event types are treated as a passthrough; no validation against the defined whitelist, no error raised. This preserves forward compatibility as evaluator implementations evolve.
 
+### Session 2026-06-22
+
+- Q: How are the session's test ID and password passed to the connector on each turn? → A: Option A — a dedicated top-level `auth` object in the POST body: `{ "auth": { "test_id": "…", "password": "…" }, "message": "…" }`. Credentials are structurally separated from message content in the connector request.
+- Q: Should the left-pane static warning be dismissible? → A: Option B — permanently visible; no dismiss control is provided. The notice is always shown regardless of how many sessions the tester has opened or how many times they return to a session.
+- Q: Should the tester's own messages in the left pane render as rich text (Markdown) or plain text? → A: Option B — plain text always. Tester messages are test inputs, not formatted content; Markdown interpretation would be surprising and could misrepresent what the chatbot actually received.
+- Q: Should the password field in the wizard entry step have a reveal toggle? → A: Option A — a show/hide toggle is provided during wizard entry only, so the tester can verify what they typed before committing. In the read-only chat view, the password is always masked with no toggle.
+- Q: Which Markdown dialect should the chat panes support? → A: GitHub Flavored Markdown (GFM) — the dialect produced by Azure GPT-5.x, Claude, and Gemini model families. GFM extends CommonMark with tables, fenced code blocks, strikethrough, and task lists.
+
 ---
 
 ## User Scenarios & Testing
 
 ### User Story 1 — Create a Live Chat Session via Dedicated Wizard (Priority: P1)
 
-A tester wants to explore a chatbot's behavior interactively. They launch a dedicated Chat Session Creation Wizard (a separate workflow from the Job Creation Wizard) and step through: naming the session, selecting an SSE-capable connector, selecting an SSE-capable evaluator, and confirming. The session becomes active and the tester is taken to the split-pane chat interface.
+A tester wants to explore a chatbot's behavior interactively. They launch a dedicated Chat Session Creation Wizard (a separate workflow from the Job Creation Wizard) and step through: naming the session, selecting an SSE-capable connector, entering a test ID and password that the connector will use to authenticate each chat turn, selecting an SSE-capable evaluator, and confirming. The session becomes active and the tester is taken to the split-pane chat interface.
 
 **Why this priority**: Session creation is the entry point for all live chat functionality; nothing else works without it.
 
@@ -67,9 +75,11 @@ A tester wants to explore a chatbot's behavior interactively. They launch a dedi
 **Acceptance Scenarios**:
 
 1. **Given** a tester is on the dashboard or chat sessions list, **When** they click "New Chat Session", **Then** they are taken into the Chat Session Creation Wizard, which is visually and functionally distinct from the Job Creation Wizard.
-2. **Given** the tester is in the wizard, **When** they complete all steps (name → connector → evaluator → confirm), **Then** a new session in `active` status is created and they are redirected to the chat interface for that session.
+2. **Given** the tester is in the wizard, **When** they complete all steps (name → connector → test credentials → evaluator → confirm), **Then** a new session in `active` status is created and they are redirected to the chat interface for that session.
 3. **Given** session creation is in progress, **When** the tester confirms, **Then** the system snapshots the selected connector and evaluator registrations at that moment, so future changes to those registrations do not affect the session.
 4. **Given** no SSE-capable connectors exist in the registry, **When** the tester reaches the connector selection step, **Then** the list is empty and a message explains that no streaming-capable connectors are available.
+5. **Given** the tester has selected a connector and is on the test credentials step, **When** they submit the step without entering a test ID or password, **Then** validation fails and the wizard does not advance.
+6. **Given** the tester has completed all wizard steps including test credentials, **When** they are in the active chat interface, **Then** the test ID is displayed as a read-only label and no edit control is provided. The password is displayed as a masked read-only field. Neither field can be changed for the lifetime of this session.
 
 ---
 
@@ -92,7 +102,7 @@ A tester visits the main dashboard and sees their chat sessions displayed alongs
 
 ### User Story 3 — Send a Message and Observe Streaming Output (Priority: P1)
 
-A tester types a message in the chat interface and submits it. The chatbot's response tokens appear progressively in the left pane as the connector streams them. Once the connector finishes, an "Evaluating…" indicator appears in the right pane. Evaluation events (scores, warnings, insights) then stream into the right pane progressively. Both streams are correlated to the same turn.
+A tester types a message in the chat interface and submits it. The chatbot's response tokens appear progressively in the left pane as the connector streams them. Once the connector finishes, an "Evaluating…" indicator appears in the right pane. Evaluation events (scores, warnings, insights) then stream into the right pane progressively. Both streams are correlated to the same turn. If either response contains Markdown or HTML markup, the pane renders it as formatted rich text.
 
 **Why this priority**: This is the core interaction loop — the primary value of the feature.
 
@@ -105,6 +115,9 @@ A tester types a message in the chat interface and submits it. The chatbot's res
 3. **Given** the evaluator is streaming, **When** evaluation events arrive, **Then** they appear progressively in the right pane, each labeled with its event type (score update, warning, insight, etc.).
 4. **Given** a turn completes, **When** the tester views the right pane, **Then** evaluation events are visually associated with the chatbot response from the same turn.
 5. **Given** a turn completes, **When** the tester views the left pane, **Then** the assembled chatbot response and the full evaluation output are both displayed in full.
+6. **Given** a connector or evaluator response contains Markdown or HTML markup, **When** the response is rendered in either pane, **Then** formatted rich text is displayed (headings, bold, italic, code blocks, lists, tables, blockquotes, hyperlinks) and no script or active content is executed.
+7. **Given** a response is actively streaming, **When** tokens arrive incrementally, **Then** the pane re-renders the current assembled buffer as rich text on each update so that formatting appears progressively as the response builds up.
+8. **Given** a tester opens any chat session, **When** the left pane loads, **Then** a static warning message is displayed once in the pane (not per turn) informing the tester that the output shown here may not match the exact look and feel of the live chatbot — the conversation context is identical, but formatting and visual presentation may differ.
 
 ---
 
@@ -177,12 +190,15 @@ A mid-session connector or evaluator stream fails (e.g., network interruption). 
 ### Edge Cases
 
 - Tester submits a new message before the current turn's evaluation has completed.
+- Connector rejects the test ID / password (e.g., 401 response) — treated as connector stream failure: turn fails with `error_stage = connector_stream`; session remains `active`; credentials are still read-only and the tester must create a new session to retry with different credentials.
 - Connector `contract` event payload fails Standard Evaluation Contract validation (`error_stage = connector_normalization`; evaluator not invoked).
 - Evaluator stream returns an unrecognised event type → forwarded to browser and persisted with the raw type string; no error raised.
 - Session creation is attempted when all registered connectors or evaluators have `supports_sse = false`.
 - Tester requests an export while a turn is in progress (in-progress turn excluded from export, prior turns included).
 - Same session opened in two browser tabs simultaneously; second tab submits a message while the first tab's turn is active (server rejects the second submission with an error).
-- Very long chatbot responses (e.g., multi-paragraph) render without UI overflow or truncation.
+- Very long chatbot responses (e.g., multi-paragraph with nested lists, tables, or fenced code blocks) render without UI overflow or truncation.
+- Connector or evaluator response contains a `<script>` tag or an inline event handler (e.g., `onerror=`) — sanitizer strips the active content before rendering; no script executes.
+- Response contains a Markdown code fence spanning multiple streaming tokens — partial fence is held pending until the closing ` ``` ` token arrives; no broken pre-block is injected mid-stream.
 - Tester attempts to delete a session while a turn is in progress → system shows a warning that the in-progress turn will be abandoned and requires explicit confirmation before proceeding (consistent with FR-LC-015).
 - Admin clicks bulk delete when no sessions match the lookback window (no-op, zero-count shown in confirmation).
 - Admin bulk delete lookback window is set to a value that would delete sessions still actively used by testers — sessions with an in-progress turn at execution time are silently skipped; the rest are deleted.
@@ -200,14 +216,18 @@ A mid-session connector or evaluator stream fails (e.g., network interruption). 
 **Session Creation Wizard**
 
 - **FR-LC-001**: System MUST provide a dedicated Chat Session Creation Wizard that is a separate workflow from the Job Creation Wizard.
-- **FR-LC-002**: The wizard MUST guide the tester through: (1) naming the session, (2) selecting an SSE-capable connector, (3) selecting an SSE-capable evaluator, (4) confirming and starting.
+- **FR-LC-002**: The wizard MUST guide the tester through: (1) naming the session, (2) selecting an SSE-capable connector, (3) entering a test ID and password, (4) selecting an SSE-capable evaluator, (5) confirming and starting.
 - **FR-LC-003**: Each wizard step MUST be independently validated before advancing to the next.
 
 **Session Management**
 
-- **FR-LC-004**: System MUST allow authenticated testers to create Live Chat Sessions with a name, a selected SSE-capable connector, and a selected SSE-capable evaluator. Session names are free-form labels with no uniqueness constraint.
+- **FR-LC-004**: System MUST allow authenticated testers to create Live Chat Sessions with a name, a selected SSE-capable connector, a test ID and password, and a selected SSE-capable evaluator. Session names are free-form labels with no uniqueness constraint.
 - **FR-LC-005**: Session lifecycle is `active` from creation until deletion. There is no `completed` or `failed` state at the session level. Sessions have no expiry and remain resumable indefinitely.
 - **FR-LC-006**: System MUST snapshot the selected connector and evaluator registrations at session creation time (endpoint URL, auth descriptor, timeout, declared dimensions).
+- **FR-LC-056**: The wizard MUST collect a test ID (plain text) and a password (masked input) during session creation. Both fields are required; the wizard MUST NOT advance past the credentials step until both are provided. The password field MUST include a show/hide reveal toggle so the tester can verify their entry before confirming. The reveal toggle is present in the wizard only and MUST NOT appear in any read-only view of the session.
+- **FR-LC-057**: The test ID and password MUST be stored encrypted at rest, consistent with FR-LC-040. They are included in the session snapshot at creation time and are never derivable from any UI in plain text — the password MUST be masked in all views.
+- **FR-LC-058**: Once a session is created, its test ID and password MUST be permanently read-only. The chat interface MUST display the test ID as a read-only label and the password as a masked read-only field. No edit control or API endpoint MUST permit updating these fields. A tester who needs to use a different test ID MUST create a new session.
+- **FR-LC-059**: The server MUST include the session's test ID and password in every connector invocation (POST) made during that session. The POST body MUST follow the structure `{ "auth": { "test_id": "…", "password": "…" }, "message": "…" }`, where `auth` is a dedicated top-level object containing the credentials and `message` carries the tester's input text. Credentials MUST NOT appear outside the `auth` block.
 - **FR-LC-007**: Sessions do not have an "End Session" action. A tester closes a session by deleting it (FR-LC-013). Export is available at any time from an active session (FR-LC-041).
 - **FR-LC-008**: System MUST scope session visibility to the creating user (aligned with existing job ownership model). Admins have list-level visibility across all users' sessions (FR-LC-012) and deletion rights (FR-LC-016), but MUST NOT be permitted to navigate into the chat interface or export a session they do not own. The chat interface and export endpoints MUST enforce owner-only access regardless of role.
 
@@ -256,11 +276,13 @@ A mid-session connector or evaluator stream fails (e.g., network interruption). 
 **Chat Interface UI**
 
 - **FR-LC-030**: System MUST render a split-pane chat interface: left pane for chatbot interaction, right pane for evaluation output.
-- **FR-LC-031**: Left pane MUST display the 50 most recent completed turns' assembled responses plus the current in-progress turn's tokens as they stream. Turns beyond the 50 most recent are not shown in the UI; they remain accessible via export.
+- **FR-LC-031**: Left pane MUST display the 50 most recent completed turns' assembled responses plus the current in-progress turn's tokens as they stream. Turns beyond the 50 most recent are not shown in the UI; they remain accessible via export. Within each turn, the tester's message MUST be rendered as plain text exactly as typed; only the connector's assembled response is rendered as rich text (per FR-LC-035).
 - **FR-LC-032**: Right pane MUST display the evaluation events for the same 50 most recent turns shown in the left pane, plus the current in-progress turn's evaluator stream as it arrives.
 - **FR-LC-033**: System MUST display an "Evaluating…" indicator in the right pane after the connector stream completes and before the evaluator stream begins.
 - **FR-LC-034**: System MUST visually associate evaluation output with its corresponding chat turn.
-- **FR-LC-035**: System MUST NOT execute any HTML or script content received from connector or evaluator streams.
+- **FR-LC-035**: Both panes MUST render connector and evaluator output as formatted rich text using **GitHub Flavored Markdown (GFM)** — the dialect produced by Azure GPT-5.x, Claude, and Gemini model families. GFM support MUST include: CommonMark base (headings, bold, italic, blockquotes, ordered and unordered lists, inline and fenced code blocks, hyperlinks), plus GFM extensions (tables, strikethrough, task lists). Before any content is injected into the DOM, it MUST be passed through a client-side HTML sanitizer that removes all active content — including `<script>` elements, inline event handler attributes (`on*`), `javascript:` URL schemes, `<iframe>`, `<object>`, and `<embed>` elements, and any other vectors for script execution or external resource loading. Safe presentational and structural markup produced by the GFM renderer MUST be preserved. The sanitizer MUST run on every render pass, including during streaming increments. Tester messages are always rendered as plain text and are not subject to GFM rendering.
+- **FR-LC-061**: The left pane MUST display a single static warning notice — rendered once at a fixed position within the pane, independent of the turn list — informing the tester that the conversation context is identical to the live chatbot but the formatting and visual presentation shown here may not match the chatbot's native interface exactly. This notice MUST remain visible regardless of scroll position, MUST NOT be repeated per turn, and MUST NOT be dismissible. No close or hide control is provided.
+- **FR-LC-060**: During streaming, the pane MUST re-render the current assembled token buffer as rich text on each token arrival, so that formatting (e.g., a heading or code fence that spans multiple tokens) appears as soon as the tokens that complete the construct have arrived. A streaming-aware Markdown parser MUST be used so that partial Markdown constructs at the end of the buffer do not produce broken output — incomplete constructs MUST be held pending until the next token resolves them or the stream ends.
 - **FR-LC-036**: System MUST disable the message input while a turn is in progress (within the current browser tab).
 - **FR-LC-050**: Server MUST enforce at most one in-progress turn per session at a time. A message submission received while a turn is already active MUST be rejected with an error, regardless of which browser tab or client submitted it.
 - **FR-LC-051**: `ChatTurn` lifecycle MUST follow: `in_progress → completed | failed`. At server startup, any turn with `status = in_progress` MUST be transitioned to `failed` with appropriate error details persisted.
@@ -295,7 +317,7 @@ A mid-session connector or evaluator stream fails (e.g., network interruption). 
 
 ### Key Entities
 
-- **ChatSession**: A named live testing session. Holds lifecycle status, creating user, timestamps, and snapshotted connector/evaluator configuration. One session contains many turns.
+- **ChatSession**: A named live testing session. Holds lifecycle status, creating user, timestamps, snapshotted connector/evaluator configuration, and an encrypted test ID / password pair (set at creation, permanently read-only). One session contains many turns.
 - **ChatTurn**: One user message within a session. Records the user message text, timestamps for when the turn started and completed, and an explicit `status` field (`in_progress → completed | failed`). The status enables server-side in-progress detection (FR-LC-050) and restart recovery.
 - **ChatTurnResult**: The assembled output for a completed or failed turn. Holds the assembled chatbot response text, the normalized Standard Evaluation Contract, the final `EvaluationResult` (populated from the evaluator's `final` event payload if evaluation completed), error stage, and error details. One result per turn.
 - **EvaluationEvent**: A single structured event emitted by the evaluator during a turn. Carries event type, a JSON payload, sequence number, and timestamp. Multiple events per turn; written in batch at turn end. Event types: `score_update` (partial scoring signal), `warning`, `insight`, `diagnostic`, `final` (carries the complete `EvaluationResult` payload — the server reads this directly into `ChatTurnResult.evaluationResult`).

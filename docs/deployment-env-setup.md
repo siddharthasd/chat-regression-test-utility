@@ -86,7 +86,7 @@ Copy this template to `.env` at the project root and fill in your values.
 
 ```dotenv
 # =============================================================================
-# AI Regression Test Harness — environment configuration
+# EvalBrew — environment configuration
 #
 # Copy this file to .env and fill in the values for your environment.
 # Lines starting with # are comments and are ignored.
