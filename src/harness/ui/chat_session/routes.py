@@ -343,6 +343,7 @@ def chat_interface(
             if tv["evaluation_events"] or tv["final_evaluation_result"]
         ]
         eval_turns_json = json.dumps(eval_turns)
+        turn_count = len(turn_views)
     return templates.TemplateResponse(
         request,
         "chat_session/interface.html",
@@ -350,6 +351,7 @@ def chat_interface(
             "chat_session": chat_session,
             "turns": turn_views,
             "eval_turns_json": eval_turns_json,
+            "turn_count": turn_count,
             "is_owner": not _is_admin(user) or _owner_oid(user) == chat_session.owner_oid,
             **ctx(request),
         },

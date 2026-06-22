@@ -100,6 +100,7 @@
         <div id="evalStaticContent"></div>
         <!-- Live eval events target -->
         <div id="liveEvalPane" style="display:none!important">
+          <div id="liveEvalTurnLabel" class="text-muted small mb-1"></div>
           <div id="evaluatingIndicator" class="text-muted small mb-2" style="display:none">
             <span class="spinner-border spinner-border-sm me-1" role="status"></span> Evaluating…
           </div>
@@ -119,6 +120,7 @@
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
 <script>
 const EVAL_TURNS = {{ eval_turns_json | safe }};
+const TOTAL_TURNS = {{ turn_count }};
 </script>
 <script>
 (function () {
@@ -267,8 +269,10 @@ const EVAL_TURNS = {{ eval_turns_json | safe }};
   const liveConnectorContent = document.getElementById('liveConnectorContent');
   const liveEvalPane         = document.getElementById('liveEvalPane');
   const liveEvalEventsEl     = document.getElementById('liveEvalEvents');
+  const liveEvalTurnLabel    = document.getElementById('liveEvalTurnLabel');
   const evaluatingIndicator  = document.getElementById('evaluatingIndicator');
   const sendingIndicator     = document.getElementById('sendingIndicator');
+  let liveTurnIndex = TOTAL_TURNS + 1;
 
   let streaming = false;
   let tokenBuffer = '';
@@ -297,6 +301,8 @@ const EVAL_TURNS = {{ eval_turns_json | safe }};
     liveConnectorPane.style.removeProperty('display');
     liveConnectorContent.innerHTML = '';
     liveEvalPane.style.removeProperty('display');
+    liveEvalTurnLabel.textContent = 'Turn ' + liveTurnIndex;
+    liveEvalTurnLabel.className = 'text-muted small mb-1' + (liveTurnIndex > 1 ? ' border-top pt-2 mt-1' : '');
     evaluatingIndicator.style.display = 'none';
     scrollToBottom(chatPane);
 
@@ -344,6 +350,7 @@ const EVAL_TURNS = {{ eval_turns_json | safe }};
 
     es.addEventListener('turn_complete', function () {
       evaluatingIndicator.style.display = 'none';
+      liveTurnIndex++;
       setStreamingState(false);
       es.close();
     });
@@ -351,6 +358,7 @@ const EVAL_TURNS = {{ eval_turns_json | safe }};
     es.addEventListener('turn_failed', function (e) {
       const data = JSON.parse(e.data);
       evaluatingIndicator.style.display = 'none';
+      liveTurnIndex++;
       const errDiv = document.createElement('div');
       errDiv.className = 'text-danger small mt-1';
       errDiv.textContent = 'Turn failed (' + (data.error_stage || '') + '): ' + (data.error_details || '');
