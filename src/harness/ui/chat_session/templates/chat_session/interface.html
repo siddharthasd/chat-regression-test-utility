@@ -14,7 +14,6 @@
   main.flex-grow-1 > .container-fluid {
     flex: 1 1 0;
     min-height: 0;
-    overflow: hidden;
     display: flex;
     flex-direction: column;
   }
@@ -23,16 +22,17 @@
 {% endblock %}
 
 {% block content %}
-<div class="d-flex flex-column" style="flex:1 1 0; min-height:0; overflow:hidden">
+<div class="d-flex flex-column" style="flex:1 1 0; min-height:0">
 
-  <!-- Page header (shrinks to content, never scrolls) -->
-  <div style="flex-shrink:0">
-    <div class="d-flex justify-content-between align-items-start mb-2">
+  <!-- Page header -->
+  <div style="flex-shrink:0" class="mb-2">
+    <div class="d-flex justify-content-between align-items-start">
       <div>
         <h5 class="mb-0">{{ chat_session.session_name }}</h5>
         <small class="text-muted">
           Connector: <strong>{{ chat_session.connector_name }}</strong> &nbsp;·&nbsp;
-          Evaluator: <strong>{{ chat_session.evaluator_name }}</strong>
+          Evaluator: <strong>{{ chat_session.evaluator_name }}</strong> &nbsp;·&nbsp;
+          Test ID: <code>{{ test_id or '—' }}</code>
         </small>
       </div>
       <div class="d-flex gap-2">
@@ -43,31 +43,31 @@
         <a href="{{ url_for('chat_session_list') }}" class="btn btn-outline-secondary btn-sm">All Sessions</a>
       </div>
     </div>
-
-    <!-- Session metadata -->
-    <div class="mb-2 p-2 bg-light rounded border d-flex gap-4 small">
-      <div>
-        <span class="text-muted">Test ID:</span>
-        <code class="ms-1">{{ test_id or '—' }}</code>
-      </div>
-    </div>
   </div>
 
-  <!-- Split-pane: grows to fill remaining viewport height -->
-  <div class="row gx-3 flex-grow-1" style="min-height:0; overflow:hidden">
+  <!-- Split-pane: plain flex row so children stretch to fill height -->
+  <div class="d-flex gap-3 flex-grow-1" style="min-height:0">
 
     <!-- LEFT PANE: connector chat -->
-    <div class="col-md-6 d-flex flex-column" style="min-height:0">
-      <!-- Non-dismissible fidelity warning (FR-LC-061) -->
-      <div class="alert alert-warning border-warning mb-2 py-2 px-3 small" role="alert" style="flex-shrink:0">
-        <strong>Formatting notice:</strong> The responses displayed here use server-rendered
-        Markdown rendering which may differ in appearance from the actual chatbot interface.
-        The <em>content</em> is identical, but formatting, fonts, and visual styling may not
-        exactly match the real end-user experience.
-      </div>
-      <div class="card shadow-sm flex-grow-1 d-flex flex-column" style="overflow:hidden; min-height:0">
+    <div class="d-flex flex-column flex-grow-1" style="min-width:0; min-height:0">
+      <div class="card shadow-sm d-flex flex-column flex-grow-1" style="overflow:hidden; min-height:0">
         <div class="card-header d-flex justify-content-between align-items-center py-2" style="flex-shrink:0">
-          <span class="fw-semibold small">Chat</span>
+          <span class="d-flex align-items-center gap-1">
+            <span class="fw-semibold small">Chat</span>
+            <button type="button"
+                    class="btn btn-link btn-sm p-0 text-muted lh-1"
+                    data-bs-toggle="popover"
+                    data-bs-trigger="hover focus"
+                    data-bs-placement="right"
+                    data-bs-content="Responses use server-rendered Markdown and may differ visually from the real chatbot interface. Content is identical."
+                    title="Formatting notice"
+                    aria-label="Formatting notice">
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
+                <path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0"/>
+              </svg>
+            </button>
+          </span>
           <span id="turnStatus" class="badge bg-secondary small" style="display:none!important"></span>
         </div>
         <div id="chatPane" class="flex-grow-1 overflow-y-auto p-3" style="font-size:0.9rem; min-height:0">
@@ -108,8 +108,8 @@
     </div>
 
     <!-- RIGHT PANE: evaluation -->
-    <div class="col-md-6 d-flex flex-column" style="min-height:0">
-      <div class="card shadow-sm flex-grow-1 d-flex flex-column" style="overflow:hidden; min-height:0">
+    <div class="d-flex flex-column flex-grow-1" style="min-width:0; min-height:0">
+      <div class="card shadow-sm d-flex flex-column flex-grow-1" style="overflow:hidden; min-height:0">
         <div class="card-header py-2 d-flex justify-content-between align-items-center" style="flex-shrink:0">
           <span class="fw-semibold small">Evaluation</span>
           <div class="btn-group btn-group-sm" role="group" aria-label="Evaluation view mode">
@@ -162,6 +162,11 @@ const TOTAL_TURNS = {{ turn_count }};
     el.scrollTop = el.scrollHeight;
   }
 
+  // Initialise Bootstrap popovers
+  document.querySelectorAll('[data-bs-toggle="popover"]').forEach(function (el) {
+    new bootstrap.Popover(el);
+  });
+
   // ── Eval view mode ────────────────────────────────────────────────────────
   let devMode = false;
   const evalUserViewBtn = document.getElementById('evalUserViewBtn');
@@ -213,19 +218,16 @@ const TOTAL_TURNS = {{ turn_count }};
     const outer = document.createElement('div');
     outer.className = 'mb-2';
 
-    // Event type label for every visible event
     const lbl = document.createElement('div');
     lbl.className = 'text-muted small fw-semibold mb-1';
     lbl.textContent = et.charAt(0).toUpperCase() + et.slice(1).replace(/_/g, ' ');
     outer.appendChild(lbl);
 
     if (text) {
-      // Markdown-rendered text content (thinking, message, etc.)
       const content = document.createElement('div');
       content.innerHTML = renderGfm(text);
       outer.appendChild(content);
     } else {
-      // Key-value pairs for numeric/structured payloads (scores, metrics, etc.)
       const entries = Object.entries(payload);
       if (entries.length === 0) return null;
       const kvDiv = document.createElement('div');
@@ -296,12 +298,10 @@ const TOTAL_TURNS = {{ turn_count }};
   const chatPane = document.getElementById('chatPane');
   const evalPane = document.getElementById('evalPane');
 
-  // GFM-render existing connector responses
   document.querySelectorAll('.gfm-content').forEach(function (el) {
     el.innerHTML = renderGfm(el.textContent);
   });
 
-  // Render eval pane from embedded data then autoscroll both panes
   renderStaticEvalPane();
   scrollToBottom(chatPane);
   scrollToBottom(evalPane);
