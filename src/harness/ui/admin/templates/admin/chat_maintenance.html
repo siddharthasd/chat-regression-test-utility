@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}Chat Session Maintenance{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2 class="h4 mb-0 fw-semibold">Chat Session Maintenance</h2>
+</div>
+
+{% for category, message in flashes %}
+<div class="alert alert-{{ 'success' if category == 'success' else 'warning' }} alert-dismissible fade show" role="alert">
+  {{ message }}
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endfor %}
+
+<!-- Stats cards -->
+<div class="row g-3 mb-4">
+  <div class="col-sm-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body text-center py-4">
+        <div class="display-6 fw-bold text-primary">{{ total_sessions }}</div>
+        <div class="text-muted small mt-1">Total Sessions</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body text-center py-4">
+        <div class="display-6 fw-bold text-secondary">{{ total_turns }}</div>
+        <div class="text-muted small mt-1">Total Turns</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body text-center py-4">
+        <div class="display-6 fw-bold text-secondary">{{ db_size_mb }}</div>
+        <div class="text-muted small mt-1">Database Size (MB)</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body text-center py-4">
+        <div class="display-6 fw-bold text-warning">{{ inactive_30 }}</div>
+        <div class="text-muted small mt-1">Inactive &gt;30 days</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Inactivity breakdown -->
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-body p-4">
+    <h5 class="card-title fw-semibold mb-3">Inactivity Breakdown</h5>
+    <table class="table table-sm mb-0" style="max-width:400px">
+      <tbody>
+        <tr>
+          <td class="text-muted">Inactive &gt; 7 days</td>
+          <td class="fw-semibold">{{ inactive_7 }} session{{ 's' if inactive_7 != 1 else '' }}</td>
+        </tr>
+        <tr>
+          <td class="text-muted">Inactive &gt; 30 days</td>
+          <td class="fw-semibold">{{ inactive_30 }} session{{ 's' if inactive_30 != 1 else '' }}</td>
+        </tr>
+        <tr>
+          <td class="text-muted">Inactive &gt; 90 days</td>
+          <td class="fw-semibold">{{ inactive_90 }} session{{ 's' if inactive_90 != 1 else '' }}</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="text-muted small mt-2 mb-0">
+      A session is considered inactive when its most recent turn completed before the threshold,
+      or when it has no turns and was created before the threshold.
+      Sessions with an in-progress turn are never deleted.
+    </p>
+  </div>
+</div>
+
+<!-- Preview step -->
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-body p-4">
+    <h5 class="card-title fw-semibold mb-1">Preview Deletion</h5>
+    <p class="text-muted small mb-3">
+      Select an inactivity threshold to preview how many sessions would be deleted.
+      Sessions with an in-progress turn are silently skipped.
+    </p>
+    <form method="post" action="{{ url_for('admin_chat_maintenance_preview') }}" class="d-flex align-items-center gap-3 flex-wrap">
+      <label class="fw-semibold small mb-0">Delete sessions inactive for more than:</label>
+      <div class="d-flex gap-2">
+        <button type="submit" name="days" value="7"
+          class="btn btn-sm {% if preview_days == 7 %}btn-secondary{% else %}btn-outline-secondary{% endif %}">
+          7 days
+        </button>
+        <button type="submit" name="days" value="30"
+          class="btn btn-sm {% if preview_days == 30 %}btn-secondary{% else %}btn-outline-secondary{% endif %}">
+          30 days
+        </button>
+        <button type="submit" name="days" value="90"
+          class="btn btn-sm {% if preview_days == 90 %}btn-secondary{% else %}btn-outline-secondary{% endif %}">
+          90 days
+        </button>
+      </div>
+    </form>
+
+    {% if preview_count is not none %}
+    <div class="alert alert-warning mt-3 mb-0 d-flex align-items-center gap-3">
+      <div>
+        <strong>{{ preview_count }} session{{ 's' if preview_count != 1 else '' }}</strong>
+        would be deleted (inactive for more than {{ preview_days }} days).
+        {% if preview_count == 0 %}
+        Nothing to delete.
+        {% else %}
+        This action cannot be undone.
+        {% endif %}
+      </div>
+      {% if preview_count > 0 %}
+      <form method="post" action="{{ url_for('admin_chat_maintenance_delete') }}" class="mb-0 ms-auto">
+        <input type="hidden" name="days" value="{{ preview_days }}">
+        <button
+          type="submit"
+          class="btn btn-danger btn-sm"
+          onclick="return confirm('Permanently delete {{ preview_count }} chat session(s) inactive for more than {{ preview_days }} days? This cannot be undone.')">
+          Delete {{ preview_count }} session{{ 's' if preview_count != 1 else '' }}
+        </button>
+      </form>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

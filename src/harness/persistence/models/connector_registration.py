@@ -29,6 +29,7 @@ class ConnectorRegistration(Base):
     expects_per_row_password: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False
     )
+    supports_sse: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)

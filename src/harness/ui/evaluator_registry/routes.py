@@ -48,6 +48,7 @@ def _reg_to_view(reg) -> dict:
         "declared_scoring_dimensions": dims,
         "dimensions_text": "\n".join(dims),
         "dimensions_preview": preview,
+        "supports_sse": reg.supports_sse,
         "archived": reg.archived,
         "updated_at": reg.updated_at,
     }
@@ -117,6 +118,7 @@ def create_evaluator(
     audience: str = Form(None),
     timeout_seconds: str = Form(None),
     dimensions: str = Form(None),
+    supports_sse: str = Form(None),
     replace_credential: str = Form(None),
     next_url: str = Form(None, alias="next"),
     evaluation_agent_id: str = Form(None),
@@ -129,7 +131,8 @@ def create_evaluator(
         "username": username, "password": password, "token_url": token_url,
         "client_id": client_id, "client_secret": client_secret,
         "scope": scope, "audience": audience, "timeout_seconds": timeout_seconds,
-        "dimensions": dimensions, "replace_credential": replace_credential,
+        "dimensions": dimensions, "supports_sse": supports_sse,
+        "replace_credential": replace_credential,
         "next": next_url, "evaluation_agent_id": evaluation_agent_id,
     }.items() if v is not None}
     next_redirect = next_url or ""
@@ -256,6 +259,7 @@ def update_evaluator(
     audience: str = Form(None),
     timeout_seconds: str = Form(None),
     dimensions: str = Form(None),
+    supports_sse: str = Form(None),
     replace_credential: str = Form(None),
     user: dict = Depends(require_auth),
 ):
@@ -266,7 +270,8 @@ def update_evaluator(
         "username": username, "password": password, "token_url": token_url,
         "client_id": client_id, "client_secret": client_secret,
         "scope": scope, "audience": audience, "timeout_seconds": timeout_seconds,
-        "dimensions": dimensions, "replace_credential": replace_credential,
+        "dimensions": dimensions, "supports_sse": supports_sse,
+        "replace_credential": replace_credential,
     }.items() if v is not None}
     replace = (form.get("replace_credential") or "").lower() in _TRUTHY
     with get_session() as session:

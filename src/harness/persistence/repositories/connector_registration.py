@@ -41,6 +41,7 @@ class ConnectorRegistrationRepository:
             auth_descriptor=encrypt_descriptor(data["auth_descriptor"]),
             timeout_seconds=data.get("timeout_seconds", 30),
             expects_per_row_password=data.get("expects_per_row_password", False),
+            supports_sse=data.get("supports_sse", False),
             archived=False,
             created_at=now,
             updated_at=now,
@@ -74,6 +75,7 @@ class ConnectorRegistrationRepository:
             "endpoint_url",
             "timeout_seconds",
             "expects_per_row_password",
+            "supports_sse",
         ):
             if field in data:
                 setattr(reg, field, data[field])

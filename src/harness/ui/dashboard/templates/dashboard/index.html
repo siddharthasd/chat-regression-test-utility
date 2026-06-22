@@ -152,6 +152,62 @@
 </div>
 {% endif %}
 {% endif %}
+
+{% if chat_sessions is defined %}
+<!-- Chat Sessions section (017 US2) -->
+<div class="mt-5">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h4 class="mb-0 fw-bold text-dark">Chat Sessions</h4>
+      <small class="text-muted">{{ chat_session_count }} session{{ 's' if chat_session_count != 1 else '' }} total</small>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{{ url_for('chat_session_list') }}" class="btn btn-outline-secondary btn-sm">View All</a>
+      <a href="{{ url_for('wizard_step1') }}" class="btn btn-primary btn-sm">+ New Chat Session</a>
+    </div>
+  </div>
+  {% if chat_sessions %}
+    <div class="card shadow-sm border-0">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Name</th>
+              <th>Connector</th>
+              <th>Evaluator</th>
+              <th>Turns</th>
+              <th>Created</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in chat_sessions %}
+              <tr>
+                <td>
+                  <a href="{{ url_for('chat_interface', session_id=s.chat_session_id) }}" class="fw-semibold">
+                    {{ s.session_name }}
+                  </a>
+                </td>
+                <td>{{ s.connector_name }}</td>
+                <td>{{ s.evaluator_name }}</td>
+                <td>{{ s.turn_count }}</td>
+                <td class="text-muted small">{{ s.created_at.strftime('%Y-%m-%d %H:%M') if s.created_at else '—' }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% else %}
+    <div class="card shadow-sm border-0 text-center py-4">
+      <div class="card-body">
+        <p class="text-muted mb-3">No chat sessions yet.</p>
+        <a href="{{ url_for('wizard_step1') }}" class="btn btn-primary btn-sm">Create your first session</a>
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endif %}
+
 {% endblock %}
 
 {% block scripts %}

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}New Chat Session — Confirm{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-6">
+    <div class="card shadow-sm">
+      <div class="card-header">
+        <h5 class="mb-0">New Chat Session <small class="text-muted">Step 5 of 5 — Confirm &amp; Start</small></h5>
+      </div>
+      <div class="card-body">
+        {% if errors.session %}
+          <div class="alert alert-danger">{{ errors.session }}</div>
+        {% endif %}
+        <dl class="row mb-4">
+          <dt class="col-sm-4">Session Name</dt>
+          <dd class="col-sm-8">{{ wizard.session_name }}</dd>
+          <dt class="col-sm-4">Connector</dt>
+          <dd class="col-sm-8">{{ wizard.connector_name }}</dd>
+          <dt class="col-sm-4">Test ID</dt>
+          <dd class="col-sm-8"><code>{{ wizard.test_id }}</code></dd>
+          <dt class="col-sm-4">Evaluator</dt>
+          <dd class="col-sm-8">{{ wizard.evaluator_name }}</dd>
+        </dl>
+        <div class="alert alert-info small mb-4">
+          Once the session is created, the test credentials will be permanently read-only.
+          To use different credentials you must create a new session.
+        </div>
+        <form method="post" action="{{ url_for('wizard_step5_post') }}">
+          <div class="d-flex justify-content-between">
+            <a href="{{ url_for('wizard_step4') }}" class="btn btn-outline-secondary">&larr; Back</a>
+            <button type="submit" class="btn btn-success">Confirm &amp; Start Chat</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <div class="mt-2">
+      <div class="progress" style="height:6px">
+        <div class="progress-bar bg-success" role="progressbar" style="width:100%"></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

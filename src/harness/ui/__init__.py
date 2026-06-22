@@ -55,6 +55,11 @@ def create_app() -> FastAPI:
     app.include_router(detail_router)
     app.include_router(export_router)
 
+    # Chat session module (017)
+    from harness.ui.chat_session import router as chat_session_router
+
+    app.include_router(chat_session_router)
+
     # Auth and admin routers — always included; handlers check is_auth_enabled() internally
     from harness.ui.admin import router as admin_router
     from harness.ui.auth import router as auth_router

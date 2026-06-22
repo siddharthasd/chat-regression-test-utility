@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}New Chat Session — Step 3{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-6">
+    <div class="card shadow-sm">
+      <div class="card-header">
+        <h5 class="mb-0">New Chat Session <small class="text-muted">Step 3 of 5 — Test Credentials</small></h5>
+      </div>
+      <div class="card-body">
+        <p class="text-muted small mb-3">
+          These credentials will be sent to the connector with every message in this session.
+          They are encrypted at rest and will be permanently read-only once the session is created.
+        </p>
+        <form method="post" action="{{ url_for('wizard_step3_post') }}">
+          <div class="mb-3">
+            <label for="test_id" class="form-label">Test ID <span class="text-danger">*</span></label>
+            <input type="text" id="test_id" name="test_id"
+                   class="form-control {% if errors.test_id %}is-invalid{% endif %}"
+                   value="{{ form.test_id or '' }}" autocomplete="off" required>
+            {% if errors.test_id %}
+              <div class="invalid-feedback">{{ errors.test_id }}</div>
+            {% endif %}
+          </div>
+          <div class="mb-4">
+            <label for="password" class="form-label">Password <span class="text-danger">*</span></label>
+            <div class="input-group">
+              <input type="password" id="password" name="password"
+                     class="form-control {% if errors.password %}is-invalid{% endif %}"
+                     autocomplete="new-password" required>
+              <button class="btn btn-outline-secondary" type="button" id="togglePwd"
+                      onclick="(function(){var f=document.getElementById('password');f.type=f.type==='password'?'text':'password';document.getElementById('togglePwd').textContent=f.type==='password'?'Show':'Hide';})()">
+                Show
+              </button>
+              {% if errors.password %}
+                <div class="invalid-feedback d-block">{{ errors.password }}</div>
+              {% endif %}
+            </div>
+          </div>
+          <div class="d-flex justify-content-between">
+            <a href="{{ url_for('wizard_step2') }}" class="btn btn-outline-secondary">&larr; Back</a>
+            <button type="submit" class="btn btn-primary">Next &rarr;</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <div class="mt-2">
+      <div class="progress" style="height:6px">
+        <div class="progress-bar" role="progressbar" style="width:60%"></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
