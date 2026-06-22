@@ -1,115 +1,137 @@
 {% extends "base.html" %}
 {% block title %}{{ chat_session.session_name }}{% endblock %}
 
+{% block head_extra %}
+<style>
+  /* Chat interface fills the viewport — internal panes scroll, browser does not */
+  html, body { height: 100%; overflow: hidden; }
+  main.flex-grow-1 {
+    display: flex !important;
+    flex-direction: column;
+    overflow: hidden;
+    padding-bottom: 0 !important;
+  }
+  main.flex-grow-1 > .container-fluid {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  footer { display: none !important; }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="d-flex justify-content-between align-items-start mb-3">
-  <div>
-    <h5 class="mb-0">{{ chat_session.session_name }}</h5>
-    <small class="text-muted">
-      Connector: <strong>{{ chat_session.connector_name }}</strong> &nbsp;·&nbsp;
-      Evaluator: <strong>{{ chat_session.evaluator_name }}</strong>
-    </small>
-  </div>
-  <div class="d-flex gap-2">
-    <a href="{{ url_for('chat_session_export', session_id=chat_session.chat_session_id) }}?format=json"
-       class="btn btn-outline-secondary btn-sm">Export JSON</a>
-    <a href="{{ url_for('chat_session_export', session_id=chat_session.chat_session_id) }}?format=csv"
-       class="btn btn-outline-secondary btn-sm">Export CSV</a>
-    <a href="{{ url_for('chat_session_list') }}" class="btn btn-outline-secondary btn-sm">All Sessions</a>
-  </div>
-</div>
+<div class="d-flex flex-column" style="flex:1 1 0; min-height:0; overflow:hidden">
 
-<!-- Session metadata: test credentials (read-only) -->
-<div class="mb-3 p-2 bg-light rounded border d-flex gap-4 small">
-  <div>
-    <span class="text-muted">Test ID:</span>
-    <code id="testIdDisplay" class="ms-1">{{ chat_session.connector_name and '••••••••' or '—' }}</code>
-  </div>
-  <div>
-    <span class="text-muted">Password:</span>
-    <code class="ms-1">••••••••</code>
-    <span class="badge bg-secondary ms-1">read-only</span>
-  </div>
-</div>
-
-<!-- Split-pane layout -->
-<div class="row g-3" style="height: calc(100vh - 300px); min-height: 500px">
-
-  <!-- LEFT PANE: connector chat -->
-  <div class="col-md-6 d-flex flex-column">
-    <!-- Non-dismissible fidelity warning (FR-LC-061) -->
-    <div class="alert alert-warning border-warning mb-2 py-2 px-3 small" role="alert" style="flex-shrink:0">
-      <strong>Formatting notice:</strong> The responses displayed here use server-rendered
-      Markdown rendering which may differ in appearance from the actual chatbot interface.
-      The <em>content</em> is identical, but formatting, fonts, and visual styling may not
-      exactly match the real end-user experience.
-    </div>
-    <div class="card shadow-sm flex-grow-1 d-flex flex-column" style="overflow:hidden">
-      <div class="card-header d-flex justify-content-between align-items-center py-2">
-        <span class="fw-semibold small">Chat</span>
-        <span id="turnStatus" class="badge bg-secondary small" style="display:none!important"></span>
+  <!-- Page header (shrinks to content, never scrolls) -->
+  <div style="flex-shrink:0">
+    <div class="d-flex justify-content-between align-items-start mb-2">
+      <div>
+        <h5 class="mb-0">{{ chat_session.session_name }}</h5>
+        <small class="text-muted">
+          Connector: <strong>{{ chat_session.connector_name }}</strong> &nbsp;·&nbsp;
+          Evaluator: <strong>{{ chat_session.evaluator_name }}</strong>
+        </small>
       </div>
-      <div id="chatPane" class="flex-grow-1 overflow-y-auto p-3" style="font-size:0.9rem">
-        {% for turn in turns %}
-          <!-- Tester message -->
-          <div class="d-flex justify-content-end mb-2">
-            <div class="bg-primary text-white rounded p-2 px-3" style="max-width:80%;white-space:pre-wrap">{{ turn.user_message }}</div>
-          </div>
-          <!-- Connector response -->
-          {% if turn.assembled_response %}
-            <div class="mb-3 connector-response" data-turn="{{ turn.turn_id }}">
-              <div class="text-muted small mb-1">Connector</div>
-              <div class="gfm-content p-2 border rounded bg-white">{{ turn.assembled_response }}</div>
+      <div class="d-flex gap-2">
+        <a href="{{ url_for('chat_session_export', session_id=chat_session.chat_session_id) }}?format=json"
+           class="btn btn-outline-secondary btn-sm">Export JSON</a>
+        <a href="{{ url_for('chat_session_export', session_id=chat_session.chat_session_id) }}?format=csv"
+           class="btn btn-outline-secondary btn-sm">Export CSV</a>
+        <a href="{{ url_for('chat_session_list') }}" class="btn btn-outline-secondary btn-sm">All Sessions</a>
+      </div>
+    </div>
+
+    <!-- Session metadata -->
+    <div class="mb-2 p-2 bg-light rounded border d-flex gap-4 small">
+      <div>
+        <span class="text-muted">Test ID:</span>
+        <code class="ms-1">{{ test_id or '—' }}</code>
+      </div>
+    </div>
+  </div>
+
+  <!-- Split-pane: grows to fill remaining viewport height -->
+  <div class="row gx-3 flex-grow-1" style="min-height:0; overflow:hidden">
+
+    <!-- LEFT PANE: connector chat -->
+    <div class="col-md-6 d-flex flex-column" style="min-height:0">
+      <!-- Non-dismissible fidelity warning (FR-LC-061) -->
+      <div class="alert alert-warning border-warning mb-2 py-2 px-3 small" role="alert" style="flex-shrink:0">
+        <strong>Formatting notice:</strong> The responses displayed here use server-rendered
+        Markdown rendering which may differ in appearance from the actual chatbot interface.
+        The <em>content</em> is identical, but formatting, fonts, and visual styling may not
+        exactly match the real end-user experience.
+      </div>
+      <div class="card shadow-sm flex-grow-1 d-flex flex-column" style="overflow:hidden; min-height:0">
+        <div class="card-header d-flex justify-content-between align-items-center py-2" style="flex-shrink:0">
+          <span class="fw-semibold small">Chat</span>
+          <span id="turnStatus" class="badge bg-secondary small" style="display:none!important"></span>
+        </div>
+        <div id="chatPane" class="flex-grow-1 overflow-y-auto p-3" style="font-size:0.9rem; min-height:0">
+          {% for turn in turns %}
+            <!-- Tester message -->
+            <div class="d-flex justify-content-end mb-2">
+              <div class="bg-primary text-white rounded p-2 px-3" style="max-width:80%;white-space:pre-wrap">{{ turn.user_message }}</div>
             </div>
-          {% elif turn.status == 'failed' %}
-            <div class="mb-3 text-danger small">
-              Turn failed ({{ turn.error_stage }}): {{ turn.error_details }}
-            </div>
-          {% endif %}
-        {% endfor %}
-        <!-- Live streaming target for current turn -->
-        <div id="liveUserMsg" class="d-flex justify-content-end mb-2" style="display:none!important"></div>
-        <div id="liveConnectorPane" class="mb-3" style="display:none!important">
-          <div class="text-muted small mb-1">Connector</div>
-          <div id="liveConnectorContent" class="gfm-content p-2 border rounded bg-white"></div>
-        </div>
-      </div>
-      <!-- Message input -->
-      <div class="card-footer p-2 border-top">
-        <form id="chatForm" class="d-flex gap-2">
-          <input type="text" id="messageInput" class="form-control form-control-sm"
-                 placeholder="Type a message…" autocomplete="off">
-          <button type="submit" id="sendBtn" class="btn btn-primary btn-sm">Send</button>
-        </form>
-        <div id="sendingIndicator" class="text-muted small mt-1" style="display:none">Streaming response…</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- RIGHT PANE: evaluation -->
-  <div class="col-md-6 d-flex flex-column">
-    <div class="card shadow-sm flex-grow-1 d-flex flex-column" style="overflow:hidden">
-      <div class="card-header py-2 d-flex justify-content-between align-items-center">
-        <span class="fw-semibold small">Evaluation</span>
-        <div class="btn-group btn-group-sm" role="group" aria-label="Evaluation view mode">
-          <button type="button" id="evalUserViewBtn" class="btn btn-primary btn-sm">User View</button>
-          <button type="button" id="evalDevViewBtn" class="btn btn-outline-secondary btn-sm">Developer View</button>
-        </div>
-      </div>
-      <div id="evalPane" class="flex-grow-1 overflow-y-auto p-3" style="font-size:0.9rem">
-        <div id="evalStaticContent"></div>
-        <!-- Live eval events target -->
-        <div id="liveEvalPane" style="display:none!important">
-          <div id="liveEvalTurnLabel" class="text-muted small mb-1"></div>
-          <div id="evaluatingIndicator" class="text-muted small mb-2" style="display:none">
-            <span class="spinner-border spinner-border-sm me-1" role="status"></span> Evaluating…
+            <!-- Connector response -->
+            {% if turn.assembled_response %}
+              <div class="mb-3 connector-response" data-turn="{{ turn.turn_id }}">
+                <div class="text-muted small mb-1">Connector</div>
+                <div class="gfm-content p-2 border rounded bg-white">{{ turn.assembled_response }}</div>
+              </div>
+            {% elif turn.status == 'failed' %}
+              <div class="mb-3 text-danger small">
+                Turn failed ({{ turn.error_stage }}): {{ turn.error_details }}
+              </div>
+            {% endif %}
+          {% endfor %}
+          <!-- Live streaming target for current turn -->
+          <div id="liveUserMsg" class="d-flex justify-content-end mb-2" style="display:none!important"></div>
+          <div id="liveConnectorPane" class="mb-3" style="display:none!important">
+            <div class="text-muted small mb-1">Connector</div>
+            <div id="liveConnectorContent" class="gfm-content p-2 border rounded bg-white"></div>
           </div>
-          <div id="liveEvalEvents"></div>
+        </div>
+        <!-- Message input -->
+        <div class="card-footer p-2 border-top" style="flex-shrink:0">
+          <form id="chatForm" class="d-flex gap-2">
+            <input type="text" id="messageInput" class="form-control form-control-sm"
+                   placeholder="Type a message…" autocomplete="off">
+            <button type="submit" id="sendBtn" class="btn btn-primary btn-sm">Send</button>
+          </form>
+          <div id="sendingIndicator" class="text-muted small mt-1" style="display:none">Streaming response…</div>
         </div>
       </div>
     </div>
-  </div>
 
+    <!-- RIGHT PANE: evaluation -->
+    <div class="col-md-6 d-flex flex-column" style="min-height:0">
+      <div class="card shadow-sm flex-grow-1 d-flex flex-column" style="overflow:hidden; min-height:0">
+        <div class="card-header py-2 d-flex justify-content-between align-items-center" style="flex-shrink:0">
+          <span class="fw-semibold small">Evaluation</span>
+          <div class="btn-group btn-group-sm" role="group" aria-label="Evaluation view mode">
+            <button type="button" id="evalUserViewBtn" class="btn btn-primary btn-sm">User View</button>
+            <button type="button" id="evalDevViewBtn" class="btn btn-outline-secondary btn-sm">Developer View</button>
+          </div>
+        </div>
+        <div id="evalPane" class="flex-grow-1 overflow-y-auto p-3" style="font-size:0.9rem; min-height:0">
+          <div id="evalStaticContent"></div>
+          <!-- Live eval events target -->
+          <div id="liveEvalPane" style="display:none!important">
+            <div id="liveEvalTurnLabel" class="text-muted small mb-1"></div>
+            <div id="evaluatingIndicator" class="text-muted small mb-2" style="display:none">
+              <span class="spinner-border spinner-border-sm me-1" role="status"></span> Evaluating…
+            </div>
+            <div id="liveEvalEvents"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
 </div>
 {% endblock %}
 
@@ -185,19 +207,43 @@ const TOTAL_TURNS = {{ turn_count }};
   function buildUserEventEl(ev) {
     const et = ev.event_type || '';
     if (USER_VIEW_HIDDEN.has(et)) return null;
-    const text = extractEventText(ev.payload);
-    if (!text) return null;
+    const payload = ev.payload || {};
+    const text = extractEventText(payload);
+
     const outer = document.createElement('div');
     outer.className = 'mb-2';
-    if (et === 'thinking') {
-      const lbl = document.createElement('div');
-      lbl.className = 'text-muted small fw-semibold mb-1';
-      lbl.textContent = 'Thinking';
-      outer.appendChild(lbl);
+
+    // Event type label for every visible event
+    const lbl = document.createElement('div');
+    lbl.className = 'text-muted small fw-semibold mb-1';
+    lbl.textContent = et.charAt(0).toUpperCase() + et.slice(1).replace(/_/g, ' ');
+    outer.appendChild(lbl);
+
+    if (text) {
+      // Markdown-rendered text content (thinking, message, etc.)
+      const content = document.createElement('div');
+      content.innerHTML = renderGfm(text);
+      outer.appendChild(content);
+    } else {
+      // Key-value pairs for numeric/structured payloads (scores, metrics, etc.)
+      const entries = Object.entries(payload);
+      if (entries.length === 0) return null;
+      const kvDiv = document.createElement('div');
+      kvDiv.className = 'small';
+      for (const [k, v] of entries) {
+        const row = document.createElement('div');
+        const keySpan = document.createElement('span');
+        keySpan.className = 'text-muted';
+        keySpan.textContent = k + ': ';
+        const valSpan = document.createElement('span');
+        valSpan.textContent = typeof v === 'object' ? JSON.stringify(v) : String(v);
+        row.appendChild(keySpan);
+        row.appendChild(valSpan);
+        kvDiv.appendChild(row);
+      }
+      outer.appendChild(kvDiv);
     }
-    const content = document.createElement('div');
-    content.innerHTML = renderGfm(text);
-    outer.appendChild(content);
+
     return outer;
   }
 
