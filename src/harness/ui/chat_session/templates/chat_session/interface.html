@@ -186,10 +186,20 @@ const TOTAL_TURNS = {{ turn_count }};
   // User View: events to suppress entirely
   const USER_VIEW_HIDDEN = new Set(['token', 'final']);
 
+  const TEXT_KEYS = ['message', 'content', 'text', 'reasoning', 'thinking', 'step'];
+
   function extractEventText(payload) {
     if (!payload || typeof payload !== 'object') return null;
-    for (const k of ['message', 'content', 'text', 'reasoning', 'thinking', 'step']) {
+    for (const k of TEXT_KEYS) {
       if (typeof payload[k] === 'string' && payload[k]) return payload[k];
+    }
+    return null;
+  }
+
+  function findTextKey(payload) {
+    if (!payload || typeof payload !== 'object') return null;
+    for (const k of TEXT_KEYS) {
+      if (typeof payload[k] === 'string' && payload[k]) return k;
     }
     return null;
   }
@@ -214,6 +224,11 @@ const TOTAL_TURNS = {{ turn_count }};
     if (USER_VIEW_HIDDEN.has(et)) return null;
     const payload = ev.payload || {};
     const text = extractEventText(payload);
+    const textKey = findTextKey(payload);
+    // Non-text fields (scores, numbers) rendered as key-value; text field as markdown
+    const kvEntries = Object.entries(payload).filter(([k]) => k !== textKey);
+
+    if (!text && kvEntries.length === 0) return null;
 
     const outer = document.createElement('div');
     outer.className = 'mb-2';
@@ -223,16 +238,10 @@ const TOTAL_TURNS = {{ turn_count }};
     lbl.textContent = et.charAt(0).toUpperCase() + et.slice(1).replace(/_/g, ' ');
     outer.appendChild(lbl);
 
-    if (text) {
-      const content = document.createElement('div');
-      content.innerHTML = renderGfm(text);
-      outer.appendChild(content);
-    } else {
-      const entries = Object.entries(payload);
-      if (entries.length === 0) return null;
+    if (kvEntries.length > 0) {
       const kvDiv = document.createElement('div');
-      kvDiv.className = 'small';
-      for (const [k, v] of entries) {
+      kvDiv.className = 'small mb-1';
+      for (const [k, v] of kvEntries) {
         const row = document.createElement('div');
         const keySpan = document.createElement('span');
         keySpan.className = 'text-muted';
@@ -244,6 +253,12 @@ const TOTAL_TURNS = {{ turn_count }};
         kvDiv.appendChild(row);
       }
       outer.appendChild(kvDiv);
+    }
+
+    if (text) {
+      const content = document.createElement('div');
+      content.innerHTML = renderGfm(text);
+      outer.appendChild(content);
     }
 
     return outer;
