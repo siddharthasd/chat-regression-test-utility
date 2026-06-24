@@ -17,7 +17,7 @@
           <dt class="col-sm-4">Connector</dt>
           <dd class="col-sm-8">{{ wizard.connector_name }}</dd>
           <dt class="col-sm-4">Test ID</dt>
-          <dd class="col-sm-8"><code>{{ wizard.test_id }}</code></dd>
+          <dd class="col-sm-8"><code>{{ (wizard.test_id[:3] + '***') if wizard.test_id|length > 3 else '***' }}</code></dd>
           <dt class="col-sm-4">Evaluator</dt>
           <dd class="col-sm-8">{{ wizard.evaluator_name }}</dd>
         </dl>

@@ -12,9 +12,8 @@ def _utcnow() -> datetime:
     return datetime.now(UTC)
 
 
-def session_row_view(s: ChatSession) -> dict:
+def session_row_view(s: ChatSession, turn_count: int = 0) -> dict:
     """Flat dict for session list table rows."""
-    turn_count = len(s.turns) if s.turns is not None else 0
     return {
         "chat_session_id": s.chat_session_id,
         "session_name": s.session_name,

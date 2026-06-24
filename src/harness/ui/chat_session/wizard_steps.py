@@ -53,14 +53,16 @@ def validate_step4(form: dict, evaluator) -> dict[str, str]:
 
 
 def validate_step5(wizard_data: dict) -> dict[str, str]:
-    """Step 5 (confirm): verify all prior steps have valid data in session."""
-    errors: dict[str, str] = {}
+    """Step 5 (confirm): verify all prior steps have valid data in session.
+
+    Returns on the first missing field so the error message is unambiguous.
+    """
     if not (wizard_data.get("session_name") or "").strip():
-        errors["session"] = "Session name is missing. Please restart the wizard."
+        return {"session": "Session name is missing. Please restart the wizard."}
     if not wizard_data.get("connector_id"):
-        errors["session"] = "Connector selection is missing. Please restart the wizard."
+        return {"session": "Connector selection is missing. Please restart the wizard."}
     if not (wizard_data.get("test_id") or "").strip():
-        errors["session"] = "Test credentials are missing. Please restart the wizard."
+        return {"session": "Test credentials are missing. Please restart the wizard."}
     if not wizard_data.get("evaluator_id"):
-        errors["session"] = "Evaluator selection is missing. Please restart the wizard."
-    return errors
+        return {"session": "Evaluator selection is missing. Please restart the wizard."}
+    return {}

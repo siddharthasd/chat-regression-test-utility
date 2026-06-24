@@ -57,13 +57,13 @@ def index(
         chat_repo = ChatSessionRepository(session)
         oid = user.get("oid") if user else None
         if is_admin or not oid:
-            recent_sessions = chat_repo.list_all_sessions()[:5]
-            session_count = len(chat_repo.list_all_sessions())
+            all_chat_sessions = chat_repo.list_all_sessions()
         else:
-            all_sessions = chat_repo.list_sessions_for_owner(oid)
-            recent_sessions = all_sessions[:5]
-            session_count = len(all_sessions)
-        chat_session_rows = [session_row_view(s) for s in recent_sessions]
+            all_chat_sessions = chat_repo.list_sessions_for_owner(oid)
+        session_count = len(all_chat_sessions)
+        recent_sessions = all_chat_sessions[:5]
+        turn_counts = chat_repo.get_turn_counts([s.chat_session_id for s in recent_sessions])
+        chat_session_rows = [session_row_view(s, turn_counts[s.chat_session_id]) for s in recent_sessions]
 
     facets = view.distinct_facets(all_rows)
     rows = view.apply_filters(

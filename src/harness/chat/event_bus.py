@@ -38,19 +38,24 @@ class TurnEventBus:
 
         Callers may call this multiple times with cursor=0 for reconnect replay.
         Returns after the bus is marked complete and all events have been yielded.
+
+        Events are yielded OUTSIDE the condition lock so that slow consumers cannot
+        block producers from publishing new events.
         """
         pos = cursor
         while True:
+            batch: list[dict[str, Any]] = []
             async with self._condition:
-                # Yield everything currently buffered ahead of pos.
+                if not (pos < len(self._events)) and not self._done:
+                    await self._condition.wait()
                 while pos < len(self._events):
-                    yield self._events[pos]
+                    batch.append(self._events[pos])
                     pos += 1
-                # If done and nothing left, exit.
-                if self._done and pos >= len(self._events):
-                    return
-                # Wait for new events or completion.
-                await self._condition.wait()
+                is_done = self._done and pos >= len(self._events)
+            for event in batch:
+                yield event
+            if is_done:
+                return
 
 
 def create_bus(turn_id: str) -> TurnEventBus:
