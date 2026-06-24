@@ -168,6 +168,16 @@
                       placeholder="accuracy&#10;fluency&#10;relevance">{{ form.get('dimensions') or (reg.dimensions_text if reg else '') }}</textarea>
           </div>
 
+          <div class="mb-3">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="supports_sse" value="1"
+                     id="supports_sse"
+                     {% if reg and reg.supports_sse %}checked{% endif %}>
+              <label class="form-check-label" for="supports_sse">Supports Streaming (SSE)</label>
+            </div>
+            <div class="form-text">Enable to allow this evaluator to be used in live chat sessions.</div>
+          </div>
+
           <div id="test-result-area" class="mb-3" style="display:none"></div>
           <div class="d-flex justify-content-between align-items-center">
             <button type="button" class="btn btn-outline-secondary" id="test-conn-btn">

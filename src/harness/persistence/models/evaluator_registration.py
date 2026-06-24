@@ -27,6 +27,7 @@ class EvaluationAgentRegistration(Base):
     auth_descriptor: Mapped[dict] = mapped_column(JSON, nullable=False)
     timeout_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=60)
     declared_scoring_dimensions: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    supports_sse: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)

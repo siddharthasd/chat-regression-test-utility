@@ -1,0 +1,438 @@
+{% extends "base.html" %}
+{% block title %}{{ chat_session.session_name }}{% endblock %}
+
+{% block head_extra %}
+<style>
+  /* Chat interface fills the viewport — internal panes scroll, browser does not */
+  html, body { height: 100%; overflow: hidden; }
+  main.flex-grow-1 {
+    display: flex !important;
+    flex-direction: column;
+    overflow: hidden;
+    padding-bottom: 0 !important;
+  }
+  main.flex-grow-1 > .container-fluid {
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  footer { display: none !important; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column" style="flex:1 1 0; min-height:0">
+
+  <!-- Page header -->
+  <div style="flex-shrink:0" class="mb-2">
+    <div class="d-flex justify-content-between align-items-start">
+      <div>
+        <h5 class="mb-0">{{ chat_session.session_name }}</h5>
+        <small class="text-muted">
+          Connector: <strong>{{ chat_session.connector_name }}</strong> &nbsp;·&nbsp;
+          Evaluator: <strong>{{ chat_session.evaluator_name }}</strong> &nbsp;·&nbsp;
+          Test ID: <code>{{ test_id or '—' }}</code>
+        </small>
+      </div>
+      <div class="d-flex gap-2">
+        <a href="{{ url_for('chat_session_export', session_id=chat_session.chat_session_id) }}?format=json"
+           class="btn btn-outline-secondary btn-sm">Export JSON</a>
+        <a href="{{ url_for('chat_session_export', session_id=chat_session.chat_session_id) }}?format=csv"
+           class="btn btn-outline-secondary btn-sm">Export CSV</a>
+        <a href="{{ url_for('chat_session_list') }}" class="btn btn-outline-secondary btn-sm">All Sessions</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Split-pane: plain flex row so children stretch to fill height -->
+  <div class="d-flex gap-3 flex-grow-1" style="min-height:0">
+
+    <!-- LEFT PANE: connector chat -->
+    <div class="d-flex flex-column flex-grow-1" style="min-width:0; min-height:0">
+      <div class="card shadow-sm d-flex flex-column flex-grow-1" style="overflow:hidden; min-height:0">
+        <div class="card-header d-flex justify-content-between align-items-center py-2" style="flex-shrink:0">
+          <span class="d-flex align-items-center gap-1">
+            <span class="fw-semibold small">Chat</span>
+            <button type="button"
+                    class="btn btn-link btn-sm p-0 text-muted lh-1"
+                    data-bs-toggle="popover"
+                    data-bs-trigger="hover focus"
+                    data-bs-placement="right"
+                    data-bs-content="Responses use server-rendered Markdown and may differ visually from the real chatbot interface. Content is identical."
+                    title="Formatting notice"
+                    aria-label="Formatting notice">
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
+                <path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0"/>
+              </svg>
+            </button>
+          </span>
+          <span id="turnStatus" class="badge bg-secondary small" style="display:none!important"></span>
+        </div>
+        <div id="chatPane" class="flex-grow-1 overflow-y-auto p-3" style="font-size:0.9rem; min-height:0">
+          {% for turn in turns %}
+            <!-- Tester message -->
+            <div class="d-flex justify-content-end mb-2">
+              <div class="bg-primary text-white rounded p-2 px-3" style="max-width:80%;white-space:pre-wrap">{{ turn.user_message }}</div>
+            </div>
+            <!-- Connector response -->
+            {% if turn.assembled_response %}
+              <div class="mb-3 connector-response" data-turn="{{ turn.turn_id }}">
+                <div class="text-muted small mb-1">Connector</div>
+                <div class="gfm-content p-2 border rounded bg-white">{{ turn.assembled_response }}</div>
+              </div>
+            {% elif turn.status == 'failed' %}
+              <div class="mb-3 text-danger small">
+                Turn failed ({{ turn.error_stage }}): {{ turn.error_details }}
+              </div>
+            {% endif %}
+          {% endfor %}
+          <!-- Live streaming target for current turn -->
+          <div id="liveUserMsg" class="d-flex justify-content-end mb-2" style="display:none!important"></div>
+          <div id="liveConnectorPane" class="mb-3" style="display:none!important">
+            <div class="text-muted small mb-1">Connector</div>
+            <div id="liveConnectorContent" class="gfm-content p-2 border rounded bg-white"></div>
+          </div>
+        </div>
+        <!-- Message input -->
+        <div class="card-footer p-2 border-top" style="flex-shrink:0">
+          <form id="chatForm" class="d-flex gap-2">
+            <input type="text" id="messageInput" class="form-control form-control-sm"
+                   placeholder="Type a message…" autocomplete="off">
+            <button type="submit" id="sendBtn" class="btn btn-primary btn-sm">Send</button>
+          </form>
+          <div id="sendingIndicator" class="text-muted small mt-1" style="display:none">Streaming response…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT PANE: evaluation -->
+    <div class="d-flex flex-column flex-grow-1" style="min-width:0; min-height:0">
+      <div class="card shadow-sm d-flex flex-column flex-grow-1" style="overflow:hidden; min-height:0">
+        <div class="card-header py-2 d-flex justify-content-between align-items-center" style="flex-shrink:0">
+          <span class="fw-semibold small">Evaluation</span>
+          <div class="btn-group btn-group-sm" role="group" aria-label="Evaluation view mode">
+            <button type="button" id="evalUserViewBtn" class="btn btn-primary btn-sm">User View</button>
+            <button type="button" id="evalDevViewBtn" class="btn btn-outline-secondary btn-sm">Developer View</button>
+          </div>
+        </div>
+        <div id="evalPane" class="flex-grow-1 overflow-y-auto p-3" style="font-size:0.9rem; min-height:0">
+          <div id="evalStaticContent"></div>
+          <!-- Live eval events target -->
+          <div id="liveEvalPane" style="display:none!important">
+            <div id="liveEvalTurnLabel" class="text-muted small mb-1"></div>
+            <div id="evaluatingIndicator" class="text-muted small mb-2" style="display:none">
+              <span class="spinner-border spinner-border-sm me-1" role="status"></span> Evaluating…
+            </div>
+            <div id="liveEvalEvents"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- marked.js v14 for GFM rendering -->
+<script src="https://cdn.jsdelivr.net/npm/marked@14/marked.min.js"></script>
+<!-- DOMPurify v3 for sanitization -->
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+<script>
+const EVAL_TURNS = {{ eval_turns_json | safe }};
+const TOTAL_TURNS = {{ turn_count }};
+</script>
+<script>
+(function () {
+  'use strict';
+
+  const SESSION_ID = {{ chat_session.chat_session_id | tojson }};
+  const SUBMIT_URL = "{{ url_for('chat_submit_turn', session_id=chat_session.chat_session_id) }}";
+  const STREAM_BASE = "/chat/sessions/" + SESSION_ID + "/turns/";
+
+  marked.setOptions({ gfm: true, breaks: false });
+
+  function renderGfm(text) {
+    return DOMPurify.sanitize(marked.parse(text || ''));
+  }
+
+  function scrollToBottom(el) {
+    el.scrollTop = el.scrollHeight;
+  }
+
+  // Initialise Bootstrap popovers
+  document.querySelectorAll('[data-bs-toggle="popover"]').forEach(function (el) {
+    new bootstrap.Popover(el);
+  });
+
+  // ── Eval view mode ────────────────────────────────────────────────────────
+  let devMode = false;
+  const evalUserViewBtn = document.getElementById('evalUserViewBtn');
+  const evalDevViewBtn  = document.getElementById('evalDevViewBtn');
+
+  function setEvalMode(dev) {
+    devMode = dev;
+    evalUserViewBtn.className = dev ? 'btn btn-outline-secondary btn-sm' : 'btn btn-primary btn-sm';
+    evalDevViewBtn.className  = dev ? 'btn btn-primary btn-sm' : 'btn btn-outline-secondary btn-sm';
+    renderStaticEvalPane();
+    renderLiveEvalEvents();
+  }
+
+  evalUserViewBtn.addEventListener('click', function () { setEvalMode(false); });
+  evalDevViewBtn.addEventListener('click',  function () { setEvalMode(true);  });
+
+  // User View: events to suppress entirely
+  const USER_VIEW_HIDDEN = new Set(['token', 'final']);
+
+  const TEXT_KEYS = ['message', 'content', 'text', 'reasoning', 'thinking', 'step'];
+
+  function extractEventText(payload) {
+    if (!payload || typeof payload !== 'object') return null;
+    for (const k of TEXT_KEYS) {
+      if (typeof payload[k] === 'string' && payload[k]) return payload[k];
+    }
+    return null;
+  }
+
+  function findTextKey(payload) {
+    if (!payload || typeof payload !== 'object') return null;
+    for (const k of TEXT_KEYS) {
+      if (typeof payload[k] === 'string' && payload[k]) return k;
+    }
+    return null;
+  }
+
+  function buildDevEventEl(ev) {
+    const div = document.createElement('div');
+    div.className = 'mb-1';
+    const badge = document.createElement('span');
+    badge.className = 'badge bg-secondary';
+    badge.textContent = ev.event_type || '';
+    const code = document.createElement('code');
+    code.className = 'small ms-1';
+    code.textContent = JSON.stringify(ev.payload || {});
+    div.appendChild(badge);
+    div.appendChild(document.createTextNode(' '));
+    div.appendChild(code);
+    return div;
+  }
+
+  function buildUserEventEl(ev) {
+    const et = ev.event_type || '';
+    if (USER_VIEW_HIDDEN.has(et)) return null;
+    const payload = ev.payload || {};
+    const text = extractEventText(payload);
+    const textKey = findTextKey(payload);
+    // Non-text fields (scores, numbers) rendered as key-value; text field as markdown
+    const kvEntries = Object.entries(payload).filter(([k]) => k !== textKey);
+
+    if (!text && kvEntries.length === 0) return null;
+
+    const outer = document.createElement('div');
+    outer.className = 'mb-2';
+
+    const lbl = document.createElement('div');
+    lbl.className = 'text-muted small fw-semibold mb-1';
+    lbl.textContent = et.charAt(0).toUpperCase() + et.slice(1).replace(/_/g, ' ');
+    outer.appendChild(lbl);
+
+    if (kvEntries.length > 0) {
+      const kvDiv = document.createElement('div');
+      kvDiv.className = 'small mb-1';
+      for (const [k, v] of kvEntries) {
+        const row = document.createElement('div');
+        const keySpan = document.createElement('span');
+        keySpan.className = 'text-muted';
+        keySpan.textContent = k + ': ';
+        const valSpan = document.createElement('span');
+        valSpan.textContent = typeof v === 'object' ? JSON.stringify(v) : String(v);
+        row.appendChild(keySpan);
+        row.appendChild(valSpan);
+        kvDiv.appendChild(row);
+      }
+      outer.appendChild(kvDiv);
+    }
+
+    if (text) {
+      const content = document.createElement('div');
+      content.innerHTML = renderGfm(text);
+      outer.appendChild(content);
+    }
+
+    return outer;
+  }
+
+  function buildTurnEl(turn, isLast) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'mb-3' + (isLast ? '' : ' border-bottom pb-2');
+    const label = document.createElement('div');
+    label.className = 'text-muted small mb-1';
+    label.textContent = 'Turn ' + turn.turnIndex;
+    wrapper.appendChild(label);
+    let hasContent = false;
+    for (const ev of (turn.events || [])) {
+      const el = devMode ? buildDevEventEl(ev) : buildUserEventEl(ev);
+      if (el) { wrapper.appendChild(el); hasContent = true; }
+    }
+    if (devMode && turn.finalResult) {
+      const fd = document.createElement('div');
+      fd.className = 'mt-1 p-2 bg-light rounded small';
+      const safe = JSON.stringify(turn.finalResult)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      fd.innerHTML = '<strong>Final:</strong> <code>' + safe + '</code>';
+      wrapper.appendChild(fd);
+      hasContent = true;
+    }
+    return hasContent ? wrapper : null;
+  }
+
+  function renderStaticEvalPane() {
+    const container = document.getElementById('evalStaticContent');
+    container.innerHTML = '';
+    for (let i = 0; i < EVAL_TURNS.length; i++) {
+      const el = buildTurnEl(EVAL_TURNS[i], i === EVAL_TURNS.length - 1);
+      if (el) container.appendChild(el);
+    }
+  }
+
+  // ── Live eval events ──────────────────────────────────────────────────────
+  let liveEvents = [];
+
+  function renderLiveEvalEvents() {
+    const container = document.getElementById('liveEvalEvents');
+    container.innerHTML = '';
+    for (const ev of liveEvents) {
+      const el = devMode ? buildDevEventEl(ev) : buildUserEventEl(ev);
+      if (el) container.appendChild(el);
+    }
+  }
+
+  // ── Page load ─────────────────────────────────────────────────────────────
+  const chatPane = document.getElementById('chatPane');
+  const evalPane = document.getElementById('evalPane');
+
+  document.querySelectorAll('.gfm-content').forEach(function (el) {
+    el.innerHTML = renderGfm(el.textContent);
+  });
+
+  renderStaticEvalPane();
+  scrollToBottom(chatPane);
+  scrollToBottom(evalPane);
+
+  // ── Streaming ─────────────────────────────────────────────────────────────
+  const form          = document.getElementById('chatForm');
+  const input         = document.getElementById('messageInput');
+  const sendBtn       = document.getElementById('sendBtn');
+  const liveUserMsg   = document.getElementById('liveUserMsg');
+  const liveConnectorPane    = document.getElementById('liveConnectorPane');
+  const liveConnectorContent = document.getElementById('liveConnectorContent');
+  const liveEvalPane         = document.getElementById('liveEvalPane');
+  const liveEvalEventsEl     = document.getElementById('liveEvalEvents');
+  const liveEvalTurnLabel    = document.getElementById('liveEvalTurnLabel');
+  const evaluatingIndicator  = document.getElementById('evaluatingIndicator');
+  const sendingIndicator     = document.getElementById('sendingIndicator');
+  let liveTurnIndex = TOTAL_TURNS + 1;
+
+  let streaming = false;
+  let tokenBuffer = '';
+
+  function setStreamingState(active) {
+    streaming = active;
+    sendBtn.disabled = active;
+    input.disabled = active;
+    sendingIndicator.style.display = active ? '' : 'none';
+  }
+
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    const msg = input.value.trim();
+    if (!msg || streaming) return;
+
+    setStreamingState(true);
+    tokenBuffer = '';
+    liveEvents = [];
+    liveEvalEventsEl.innerHTML = '';
+
+    liveUserMsg.style.removeProperty('display');
+    liveUserMsg.innerHTML = '<div class="bg-primary text-white rounded p-2 px-3" style="max-width:80%;white-space:pre-wrap">' +
+      msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>';
+
+    liveConnectorPane.style.removeProperty('display');
+    liveConnectorContent.innerHTML = '';
+    liveEvalPane.style.removeProperty('display');
+    liveEvalTurnLabel.textContent = 'Turn ' + liveTurnIndex;
+    liveEvalTurnLabel.className = 'text-muted small mb-1' + (liveTurnIndex > 1 ? ' border-top pt-2 mt-1' : '');
+    evaluatingIndicator.style.display = 'none';
+    scrollToBottom(chatPane);
+
+    let turnId;
+    try {
+      const resp = await fetch(SUBMIT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: msg }),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+        throw new Error(err.detail || resp.statusText);
+      }
+      turnId = (await resp.json()).turn_id;
+    } catch (err) {
+      setStreamingState(false);
+      liveConnectorContent.innerHTML = '<span class="text-danger">Failed to submit: ' +
+        err.message.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</span>';
+      return;
+    }
+
+    input.value = '';
+    const streamUrl = STREAM_BASE + turnId + '/stream';
+    const es = new EventSource(streamUrl);
+
+    es.addEventListener('connector_token', function (e) {
+      const data = JSON.parse(e.data);
+      tokenBuffer += (data.content || '');
+      liveConnectorContent.innerHTML = renderGfm(tokenBuffer);
+      scrollToBottom(chatPane);
+    });
+
+    es.addEventListener('evaluating', function () {
+      evaluatingIndicator.style.display = '';
+      scrollToBottom(evalPane);
+    });
+
+    es.addEventListener('evaluator_event', function (e) {
+      const data = JSON.parse(e.data);
+      liveEvents.push(data);
+      renderLiveEvalEvents();
+      scrollToBottom(evalPane);
+    });
+
+    es.addEventListener('turn_complete', function () {
+      evaluatingIndicator.style.display = 'none';
+      liveTurnIndex++;
+      setStreamingState(false);
+      es.close();
+    });
+
+    es.addEventListener('turn_failed', function (e) {
+      const data = JSON.parse(e.data);
+      evaluatingIndicator.style.display = 'none';
+      liveTurnIndex++;
+      const errDiv = document.createElement('div');
+      errDiv.className = 'text-danger small mt-1';
+      errDiv.textContent = 'Turn failed (' + (data.error_stage || '') + '): ' + (data.error_details || '');
+      liveConnectorContent.appendChild(errDiv);
+      setStreamingState(false);
+      es.close();
+    });
+
+    es.onerror = function () {
+      setStreamingState(false);
+      es.close();
+    };
+  });
+})();
+</script>
+{% endblock %}

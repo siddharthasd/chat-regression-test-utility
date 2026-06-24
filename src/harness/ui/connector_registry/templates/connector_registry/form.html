@@ -70,12 +70,18 @@
                      value="{{ form.get('timeout_seconds') or (reg.timeout_seconds if reg else 30) }}">
               {% if errors.timeout_seconds %}<div class="invalid-feedback">{{ errors.timeout_seconds }}</div>{% endif %}
             </div>
-            <div class="col-12 col-md-4 d-flex align-items-end pb-1">
+            <div class="col-12 col-md-4 d-flex flex-column align-items-start pb-1 gap-2">
               <div class="form-check">
                 <input class="form-check-input" type="checkbox" name="expects_per_row_password" value="1"
                        id="expects_per_row_password"
                        {% if reg and reg.expects_per_row_password %}checked{% endif %}>
                 <label class="form-check-label" for="expects_per_row_password">Expects per-row password</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="supports_sse" value="1"
+                       id="supports_sse"
+                       {% if reg and reg.supports_sse %}checked{% endif %}>
+                <label class="form-check-label" for="supports_sse">Supports Streaming (SSE)</label>
               </div>
             </div>
           </div>

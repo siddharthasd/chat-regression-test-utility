@@ -57,6 +57,7 @@ def parse_connector_form(
         errors["timeout_seconds"] = "Timeout must be an integer."
 
     expects = (form.get("expects_per_row_password") or "").strip().lower() in _TRUTHY
+    supports_sse = (form.get("supports_sse") or "").strip().lower() in _TRUTHY
 
     descriptor = None
     if mode in AUTH_MODES:
@@ -71,6 +72,7 @@ def parse_connector_form(
         "auth_descriptor": descriptor,
         "timeout_seconds": timeout,
         "expects_per_row_password": expects,
+        "supports_sse": supports_sse,
     }, {}
 
 

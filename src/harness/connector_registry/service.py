@@ -79,6 +79,7 @@ class ConnectorRegistryService:
             "endpoint_url": payload["endpoint_url"],
             "timeout_seconds": payload["timeout_seconds"],
             "expects_per_row_password": payload["expects_per_row_password"],
+            "supports_sse": payload.get("supports_sse", False),
         }
         if replace_credential or mode_changed:
             update_data["auth_descriptor"] = payload["auth_descriptor"]

@@ -40,6 +40,7 @@ def _reg_to_view(reg) -> dict:
         "audience": descriptor.get("audience"),
         "timeout_seconds": reg.timeout_seconds,
         "expects_per_row_password": reg.expects_per_row_password,
+        "supports_sse": reg.supports_sse,
         "archived": reg.archived,
         "updated_at": reg.updated_at,
     }
@@ -109,6 +110,7 @@ def create_connector(
     audience: str = Form(None),
     timeout_seconds: str = Form(None),
     expects_per_row_password: str = Form(None),
+    supports_sse: str = Form(None),
     replace_credential: str = Form(None),
     next_url: str = Form(None, alias="next"),
     connector_id: str = Form(None),
@@ -122,6 +124,7 @@ def create_connector(
         "client_id": client_id, "client_secret": client_secret,
         "scope": scope, "audience": audience, "timeout_seconds": timeout_seconds,
         "expects_per_row_password": expects_per_row_password,
+        "supports_sse": supports_sse,
         "replace_credential": replace_credential,
         "next": next_url, "connector_id": connector_id,
     }.items() if v is not None}
@@ -165,6 +168,7 @@ def test_connection_connector(
     audience: str = Form(None),
     timeout_seconds: str = Form(None),
     expects_per_row_password: str = Form(None),
+    supports_sse: str = Form(None),
     connector_id: str = Form(None),
     user: dict = Depends(require_auth),
 ):
@@ -174,7 +178,8 @@ def test_connection_connector(
         "username": username, "password": password, "token_url": token_url,
         "client_id": client_id, "client_secret": client_secret,
         "scope": scope, "audience": audience, "timeout_seconds": timeout_seconds,
-        "expects_per_row_password": expects_per_row_password, "connector_id": connector_id,
+        "expects_per_row_password": expects_per_row_password,
+        "supports_sse": supports_sse, "connector_id": connector_id,
     }.items() if v is not None}
     endpoint = (form.get("endpoint_url") or "").strip()
     mode = (form.get("auth_mode") or "none").strip()
@@ -183,6 +188,7 @@ def test_connection_connector(
     except ValueError:
         timeout = 30
     expects = (form.get("expects_per_row_password") or "").lower() in _TRUTHY
+    sse = (form.get("supports_sse") or "").lower() in _TRUTHY
     cid = (form.get("connector_id") or "").strip()
 
     descriptor, needs_stored = _descriptor_from_form(form, mode)
@@ -198,7 +204,7 @@ def test_connection_connector(
                     request, "connector_registry/_test_result.html", {"result": result}
                 )
 
-    result = run_test_connection(endpoint, descriptor, timeout, expects)
+    result = run_test_connection(endpoint, descriptor, timeout, expects, sse)
     return templates.TemplateResponse(
         request, "connector_registry/_test_result.html", {"result": result}
     )
@@ -249,6 +255,7 @@ def update_connector(
     audience: str = Form(None),
     timeout_seconds: str = Form(None),
     expects_per_row_password: str = Form(None),
+    supports_sse: str = Form(None),
     replace_credential: str = Form(None),
     user: dict = Depends(require_auth),
 ):
@@ -260,6 +267,7 @@ def update_connector(
         "client_id": client_id, "client_secret": client_secret,
         "scope": scope, "audience": audience, "timeout_seconds": timeout_seconds,
         "expects_per_row_password": expects_per_row_password,
+        "supports_sse": supports_sse,
         "replace_credential": replace_credential,
     }.items() if v is not None}
     replace = (form.get("replace_credential") or "").lower() in _TRUTHY

@@ -48,6 +48,7 @@ def _reg_to_view(reg) -> dict:
         "declared_scoring_dimensions": dims,
         "dimensions_text": "\n".join(dims),
         "dimensions_preview": preview,
+        "supports_sse": reg.supports_sse,
         "archived": reg.archived,
         "updated_at": reg.updated_at,
     }
@@ -117,6 +118,7 @@ def create_evaluator(
     audience: str = Form(None),
     timeout_seconds: str = Form(None),
     dimensions: str = Form(None),
+    supports_sse: str = Form(None),
     replace_credential: str = Form(None),
     next_url: str = Form(None, alias="next"),
     evaluation_agent_id: str = Form(None),
@@ -129,7 +131,8 @@ def create_evaluator(
         "username": username, "password": password, "token_url": token_url,
         "client_id": client_id, "client_secret": client_secret,
         "scope": scope, "audience": audience, "timeout_seconds": timeout_seconds,
-        "dimensions": dimensions, "replace_credential": replace_credential,
+        "dimensions": dimensions, "supports_sse": supports_sse,
+        "replace_credential": replace_credential,
         "next": next_url, "evaluation_agent_id": evaluation_agent_id,
     }.items() if v is not None}
     next_redirect = next_url or ""
@@ -172,6 +175,7 @@ def test_connection_evaluator(
     audience: str = Form(None),
     timeout_seconds: str = Form(None),
     dimensions: str = Form(None),
+    supports_sse: str = Form(None),
     evaluation_agent_id: str = Form(None),
     user: dict = Depends(require_auth),
 ):
@@ -181,7 +185,8 @@ def test_connection_evaluator(
         "username": username, "password": password, "token_url": token_url,
         "client_id": client_id, "client_secret": client_secret,
         "scope": scope, "audience": audience, "timeout_seconds": timeout_seconds,
-        "dimensions": dimensions, "evaluation_agent_id": evaluation_agent_id,
+        "dimensions": dimensions, "supports_sse": supports_sse,
+        "evaluation_agent_id": evaluation_agent_id,
     }.items() if v is not None}
     endpoint = (form.get("endpoint_url") or "").strip()
     mode = (form.get("auth_mode") or "none").strip()
@@ -190,6 +195,7 @@ def test_connection_evaluator(
     except ValueError:
         timeout = 60
     dims_val = parse_dimensions(form.get("dimensions"))
+    sse = (form.get("supports_sse") or "").lower() in _TRUTHY
     eid = (form.get("evaluation_agent_id") or "").strip()
 
     descriptor, needs_stored = _descriptor_from_form(form, mode)
@@ -205,7 +211,7 @@ def test_connection_evaluator(
                     request, "evaluator_registry/_test_result.html", {"result": result}
                 )
 
-    result = run_test_connection(endpoint, descriptor, timeout, dims_val)
+    result = run_test_connection(endpoint, descriptor, timeout, dims_val, sse)
     return templates.TemplateResponse(
         request, "evaluator_registry/_test_result.html", {"result": result}
     )
@@ -256,6 +262,7 @@ def update_evaluator(
     audience: str = Form(None),
     timeout_seconds: str = Form(None),
     dimensions: str = Form(None),
+    supports_sse: str = Form(None),
     replace_credential: str = Form(None),
     user: dict = Depends(require_auth),
 ):
@@ -266,7 +273,8 @@ def update_evaluator(
         "username": username, "password": password, "token_url": token_url,
         "client_id": client_id, "client_secret": client_secret,
         "scope": scope, "audience": audience, "timeout_seconds": timeout_seconds,
-        "dimensions": dimensions, "replace_credential": replace_credential,
+        "dimensions": dimensions, "supports_sse": supports_sse,
+        "replace_credential": replace_credential,
     }.items() if v is not None}
     replace = (form.get("replace_credential") or "").lower() in _TRUTHY
     with get_session() as session:

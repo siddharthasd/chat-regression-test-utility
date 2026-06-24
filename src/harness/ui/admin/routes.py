@@ -1,9 +1,10 @@
-"""Admin routes (015/016) — user management + job maintenance, admin-only."""
+"""Admin routes (015/016/017) — user management + job maintenance + chat maintenance."""
 
 from __future__ import annotations
 
 import os
 import sqlite3
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
@@ -13,6 +14,7 @@ from harness.auth.session import get_session_user
 from harness.persistence import get_session
 from harness.persistence.engine import resolve_db_path
 from harness.persistence.exceptions import SelfRemovalError
+from harness.persistence.repositories.chat_session_repository import ChatSessionRepository
 from harness.persistence.repositories.job import JobRepository
 from harness.persistence.repositories.user_registration import UserRegistrationRepository
 from harness.ui._context import ctx
@@ -174,3 +176,72 @@ def admin_maintenance_run(
         "success",
     )
     return RedirectResponse(request.url_for("admin_maintenance"), status_code=303)
+
+
+# ---------------------------------------------------- chat session maintenance
+
+_INACTIVITY_PRESETS = {7: "7 days", 30: "30 days", 90: "90 days"}
+
+
+def _chat_stats(db) -> dict:
+    repo = ChatSessionRepository(db)
+    now = datetime.now(UTC)
+    return {
+        "total_sessions": repo.count_all_sessions(),
+        "total_turns": repo.count_all_turns(),
+        "inactive_7": repo.count_sessions_inactive_since(now - timedelta(days=7)),
+        "inactive_30": repo.count_sessions_inactive_since(now - timedelta(days=30)),
+        "inactive_90": repo.count_sessions_inactive_since(now - timedelta(days=90)),
+        "db_size_mb": _db_size_mb(),
+    }
+
+
+@router.get("/admin/chat-maintenance", name="admin_chat_maintenance")
+def admin_chat_maintenance(
+    request: Request,
+    user: dict = Depends(require_role("admin")),
+):
+    with get_session() as db:
+        stats = _chat_stats(db)
+    return templates.TemplateResponse(
+        request,
+        "admin/chat_maintenance.html",
+        {"preview_count": None, "preview_days": None, **stats, **ctx(request)},
+    )
+
+
+@router.post("/admin/chat-maintenance/preview", name="admin_chat_maintenance_preview")
+def admin_chat_maintenance_preview(
+    request: Request,
+    days: int = Form(...),
+    user: dict = Depends(require_role("admin")),
+):
+    if days not in _INACTIVITY_PRESETS:
+        raise HTTPException(status_code=422, detail="Invalid inactivity preset")
+    with get_session() as db:
+        repo = ChatSessionRepository(db)
+        cutoff = datetime.now(UTC) - timedelta(days=days)
+        preview_count = repo.count_sessions_inactive_since(cutoff)
+        stats = _chat_stats(db)
+    return templates.TemplateResponse(
+        request,
+        "admin/chat_maintenance.html",
+        {"preview_count": preview_count, "preview_days": days, **stats, **ctx(request)},
+    )
+
+
+@router.post("/admin/chat-maintenance/delete", name="admin_chat_maintenance_delete")
+def admin_chat_maintenance_delete(
+    request: Request,
+    days: int = Form(...),
+    user: dict = Depends(require_role("admin")),
+):
+    if days not in _INACTIVITY_PRESETS:
+        raise HTTPException(status_code=422, detail="Invalid inactivity preset")
+    with get_session() as db:
+        repo = ChatSessionRepository(db)
+        cutoff = datetime.now(UTC) - timedelta(days=days)
+        deleted = repo.delete_sessions_inactive_since(cutoff)
+    label = _INACTIVITY_PRESETS[days]
+    _flash(request, f"Deleted {deleted} chat session(s) inactive for more than {label}.", "success")
+    return RedirectResponse(request.url_for("admin_chat_maintenance"), status_code=303)

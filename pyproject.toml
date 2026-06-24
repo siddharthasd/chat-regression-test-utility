@@ -49,6 +49,7 @@ where = ["src"]
 "harness.ui.wizard" = ["templates/wizard/*.html"]
 "harness.ui.auth" = ["templates/auth/*.html"]
 "harness.ui.admin" = ["templates/admin/*.html"]
+"harness.ui.docs_ui" = ["templates/docs/*.html"]
 
 [tool.ruff]
 line-length = 100

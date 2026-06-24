@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}New Chat Session — Step 1{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-6">
+    <div class="card shadow-sm">
+      <div class="card-header">
+        <h5 class="mb-0">New Chat Session <small class="text-muted">Step 1 of 5 — Session Name</small></h5>
+      </div>
+      <div class="card-body">
+        <form method="post" action="{{ url_for('wizard_step1_post') }}">
+          <div class="mb-3">
+            <label for="session_name" class="form-label">Session Name <span class="text-danger">*</span></label>
+            <input type="text" id="session_name" name="session_name"
+                   class="form-control {% if errors.session_name %}is-invalid{% endif %}"
+                   value="{{ form.session_name or '' }}" autofocus required>
+            {% if errors.session_name %}
+              <div class="invalid-feedback">{{ errors.session_name }}</div>
+            {% endif %}
+            <div class="form-text">A short, descriptive name for this test session.</div>
+          </div>
+          <div class="d-flex justify-content-between">
+            <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary">Next &rarr;</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <div class="mt-2">
+      <div class="progress" style="height:6px">
+        <div class="progress-bar" role="progressbar" style="width:20%"></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

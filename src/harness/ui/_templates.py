@@ -20,6 +20,8 @@ templates = Jinja2Templates(
         str(_UI_ROOT / "export_ui" / "templates"),
         str(_UI_ROOT / "auth" / "templates"),
         str(_UI_ROOT / "admin" / "templates"),
+        str(_UI_ROOT / "docs_ui" / "templates"),
+        str(_UI_ROOT / "chat_session" / "templates"),
     ]
 )
 

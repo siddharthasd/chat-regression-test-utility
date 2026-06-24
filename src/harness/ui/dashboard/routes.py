@@ -16,9 +16,11 @@ from harness.auth.middleware import require_auth
 from harness.persistence import get_session
 from harness.persistence.enums import JobStatus
 from harness.persistence.repositories import JobRepository
+from harness.persistence.repositories.chat_session_repository import ChatSessionRepository
 from harness.ui._context import ctx
 from harness.ui._templates import templates
 from harness.ui.dashboard import view
+from harness.ui.chat_session.view import session_row_view
 
 router = APIRouter()
 
@@ -51,6 +53,17 @@ def index(
     with get_session() as session:
         jobs = _list_jobs(session, user)
         all_rows = [view.row_view(j, now) for j in jobs]
+        # Chat sessions for the dashboard panel (017 US2)
+        chat_repo = ChatSessionRepository(session)
+        oid = user.get("oid") if user else None
+        if is_admin or not oid:
+            all_chat_sessions = chat_repo.list_all_sessions()
+        else:
+            all_chat_sessions = chat_repo.list_sessions_for_owner(oid)
+        session_count = len(all_chat_sessions)
+        recent_sessions = all_chat_sessions[:5]
+        turn_counts = chat_repo.get_turn_counts([s.chat_session_id for s in recent_sessions])
+        chat_session_rows = [session_row_view(s, turn_counts[s.chat_session_id]) for s in recent_sessions]
 
     facets = view.distinct_facets(all_rows)
     rows = view.apply_filters(
@@ -74,6 +87,8 @@ def index(
             "terminal_clearable": terminal_clearable,
             "total_clearable": total_clearable,
             "is_admin": is_admin,
+            "chat_sessions": chat_session_rows,
+            "chat_session_count": session_count,
             **ctx(request),
         },
     )

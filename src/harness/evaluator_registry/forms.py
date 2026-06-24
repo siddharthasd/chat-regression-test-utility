@@ -74,6 +74,7 @@ def parse_evaluator_form(
         errors["timeout_seconds"] = "Timeout must be an integer."
 
     dimensions = parse_dimensions(form.get("dimensions"))
+    supports_sse = (form.get("supports_sse") or "").strip().lower() in {"1", "true", "on", "yes"}
 
     descriptor = None
     if mode in AUTH_MODES:
@@ -88,6 +89,7 @@ def parse_evaluator_form(
         "auth_descriptor": descriptor,
         "timeout_seconds": timeout,
         "declared_scoring_dimensions": dimensions,
+        "supports_sse": supports_sse,
     }, {}
 
 

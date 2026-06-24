@@ -43,10 +43,10 @@
 <div class="card shadow-sm border-0 mb-3">
   <div class="card-body py-2">
     <form method="get" action="{{ url_for('index') }}" class="row g-2 align-items-end">
-      <div class="col-12 col-md-3">
+      <div class="col-12 col-md-4">
         <input type="search" class="form-control form-control-sm" name="q" value="{{ q }}" placeholder="Search job name…">
       </div>
-      <div class="col-12 col-md-3">
+      <div class="col-12 col-md-4">
         <label class="form-label small mb-1 fw-semibold">Status</label>
         <div class="d-flex flex-wrap gap-2">
           {% for s in facets.statuses %}
@@ -58,19 +58,7 @@
           {% endfor %}
         </div>
       </div>
-      <div class="col-12 col-md-3">
-        <label class="form-label small mb-1 fw-semibold">Connector</label>
-        <div class="d-flex flex-wrap gap-2">
-          {% for c in facets.connectors %}
-          <div class="form-check form-check-inline mb-0">
-            <input class="form-check-input" type="checkbox" name="connector" value="{{ c }}" id="cn-{{ loop.index }}"
-              {% if c in selected.connector %}checked{% endif %}>
-            <label class="form-check-label small" for="cn-{{ loop.index }}">{{ c }}</label>
-          </div>
-          {% endfor %}
-        </div>
-      </div>
-      <div class="col-12 col-md-3 d-flex gap-2">
+      <div class="col-12 col-md-4 d-flex gap-2">
         <button type="submit" class="btn btn-sm btn-secondary">Apply</button>
         <a href="{{ url_for('index') }}" class="btn btn-sm btn-outline-secondary">Clear</a>
       </div>
@@ -81,7 +69,7 @@
 {% macro sortlink(col, label) %}
   {% set next_dir = 'desc' if (sort == col and dir == 'asc') else 'asc' %}
   <a class="sort-link" href="{{ url_for('index', sort=col, dir=next_dir, q=q,
-      status=selected.status, connector=selected.connector, created_by=selected.created_by) }}">
+      status=selected.status, created_by=selected.created_by) }}">
     {{ label }}{% if sort == col %}&nbsp;{{ '▲' if dir == 'asc' else '▼' }}{% endif %}</a>
 {% endmacro %}
 
@@ -117,14 +105,14 @@
               <a class="row-link" href="/jobs/{{ r.job_id }}/detail" title="{{ r.job_name }}">{{ r.job_name[:60] }}</a>
             </td>
             <td><span class="badge {{ r.badge_class }}" data-cell="status">{{ r.status_label }}</span></td>
-            <td class="text-muted small">{{ r.created_by }}</td>
-            <td class="text-muted small" title="{{ r.created_at[1] }}">{{ r.created_at[0] }}</td>
-            <td class="text-muted small" title="{{ r.started_at[1] }}">{{ r.started_at[0] }}</td>
-            <td class="text-muted small" title="{{ r.completed_at[1] }}">{{ r.completed_at[0] }}</td>
-            <td class="small">{{ r.connector_name or '—' }}</td>
-            <td class="small text-muted">{{ r.harness_version }}</td>
-            <td class="small" data-cell="utterances">{{ r.processed }}/{{ r.total if r.total is not none else '—' }}</td>
-            <td class="small" data-cell="failed">
+            <td class="text-muted">{{ r.created_by }}</td>
+            <td class="text-muted" title="{{ r.created_at[1] }}">{{ r.created_at[0] }}</td>
+            <td class="text-muted" title="{{ r.started_at[1] }}">{{ r.started_at[0] }}</td>
+            <td class="text-muted" title="{{ r.completed_at[1] }}">{{ r.completed_at[0] }}</td>
+            <td>{{ r.connector_name or '—' }}</td>
+            <td class="text-muted">{{ r.harness_version }}</td>
+            <td data-cell="utterances">{{ r.processed }}/{{ r.total if r.total is not none else '—' }}</td>
+            <td data-cell="failed">
               {% if r.failed_count > 0 %}<span class="text-danger fw-semibold">{{ r.failed_count }}</span>{% else %}0{% endif %}
             </td>
             <td class="d-flex gap-1 flex-wrap">
@@ -152,6 +140,62 @@
 </div>
 {% endif %}
 {% endif %}
+
+{% if chat_sessions is defined %}
+<!-- Chat Sessions section (017 US2) -->
+<div class="mt-5">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h4 class="mb-0 fw-bold text-dark">Chat Sessions</h4>
+      <small class="text-muted">{{ chat_session_count }} session{{ 's' if chat_session_count != 1 else '' }} total</small>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{{ url_for('chat_session_list') }}" class="btn btn-outline-secondary btn-sm">View All</a>
+      <a href="{{ url_for('wizard_step1') }}" class="btn btn-primary btn-sm">+ New Chat Session</a>
+    </div>
+  </div>
+  {% if chat_sessions %}
+    <div class="card shadow-sm border-0">
+      <div class="table-responsive">
+        <table class="table table-hover harness-table mb-0">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Connector</th>
+              <th>Evaluator</th>
+              <th>Turns</th>
+              <th>Created</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in chat_sessions %}
+              <tr>
+                <td>
+                  <a class="row-link" href="{{ url_for('chat_interface', session_id=s.chat_session_id) }}">
+                    {{ s.session_name }}
+                  </a>
+                </td>
+                <td>{{ s.connector_name }}</td>
+                <td>{{ s.evaluator_name }}</td>
+                <td>{{ s.turn_count }}</td>
+                <td class="text-muted">{{ s.created_at.strftime('%Y-%m-%d %H:%M') if s.created_at else '—' }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% else %}
+    <div class="card shadow-sm border-0 text-center py-4">
+      <div class="card-body">
+        <p class="text-muted mb-3">No chat sessions yet.</p>
+        <a href="{{ url_for('wizard_step1') }}" class="btn btn-primary btn-sm">Create your first session</a>
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endif %}
+
 {% endblock %}
 
 {% block scripts %}

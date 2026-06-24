@@ -60,3 +60,13 @@ def initialize_harness() -> None:
     from harness.orchestrator import reconcile_orphans
 
     reconcile_orphans()
+
+    # Live-chat startup recovery: flip any ChatTurn left in_progress by a prior
+    # process to failed (017 FR-LC-051).
+    from harness.persistence.engine import get_session
+    from harness.persistence.repositories.chat_session_repository import (
+        ChatSessionRepository,
+    )
+
+    with get_session() as _session:
+        ChatSessionRepository(_session).recover_stale_turns()
