@@ -8,11 +8,11 @@ Start -> 012 enqueue_job. No secrets are ever rendered (Step 5 masks to auth mod
 from __future__ import annotations
 
 import os
+import re
 import tempfile
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import RedirectResponse
-from werkzeug.utils import secure_filename
 
 from harness.auth.middleware import require_auth
 from harness.connector.registry import ConnectorRegistryReader
@@ -35,6 +35,11 @@ router = APIRouter()
 
 
 # --------------------------------------------------------------------------- helpers
+def _secure_filename(name: str) -> str:
+    name = os.path.basename(name.replace("\\", "/"))
+    return re.sub(r"[^\w.\-]", "_", name).strip("._")
+
+
 def _require_draft_job(session, job_id: str):
     job = JobRepository(session).get(job_id)
     if job is None:
@@ -234,7 +239,7 @@ def step2_upload(
             status_code=400,
         )
 
-    filename = secure_filename(csv_file.filename) or "upload.csv"
+    filename = _secure_filename(csv_file.filename or "") or "upload.csv"
     fd, tmp_path = tempfile.mkstemp(suffix=".csv")
     try:
         with os.fdopen(fd, "wb") as fh:
