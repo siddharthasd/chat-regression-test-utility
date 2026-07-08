@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% block title %}Chat Sessions{% endblock %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h4 class="mb-0">Chat Sessions</h4>
+<div class="page-section-hdr">
+  <h1 class="section-title">Chat Sessions</h1>
   <div class="d-flex gap-2">
     <form method="post" action="{{ url_for('chat_clear_errors') }}"
           onsubmit="return confirm('Delete all chat sessions with failed turns?')">
@@ -26,10 +26,10 @@
 {% endif %}
 
 {% if sessions %}
-<div class="card shadow-sm">
+<div class="harness-card">
   <div class="table-responsive">
-    <table class="table table-hover mb-0">
-      <thead class="table-light">
+    <table class="table table-hover harness-table mb-0">
+      <thead>
         <tr>
           {% for col, label in [('session_name','Name'),('connector_name','Connector'),('evaluator_name','Evaluator'),('turn_count','Turns'),('created_at','Created')] %}
             <th>

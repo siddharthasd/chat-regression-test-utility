@@ -2,8 +2,8 @@
 {% block title %}Job Maintenance{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-  <h2 class="h4 mb-0 fw-semibold">Job Maintenance</h2>
+<div class="page-section-hdr">
+  <h1 class="section-title">Job Maintenance</h1>
 </div>
 
 {% for category, message in flashes %}
@@ -15,7 +15,7 @@
 
 <div class="row g-3 mb-4">
   <div class="col-sm-4">
-    <div class="card border-0 shadow-sm h-100">
+    <div class="harness-card h-100">
       <div class="card-body text-center py-4">
         <div class="display-6 fw-bold text-primary">{{ total_jobs }}</div>
         <div class="text-muted small mt-1">Total Jobs</div>
@@ -23,7 +23,7 @@
     </div>
   </div>
   <div class="col-sm-4">
-    <div class="card border-0 shadow-sm h-100">
+    <div class="harness-card h-100">
       <div class="card-body text-center py-4">
         <div class="display-6 fw-bold {{ 'text-danger' if clearable_jobs > 0 else 'text-success' }}">{{ clearable_jobs }}</div>
         <div class="text-muted small mt-1">Clearable Jobs</div>
@@ -32,7 +32,7 @@
     </div>
   </div>
   <div class="col-sm-4">
-    <div class="card border-0 shadow-sm h-100">
+    <div class="harness-card h-100">
       <div class="card-body text-center py-4">
         <div class="display-6 fw-bold text-secondary">{{ db_size_mb }}</div>
         <div class="text-muted small mt-1">Database Size (MB)</div>
@@ -41,7 +41,7 @@
   </div>
 </div>
 
-<div class="card border-0 shadow-sm">
+<div class="harness-card">
   <div class="card-body p-4">
     <h5 class="card-title fw-semibold mb-1">Clear &amp; Vacuum</h5>
     <p class="text-muted small mb-3">

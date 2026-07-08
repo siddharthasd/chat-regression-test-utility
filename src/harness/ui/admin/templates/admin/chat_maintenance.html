@@ -2,8 +2,8 @@
 {% block title %}Chat Session Maintenance{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-  <h2 class="h4 mb-0 fw-semibold">Chat Session Maintenance</h2>
+<div class="page-section-hdr">
+  <h1 class="section-title">Chat Session Maintenance</h1>
 </div>
 
 {% for category, message in flashes %}
@@ -16,7 +16,7 @@
 <!-- Stats cards -->
 <div class="row g-3 mb-4">
   <div class="col-sm-3">
-    <div class="card border-0 shadow-sm h-100">
+    <div class="harness-card h-100">
       <div class="card-body text-center py-4">
         <div class="display-6 fw-bold text-primary">{{ total_sessions }}</div>
         <div class="text-muted small mt-1">Total Sessions</div>
@@ -24,7 +24,7 @@
     </div>
   </div>
   <div class="col-sm-3">
-    <div class="card border-0 shadow-sm h-100">
+    <div class="harness-card h-100">
       <div class="card-body text-center py-4">
         <div class="display-6 fw-bold text-secondary">{{ total_turns }}</div>
         <div class="text-muted small mt-1">Total Turns</div>
@@ -32,7 +32,7 @@
     </div>
   </div>
   <div class="col-sm-3">
-    <div class="card border-0 shadow-sm h-100">
+    <div class="harness-card h-100">
       <div class="card-body text-center py-4">
         <div class="display-6 fw-bold text-secondary">{{ db_size_mb }}</div>
         <div class="text-muted small mt-1">Database Size (MB)</div>
@@ -40,7 +40,7 @@
     </div>
   </div>
   <div class="col-sm-3">
-    <div class="card border-0 shadow-sm h-100">
+    <div class="harness-card h-100">
       <div class="card-body text-center py-4">
         <div class="display-6 fw-bold text-warning">{{ inactive_30 }}</div>
         <div class="text-muted small mt-1">Inactive &gt;30 days</div>
@@ -50,7 +50,7 @@
 </div>
 
 <!-- Inactivity breakdown -->
-<div class="card border-0 shadow-sm mb-4">
+<div class="harness-card mb-4">
   <div class="card-body p-4">
     <h5 class="card-title fw-semibold mb-3">Inactivity Breakdown</h5>
     <table class="table table-sm mb-0" style="max-width:400px">
@@ -78,7 +78,7 @@
 </div>
 
 <!-- Preview step -->
-<div class="card border-0 shadow-sm mb-4">
+<div class="harness-card mb-4">
   <div class="card-body p-4">
     <h5 class="card-title fw-semibold mb-1">Preview Deletion</h5>
     <p class="text-muted small mb-3">

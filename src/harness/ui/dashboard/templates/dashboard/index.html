@@ -2,10 +2,12 @@
 {% block title %}Dashboard{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+
+<!-- Test Jobs section -->
+<div class="page-section-hdr">
   <div>
-    <h4 class="mb-0 fw-bold text-dark">Test Jobs</h4>
-    <small class="text-muted">{{ total_jobs }} job{{ 's' if total_jobs != 1 else '' }} total</small>
+    <h1 class="section-title">Test Jobs</h1>
+    <p class="section-subtitle">{{ total_jobs }} job{{ 's' if total_jobs != 1 else '' }} total</p>
   </div>
   <div class="d-flex gap-2">
     <form method="post" action="{{ url_for('clear_terminal') }}"
@@ -25,45 +27,41 @@
 </div>
 
 {% if error %}
-<div class="alert alert-danger alert-harness-error" role="alert">{{ error }}</div>
+<div class="alert alert-danger alert-harness-error mb-3" role="alert">{{ error }}</div>
 {% endif %}
 
 {% if total_jobs == 0 %}
-<div class="card shadow-sm border-0 text-center py-5">
-  <div class="card-body">
-    <div class="empty-state-icon mb-3">📋</div>
-    <h5 class="text-muted">No jobs yet</h5>
-    <p class="text-muted mb-4">Create your first regression test job to get started.</p>
-    <a href="{{ url_for('new_job') }}" class="btn btn-primary">Create your first job</a>
-  </div>
+<div class="harness-card text-center py-5">
+  <div class="empty-state-icon mb-3">📋</div>
+  <h5 class="text-muted">No jobs yet</h5>
+  <p class="text-muted mb-4">Create your first regression test job to get started.</p>
+  <a href="{{ url_for('new_job') }}" class="btn btn-primary">Create your first job</a>
 </div>
 {% else %}
 
 <!-- Filters -->
-<div class="card shadow-sm border-0 mb-3">
-  <div class="card-body py-2">
-    <form method="get" action="{{ url_for('index') }}" class="row g-2 align-items-end">
-      <div class="col-12 col-md-4">
-        <input type="search" class="form-control form-control-sm" name="q" value="{{ q }}" placeholder="Search job name…">
-      </div>
-      <div class="col-12 col-md-4">
-        <label class="form-label small mb-1 fw-semibold">Status</label>
-        <div class="d-flex flex-wrap gap-2">
-          {% for s in facets.statuses %}
-          <div class="form-check form-check-inline mb-0">
-            <input class="form-check-input" type="checkbox" name="status" value="{{ s }}" id="st-{{ s }}"
-              {% if s in selected.status %}checked{% endif %}>
-            <label class="form-check-label small" for="st-{{ s }}">{{ s }}</label>
-          </div>
-          {% endfor %}
+<div class="harness-card mb-3 p-3">
+  <form method="get" action="{{ url_for('index') }}" class="row g-2 align-items-end">
+    <div class="col-12 col-md-4">
+      <input type="search" class="form-control form-control-sm" name="q" value="{{ q }}" placeholder="Search job name…">
+    </div>
+    <div class="col-12 col-md-4">
+      <label class="form-label small mb-1 fw-semibold">Status</label>
+      <div class="d-flex flex-wrap gap-2">
+        {% for s in facets.statuses %}
+        <div class="form-check form-check-inline mb-0">
+          <input class="form-check-input" type="checkbox" name="status" value="{{ s }}" id="st-{{ s }}"
+            {% if s in selected.status %}checked{% endif %}>
+          <label class="form-check-label small" for="st-{{ s }}">{{ s }}</label>
         </div>
+        {% endfor %}
       </div>
-      <div class="col-12 col-md-4 d-flex gap-2">
-        <button type="submit" class="btn btn-sm btn-secondary">Apply</button>
-        <a href="{{ url_for('index') }}" class="btn btn-sm btn-outline-secondary">Clear</a>
-      </div>
-    </form>
-  </div>
+    </div>
+    <div class="col-12 col-md-4 d-flex gap-2">
+      <button type="submit" class="btn btn-sm btn-secondary">Apply</button>
+      <a href="{{ url_for('index') }}" class="btn btn-sm btn-outline-secondary">Clear</a>
+    </div>
+  </form>
 </div>
 
 {% macro sortlink(col, label) %}
@@ -74,126 +72,120 @@
 {% endmacro %}
 
 {% if not rows %}
-<div class="card shadow-sm border-0 text-center py-4">
+<div class="harness-card text-center py-4">
   <p class="text-muted mb-2">No jobs match the current filters.</p>
   <a href="{{ url_for('index') }}" class="btn btn-sm btn-outline-secondary mx-auto" style="width:fit-content">Clear filters</a>
 </div>
 {% else %}
-<div class="card shadow-sm border-0">
-  <div class="card-body p-0">
-    <div class="table-responsive">
-      <table class="table table-hover harness-table mb-0">
-        <thead>
-          <tr>
-            <th>{{ sortlink('job_name', 'Job Name') }}</th>
-            <th>{{ sortlink('status', 'Status') }}</th>
-            <th>{{ sortlink('created_by', 'Created By') }}</th>
-            <th>{{ sortlink('created_at', 'Created') }}</th>
-            <th>{{ sortlink('started_at', 'Started') }}</th>
-            <th>{{ sortlink('completed_at', 'Completed') }}</th>
-            <th>{{ sortlink('connector', 'Connector') }}</th>
-            <th>{{ sortlink('harness_version', 'Version') }}</th>
-            <th>Utterances</th>
-            <th>{{ sortlink('failed_count', 'Failed') }}</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-        {% for r in rows %}
-          <tr data-job-id="{{ r.job_id }}">
-            <td>
-              <a class="row-link" href="/jobs/{{ r.job_id }}/detail" title="{{ r.job_name }}">{{ r.job_name[:60] }}</a>
-            </td>
-            <td><span class="badge {{ r.badge_class }}" data-cell="status">{{ r.status_label }}</span></td>
-            <td class="text-muted">{{ r.created_by }}</td>
-            <td class="text-muted" title="{{ r.created_at[1] }}">{{ r.created_at[0] }}</td>
-            <td class="text-muted" title="{{ r.started_at[1] }}">{{ r.started_at[0] }}</td>
-            <td class="text-muted" title="{{ r.completed_at[1] }}">{{ r.completed_at[0] }}</td>
-            <td>{{ r.connector_name or '—' }}</td>
-            <td class="text-muted">{{ r.harness_version }}</td>
-            <td data-cell="utterances">{{ r.processed }}/{{ r.total if r.total is not none else '—' }}</td>
-            <td data-cell="failed">
-              {% if r.failed_count > 0 %}<span class="text-danger fw-semibold">{{ r.failed_count }}</span>{% else %}0{% endif %}
-            </td>
-            <td class="d-flex gap-1 flex-wrap">
-              {% if r.status == 'draft' %}
-              <a href="{{ url_for('resume', job_id=r.job_id) }}"
-                 class="btn btn-sm btn-warning py-0 fw-semibold">Resume</a>
-              {% elif r.status in ('failed', 'cancelled', 'completed') %}
-              <form method="post" action="{{ url_for('clone_job', job_id=r.job_id) }}">
-                <button type="submit" class="btn btn-sm btn-outline-primary py-0">Clone &amp; Rerun</button>
-              </form>
-              {% if r.deletable %}
-              <form method="post" action="{{ url_for('delete_job', job_id=r.job_id) }}"
-                    onsubmit="return confirm('Permanently delete this {{ r.status }} job?');">
-                <button type="submit" class="btn btn-sm btn-outline-danger py-0">Delete</button>
-              </form>
-              {% endif %}
-              {% endif %}
-            </td>
-          </tr>
-        {% endfor %}
-        </tbody>
-      </table>
-    </div>
+<div class="harness-card">
+  <div class="table-responsive">
+    <table class="table table-hover harness-table mb-0">
+      <thead>
+        <tr>
+          <th>{{ sortlink('job_name', 'Job Name') }}</th>
+          <th>{{ sortlink('status', 'Status') }}</th>
+          <th>{{ sortlink('created_by', 'Created By') }}</th>
+          <th>{{ sortlink('created_at', 'Created') }}</th>
+          <th>{{ sortlink('started_at', 'Started') }}</th>
+          <th>{{ sortlink('completed_at', 'Completed') }}</th>
+          <th>{{ sortlink('connector', 'Connector') }}</th>
+          <th>{{ sortlink('harness_version', 'Version') }}</th>
+          <th>Utterances</th>
+          <th>{{ sortlink('failed_count', 'Failed') }}</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in rows %}
+        <tr data-job-id="{{ r.job_id }}">
+          <td>
+            <a class="row-link" href="/jobs/{{ r.job_id }}/detail" title="{{ r.job_name }}">{{ r.job_name[:60] }}</a>
+          </td>
+          <td><span class="badge {{ r.badge_class }}" data-cell="status">{{ r.status_label }}</span></td>
+          <td class="text-muted">{{ r.created_by }}</td>
+          <td class="text-muted" title="{{ r.created_at[1] }}">{{ r.created_at[0] }}</td>
+          <td class="text-muted" title="{{ r.started_at[1] }}">{{ r.started_at[0] }}</td>
+          <td class="text-muted" title="{{ r.completed_at[1] }}">{{ r.completed_at[0] }}</td>
+          <td>{{ r.connector_name or '—' }}</td>
+          <td class="text-muted">{{ r.harness_version }}</td>
+          <td data-cell="utterances">{{ r.processed }}/{{ r.total if r.total is not none else '—' }}</td>
+          <td data-cell="failed">
+            {% if r.failed_count > 0 %}<span class="text-danger fw-semibold">{{ r.failed_count }}</span>{% else %}0{% endif %}
+          </td>
+          <td class="d-flex gap-1 flex-wrap">
+            {% if r.status == 'draft' %}
+            <a href="{{ url_for('resume', job_id=r.job_id) }}"
+               class="btn btn-sm btn-warning py-0 fw-semibold">Resume</a>
+            {% elif r.status in ('failed', 'cancelled', 'completed') %}
+            <form method="post" action="{{ url_for('clone_job', job_id=r.job_id) }}">
+              <button type="submit" class="btn btn-sm btn-outline-primary py-0">Clone &amp; Rerun</button>
+            </form>
+            {% if r.deletable %}
+            <form method="post" action="{{ url_for('delete_job', job_id=r.job_id) }}"
+                  onsubmit="return confirm('Permanently delete this {{ r.status }} job?');">
+              <button type="submit" class="btn btn-sm btn-outline-danger py-0">Delete</button>
+            </form>
+            {% endif %}
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
   </div>
 </div>
 {% endif %}
 {% endif %}
 
 {% if chat_sessions is defined %}
-<!-- Chat Sessions section (017 US2) -->
-<div class="mt-5">
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <div>
-      <h4 class="mb-0 fw-bold text-dark">Chat Sessions</h4>
-      <small class="text-muted">{{ chat_session_count }} session{{ 's' if chat_session_count != 1 else '' }} total</small>
-    </div>
-    <div class="d-flex gap-2">
-      <a href="{{ url_for('chat_session_list') }}" class="btn btn-outline-secondary btn-sm">View All</a>
-      <a href="{{ url_for('wizard_step1') }}" class="btn btn-primary btn-sm">+ New Chat Session</a>
+<!-- Chat Sessions section -->
+<div class="page-section-hdr mt-5">
+  <div>
+    <h2 class="section-title">Chat Sessions</h2>
+    <p class="section-subtitle">{{ chat_session_count }} session{{ 's' if chat_session_count != 1 else '' }} total</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('chat_session_list') }}" class="btn btn-outline-secondary btn-sm">View All</a>
+    <a href="{{ url_for('wizard_step1') }}" class="btn btn-primary btn-sm">+ New Chat Session</a>
+  </div>
+</div>
+{% if chat_sessions %}
+  <div class="harness-card">
+    <div class="table-responsive">
+      <table class="table table-hover harness-table mb-0">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Connector</th>
+            <th>Evaluator</th>
+            <th>Turns</th>
+            <th>Created</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in chat_sessions %}
+            <tr>
+              <td>
+                <a class="row-link" href="{{ url_for('chat_interface', session_id=s.chat_session_id) }}">
+                  {{ s.session_name }}
+                </a>
+              </td>
+              <td>{{ s.connector_name }}</td>
+              <td>{{ s.evaluator_name }}</td>
+              <td>{{ s.turn_count }}</td>
+              <td class="text-muted">{{ s.created_at.strftime('%Y-%m-%d %H:%M') if s.created_at else '—' }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
   </div>
-  {% if chat_sessions %}
-    <div class="card shadow-sm border-0">
-      <div class="table-responsive">
-        <table class="table table-hover harness-table mb-0">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Connector</th>
-              <th>Evaluator</th>
-              <th>Turns</th>
-              <th>Created</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for s in chat_sessions %}
-              <tr>
-                <td>
-                  <a class="row-link" href="{{ url_for('chat_interface', session_id=s.chat_session_id) }}">
-                    {{ s.session_name }}
-                  </a>
-                </td>
-                <td>{{ s.connector_name }}</td>
-                <td>{{ s.evaluator_name }}</td>
-                <td>{{ s.turn_count }}</td>
-                <td class="text-muted">{{ s.created_at.strftime('%Y-%m-%d %H:%M') if s.created_at else '—' }}</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  {% else %}
-    <div class="card shadow-sm border-0 text-center py-4">
-      <div class="card-body">
-        <p class="text-muted mb-3">No chat sessions yet.</p>
-        <a href="{{ url_for('wizard_step1') }}" class="btn btn-primary btn-sm">Create your first session</a>
-      </div>
-    </div>
-  {% endif %}
-</div>
+{% else %}
+  <div class="harness-card text-center py-4">
+    <p class="text-muted mb-3">No chat sessions yet.</p>
+    <a href="{{ url_for('wizard_step1') }}" class="btn btn-primary btn-sm">Create your first session</a>
+  </div>
+{% endif %}
 {% endif %}
 
 {% endblock %}
