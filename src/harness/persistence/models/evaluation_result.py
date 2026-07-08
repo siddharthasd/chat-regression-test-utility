@@ -40,6 +40,7 @@ class EvaluationResult(Base):
     # SQL column is "metadata"; attribute renamed to dodge Base.metadata clash.
     result_metadata: Mapped[dict | None] = mapped_column("metadata", JSON, nullable=True)
     harness_annotations: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    utterance_intent: Mapped[str | None] = mapped_column(String(255), nullable=True)
     error_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
     error_stage: Mapped[str | None] = mapped_column(String(30), nullable=True)
     error_details: Mapped[str | None] = mapped_column(String, nullable=True)

@@ -20,6 +20,7 @@ class ScoreEntry:
     overall_verdict: str | None
     error: bool
     unit_id: str | None = None  # utterance_id or turn_id; enables dedup for overall counts
+    utterance_intent: str | None = None  # evaluator-identified intent for this utterance
 
 
 @dataclass(frozen=True)
@@ -57,12 +58,25 @@ class ParameterStats:
 
 
 @dataclass(frozen=True)
+class IntentStats:
+    intent: str
+    mean_score: float
+    count: int  # distinct utterances carrying this intent
+    verdict_distribution: tuple[VerdictCount, ...] | None
+
+
+_MAX_INTENT_ROWS = 20
+
+
+@dataclass(frozen=True)
 class RunAnalytics:
     overall_mean_score: float | None
     overall_verdict_distribution: tuple[VerdictCount, ...]
     parameters: tuple[ParameterStats, ...]
     evaluated_count: int
     error_count: int
+    intent_breakdown: tuple[IntentStats, ...] = ()
+    intent_total_count: int = 0  # distinct intents seen before cap
 
 
 def _derive_parameter_id(name: str) -> str:
@@ -130,6 +144,48 @@ def _build_verdict_dist(verdicts: list[str]) -> tuple[VerdictCount, ...] | None:
         VerdictCount(verdict=v, count=c, pct=round(c / total * 100, 1))
         for v, c in sorted(counts.items(), key=lambda x: -x[1])
     )
+
+
+def _build_intent_breakdown(valid: list[ScoreEntry]) -> tuple[tuple[IntentStats, ...], int]:
+    """Return (capped intent stats sorted by mean_score desc, total distinct intent count)."""
+    groups: dict[str, list[ScoreEntry]] = {}
+    for e in valid:
+        if not e.utterance_intent:
+            continue
+        groups.setdefault(e.utterance_intent, []).append(e)
+
+    stats: list[IntentStats] = []
+    for intent, entries in groups.items():
+        # count = distinct unit_ids for this intent
+        unit_ids = {e.unit_id for e in entries if e.unit_id is not None}
+        count = len(unit_ids) + sum(1 for e in entries if e.unit_id is None)
+
+        # mean score: only real parameter entries (exclude parameter_name="" sentinels)
+        scores = [e.score for e in entries if e.parameter_name]
+        mean_score = statistics.mean(scores) if scores else 0.0
+
+        # verdict distribution: one overall_verdict per deduped unit
+        seen: set[str] = set()
+        verdicts: list[str] = []
+        for e in entries:
+            if e.unit_id is None:
+                if e.overall_verdict is not None:
+                    verdicts.append(e.overall_verdict)
+            elif e.unit_id not in seen:
+                seen.add(e.unit_id)
+                if e.overall_verdict is not None:
+                    verdicts.append(e.overall_verdict)
+
+        stats.append(IntentStats(
+            intent=intent,
+            mean_score=mean_score,
+            count=count,
+            verdict_distribution=_build_verdict_dist(verdicts),
+        ))
+
+    total = len(stats)
+    stats.sort(key=lambda s: -s.mean_score)
+    return tuple(stats[:_MAX_INTENT_ROWS]), total
 
 
 def compute_analytics(
@@ -242,10 +298,14 @@ def compute_analytics(
             )
         )
 
+    intent_breakdown, intent_total_count = _build_intent_breakdown(valid)
+
     return RunAnalytics(
         overall_mean_score=overall_mean_score,
         overall_verdict_distribution=overall_verdict_dist,
         parameters=tuple(param_stats),
         evaluated_count=evaluated_count,
         error_count=error_count,
+        intent_breakdown=intent_breakdown,
+        intent_total_count=intent_total_count,
     )

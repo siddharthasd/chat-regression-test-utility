@@ -61,6 +61,8 @@
       <a href="#section-job-overview">Job Overview</a>
       <a href="#section-parameter-breakdown"
          class="{{ 'muted-anchor' if analytics_empty else '' }}">Parameter Breakdown</a>
+      <a href="#section-intent-breakdown"
+         class="{{ 'muted-anchor' if (not analytics or not analytics.intent_breakdown) else '' }}">Intent Breakdown</a>
       <a href="#section-result-explorer">Result Explorer</a>
     </nav>
     <div class="sidebar-actions">
@@ -310,7 +312,7 @@
       {% endif %}{# end analytics #}
     </section>
 
-    <!-- ════ SECTION 3: Result Explorer ════ -->
+    <!-- ════ SECTION 4 (was 3): Result Explorer ════ -->
     <section id="section-result-explorer">
       <h5 class="fw-bold border-bottom pb-2 mb-3">
         Result Explorer
@@ -398,6 +400,7 @@
                   <summary class="py-2 small fw-semibold" style="cursor:pointer">Trace</summary>
                   <div class="p-3 pt-1">
                     <p class="small mb-2"><strong>Input:</strong> testId={{ r.test_id }}; {{ r.utterance_text }}
+                      {% if r.utterance_intent %}<br><span class="text-muted">intent: <strong>{{ r.utterance_intent }}</strong></span>{% endif %}
                       {% if r.extra_metadata %}<br><span class="text-muted">metadata: {{ r.extra_metadata }}</span>{% endif %}</p>
                     {% if r.error_status %}
                       <p class="text-danger small">Error: {{ r.error_status }} / {{ r.error_stage }} — {{ r.error_details }}</p>
@@ -433,6 +436,67 @@
       </div>
     </section>
 
+    <!-- ════ SECTION 3: Intent Breakdown ════ -->
+    <section id="section-intent-breakdown" class="mb-4">
+      <h5 class="fw-bold border-bottom pb-2 mb-3">Intent Breakdown</h5>
+      {% if analytics and analytics.intent_breakdown %}
+        {% if analytics.intent_total_count > analytics.intent_breakdown | length %}
+        <p class="text-muted small mb-2">
+          Showing top {{ analytics.intent_breakdown | length }} of {{ analytics.intent_total_count }} intents by mean score.
+        </p>
+        {% endif %}
+        <div class="table-responsive">
+          <table class="table table-sm table-hover align-middle mb-0" style="font-size:.83rem">
+            <thead class="table-light">
+              <tr>
+                <th style="min-width:160px">Intent</th>
+                <th style="min-width:140px">Mean Score</th>
+                <th class="text-end" style="width:70px">Count</th>
+                <th style="min-width:160px">Verdict Distribution</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for stat in analytics.intent_breakdown %}
+              {% set pct = (stat.mean_score * 100) | round(1) %}
+              {% set bar_class = 'bg-success' if stat.mean_score >= 0.7 else ('bg-warning' if stat.mean_score >= 0.4 else 'bg-danger') %}
+              <tr>
+                <td class="fw-semibold">{{ stat.intent }}</td>
+                <td>
+                  <div class="d-flex align-items-center gap-2">
+                    <div class="progress flex-grow-1" style="height:8px" role="progressbar"
+                         aria-valuenow="{{ pct }}" aria-valuemin="0" aria-valuemax="100">
+                      <div class="progress-bar {{ bar_class }}" style="width:{{ pct }}%"></div>
+                    </div>
+                    <span class="text-muted" style="min-width:3rem;text-align:right">{{ "%.2f"|format(stat.mean_score) }}</span>
+                  </div>
+                </td>
+                <td class="text-end text-muted">{{ stat.count }}</td>
+                <td>
+                  {% if stat.verdict_distribution %}
+                    {% for vc in stat.verdict_distribution %}
+                      <span class="verdict verdict-{{ vc.verdict }} me-1"
+                            title="{{ vc.count }} {{ vc.verdict }} ({{ vc.pct }}%)">{{ vc.count }} {{ vc.verdict }}</span>
+                    {% endfor %}
+                  {% else %}
+                    <span class="text-muted">—</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="text-muted small">
+          No intent data available.
+          {% if analytics_skipped %}Run on a smaller job to see intent breakdown.{% endif %}
+          {% if analytics_empty %}No evaluated utterances carried intent labels.{% endif %}
+          {% if not analytics %}Analytics not available for this job.{% endif %}
+        </p>
+      {% endif %}
+    </section>
+
+    <!-- ════ SECTION 4: Result Explorer ════ -->
   </main>
 </div>{# /detail-layout #}
 </div>{# /data-job-id wrapper #}

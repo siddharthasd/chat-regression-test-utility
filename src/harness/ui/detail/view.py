@@ -146,6 +146,7 @@ def row_view(utterance: Utterance, declared_dims: list[str]) -> dict:
         "chatbot_response": response_text,
         "chatbot_response_short": _truncate(response_text),
         "verdict": result.evaluation_verdict if result else None,
+        "utterance_intent": result.utterance_intent if result else None,
         "error_status": result.error_status if result else None,
         "error_stage": result.error_stage if result else None,
         "error_details": result.error_details if result else None,
@@ -215,6 +216,7 @@ def score_entries_from_utterances(utterances: list) -> list[ScoreEntry]:
         result = u.evaluation_result
         is_error = bool(result and result.error_status in _ERROR_STATUSES) or result is None
         overall_verdict = result.evaluation_verdict if result else None
+        intent = result.utterance_intent if result else None
         scores = (result.evaluation_scores or []) if result else []
         for s in scores:
             if not isinstance(s, dict):
@@ -228,6 +230,7 @@ def score_entries_from_utterances(utterances: list) -> list[ScoreEntry]:
                     overall_verdict=overall_verdict,
                     error=is_error,
                     unit_id=str(u.utterance_id),
+                    utterance_intent=intent,
                 )
             )
         if not scores:
@@ -242,6 +245,7 @@ def score_entries_from_utterances(utterances: list) -> list[ScoreEntry]:
                     overall_verdict=overall_verdict,
                     error=is_error,
                     unit_id=str(u.utterance_id),
+                    utterance_intent=intent,
                 )
             )
     return entries
@@ -255,7 +259,7 @@ def results_csv_builder(job: Job, utterances: list) -> tuple[str, str]:
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow(
-        ["utteranceText", "testId", "chatbotResponse", "overallVerdict",
+        ["utteranceText", "testId", "utteranceIntent", "chatbotResponse", "overallVerdict",
          "parameterName", "score", "verdict", "reasoning"]
     )
     for u in utterances:
@@ -265,10 +269,11 @@ def results_csv_builder(job: Job, utterances: list) -> tuple[str, str]:
         if contract:
             response_text = (contract.get("chatbotResponse") or {}).get("normalizedText") or ""
         overall_verdict = (result.evaluation_verdict if result else None) or ""
+        intent = (result.utterance_intent if result else None) or ""
         scores = (result.evaluation_scores or []) if result else []
         if not scores:
             writer.writerow([
-                u.utterance_text, u.test_id or "", response_text, overall_verdict,
+                u.utterance_text, u.test_id or "", intent, response_text, overall_verdict,
                 "", "", "", "",
             ])
         else:
@@ -278,6 +283,7 @@ def results_csv_builder(job: Job, utterances: list) -> tuple[str, str]:
                 writer.writerow([
                     u.utterance_text,
                     u.test_id or "",
+                    intent,
                     response_text,
                     overall_verdict,
                     s.get("parameter_name", ""),
@@ -319,6 +325,7 @@ def results_json_builder(job: Job, utterances: list) -> tuple[str, str]:
         result_array.append({
             "utteranceText": u.utterance_text,
             "testId": u.test_id,
+            "utteranceIntent": result.utterance_intent if result else None,
             "chatbotResponse": response_text,
             "overallVerdict": result.evaluation_verdict if result else None,
             "errorStatus": result.error_status if result else None,

@@ -25,6 +25,7 @@ class EvaluationResultCreateData(TypedDict):
     evaluation_scores: NotRequired[list | None]
     result_metadata: NotRequired[dict | None]
     harness_annotations: NotRequired[dict | None]
+    utterance_intent: NotRequired[str | None]
     error_status: NotRequired[str | None]
     error_stage: NotRequired[str | None]
     error_details: NotRequired[str | None]

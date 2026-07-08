@@ -119,6 +119,7 @@ def process_row(
     data["evaluation_verdict"] = body.get("evaluationVerdict")
     data["evaluation_scores"] = body.get("evaluationScores")
     data["result_metadata"] = body.get("metadata")
+    data["utterance_intent"] = body.get("utteranceIntent")
     data["harness_annotations"] = ev.harness_annotations
     data["evaluation_timestamp"] = _parse_timestamp(body.get("evaluationTimestamp"))
     return data
