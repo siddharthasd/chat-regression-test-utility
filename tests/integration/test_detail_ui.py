@@ -120,21 +120,19 @@ def test_draft_blank_timestamps(client) -> None:
     assert "Started" in body and "Completed" in body
 
 
-def test_download_csv_omits_password(client) -> None:
+def test_download_results_csv_terminal(client) -> None:
     job_id = _seed(rows=[{"text": "hello", "test_id": "t1", "result": _completed_result()}])
-    resp = client.get(f"/jobs/{job_id}/download.csv")
+    resp = client.get(f"/jobs/{job_id}/download-results.csv")
     assert resp.status_code == 200
     text = resp.text
-    assert "utteranceText,testId" in text
+    assert "utteranceText" in text
     assert "password" not in text
-    assert "reconstructed" in resp.headers["Content-Disposition"]
+    assert "results.csv" in resp.headers["Content-Disposition"]
 
 
-def test_download_csv_partial_marker_for_running(client) -> None:
+def test_download_results_csv_running_returns_404(client) -> None:
     job_id = _seed(status=JobStatus.RUNNING, rows=[{"text": "hi", "test_id": "t1"}])
-    resp = client.get(f"/jobs/{job_id}/download.csv")
-    assert "partial" in resp.headers["Content-Disposition"]
-    assert "# partial download" in resp.text
+    assert client.get(f"/jobs/{job_id}/download-results.csv").status_code == 404
 
 
 # --------------------------------------------------------------------------- US2
@@ -192,10 +190,10 @@ def test_verdict_filter_and_error_only(client) -> None:
 def test_search_matches_utterance_only(client) -> None:
     job_id = _seed(rows=[
         {"text": "find-me-token", "test_id": "t1", "result": _completed_result()},
-        {"text": "other", "test_id": "t2", "result": _completed_result()},
+        {"text": "zzz-no-match-row", "test_id": "t2", "result": _completed_result()},
     ])
     body = _html(client, job_id, "?q=find-me-token")
-    assert "find-me-token" in body and "other" not in body
+    assert "find-me-token" in body and "zzz-no-match-row" not in body
     assert "Visible: 1 of 2" in body
 
 
@@ -258,3 +256,120 @@ def test_delete_redirects_to_dashboard(client) -> None:
 def test_delete_completed_rejected(client) -> None:
     job_id = _seed(status=JobStatus.COMPLETED, rows=[])
     assert client.post(f"/jobs/{job_id}/delete").status_code == 409
+
+
+# --------------------------------------------------------------------------- 018 Analytics
+def _v2_result(verdict="pass", scores=None):
+    return {
+        "normalized_contract": {"chatbotResponse": {"normalizedText": "hi"}},
+        "raw_chatbot_response": {"echo": "hi"},
+        "evaluation_verdict": verdict,
+        "evaluation_scores": scores or [
+            {"parameter_name": "relevance", "score": 0.9, "reasoning": "good", "verdict": "pass"},
+            {"parameter_name": "tone", "score": 0.8, "reasoning": "ok", "verdict": "pass"},
+        ],
+        "result_metadata": {},
+    }
+
+
+def test_analytics_tiles_visible_for_completed_job(client) -> None:
+    job_id = _seed(
+        rows=[
+            {"text": "hi", "test_id": "t1", "result": _v2_result()},
+            {"text": "hello", "test_id": "t2", "result": _v2_result(verdict="fail")},
+        ]
+    )
+    body = _html(client, job_id)
+    assert "Overall Mean Score" in body
+    assert "Overall Verdict Distribution" in body
+    assert "Parameter Breakdown" in body
+
+
+def test_analytics_skipped_for_large_job(client) -> None:
+    job_id = _seed(
+        rows=[{"text": "hi", "test_id": "t1", "result": _v2_result()}],
+    )
+    # Override total_utterance_count to simulate >5000
+    with get_session() as session:
+        job = JobRepository(session).get(job_id)
+        job.total_utterance_count = 5001
+    body = _html(client, job_id)
+    assert "more than 5,000 utterances" in body
+    assert "analytics report is skipped" in body
+
+
+def test_analytics_empty_state_for_all_errors(client) -> None:
+    job_id = _seed(
+        rows=[{"text": "hi", "test_id": "t1", "result": {
+            "error_status": "failed", "error_stage": "connector", "error_details": "err",
+        }}]
+    )
+    body = _html(client, job_id)
+    assert "No evaluated results" in body
+
+
+def test_download_results_json_terminal(client) -> None:
+    job_id = _seed(rows=[{"text": "hi", "test_id": "t1", "result": _v2_result()}])
+    resp = client.get(f"/jobs/{job_id}/download-results.json")
+    assert resp.status_code == 200
+    assert "results.json" in resp.headers["Content-Disposition"]
+    data = resp.json()
+    assert isinstance(data, list) and len(data) == 1
+    assert data[0]["utteranceText"] == "hi"
+    assert "parameters" in data[0]
+
+
+def test_download_results_json_running_returns_404(client) -> None:
+    job_id = _seed(status=JobStatus.RUNNING, rows=[{"text": "hi", "test_id": "t1"}])
+    assert client.get(f"/jobs/{job_id}/download-results.json").status_code == 404
+
+
+def test_v1_verdict_omitted_from_json(client) -> None:
+    v1_result = {
+        "normalized_contract": {"chatbotResponse": {"normalizedText": "hi"}},
+        "raw_chatbot_response": {"echo": "hi"},
+        "evaluation_verdict": "pass",
+        "evaluation_scores": [
+            {"parameter_name": "relevance", "score": 0.9, "reasoning": "good"},
+        ],
+        "result_metadata": {},
+    }
+    job_id = _seed(rows=[{"text": "hi", "test_id": "t1", "result": v1_result}])
+    resp = client.get(f"/jobs/{job_id}/download-results.json")
+    data = resp.json()
+    # v1: no "verdict" key in the scores dict → omitted from JSON (not null)
+    assert "verdict" not in data[0]["parameters"][0]
+
+
+def test_old_download_csv_route_removed(client) -> None:
+    job_id = _seed(rows=[{"text": "hi", "test_id": "t1", "result": _v2_result()}])
+    assert client.get(f"/jobs/{job_id}/download.csv").status_code == 404
+
+
+def test_sidebar_nav_present(client) -> None:
+    job_id = _seed(
+        rows=[{"text": "hi", "test_id": "t1", "result": _v2_result()}]
+    )
+    body = _html(client, job_id)
+    assert "sidebar-nav" in body
+    assert "section-job-overview" in body
+    assert "section-parameter-breakdown" in body
+    assert "section-result-explorer" in body
+
+
+def test_v2_verdict_in_scores_cells(client) -> None:
+    job_id = _seed(
+        dims=["relevance"],
+        rows=[{"text": "hi", "test_id": "t1", "result": {
+            "normalized_contract": {"chatbotResponse": {"normalizedText": "hi"}},
+            "raw_chatbot_response": {},
+            "evaluation_verdict": "pass",
+            "evaluation_scores": [
+                {"parameter_name": "relevance", "score": 0.9, "reasoning": "x", "verdict": "pass"}
+            ],
+            "result_metadata": {},
+        }}],
+    )
+    body = _html(client, job_id)
+    # v2 verdict rendered in the scores cells as [pass]
+    assert "[pass]" in body

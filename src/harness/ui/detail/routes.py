@@ -1,8 +1,8 @@
-"""Job Detail & Traceability View routes (004). The dashboard's row-click target.
+"""Job Detail & Traceability View routes (004/018). The dashboard's row-click target.
 
-Read-and-act surface for one job: metadata panel + results table + full-trace expand,
-reconstructed-CSV download, live polling, and the canonical Cancel/Delete actions.
-The Job snapshot is the source of truth — registries are never consulted.
+Analytics dashboard (018): single-scroll layout with sticky sidebar, Job Overview tiles,
+Parameter Breakdown with per-parameter stats + histograms, and Result Explorer table.
+Downloads (CSV/JSON) are terminal-only. The old reconstructed-CSV route is removed.
 """
 
 from __future__ import annotations
@@ -20,12 +20,59 @@ from harness.persistence.repositories import JobRepository, UtteranceRepository
 from harness.ui._context import ctx
 from harness.ui._templates import templates
 from harness.ui.detail import view
+from harness.ui.detail.analytics import compute_analytics
+from harness.ui.detail.view import (
+    results_csv_builder,
+    results_json_builder,
+    score_entries_from_utterances,
+)
 
 router = APIRouter()
 
 _CANCELLABLE = {JobStatus.QUEUED.value, JobStatus.RUNNING.value}
-_DELETABLE = {s.value for s in DELETABLE_STATUSES}
 _ALWAYS_DELETABLE = {JobStatus.DRAFT.value, JobStatus.FAILED.value, JobStatus.CANCELLED.value}
+_TERMINAL = {JobStatus.COMPLETED.value, JobStatus.FAILED.value, JobStatus.CANCELLED.value}
+
+TOOLTIP_COPY = {
+    "Mean": (
+        "The average score for this parameter across all responses. "
+        "Your baseline answer to \"how well did the chatbot perform on this dimension?\""
+    ),
+    "Median": (
+        "The middle score when all responses are ranked from lowest to highest. "
+        "If the median is noticeably lower than the mean, a small number of high-scoring "
+        "responses are inflating the average. If the median is higher than the mean, a few "
+        "poor responses are dragging it down. Mean and median close together means the scores "
+        "are consistently spread."
+    ),
+    "Min": (
+        "The lowest score any single response received on this parameter. "
+        "Represents the worst-case performance observed in this run."
+    ),
+    "Max": (
+        "The highest score any single response received on this parameter. "
+        "Represents the best-case performance observed in this run."
+    ),
+    "Range": (
+        "The gap between the best and worst scores (Max minus Min). A large range means "
+        "performance was inconsistent — some responses scored well, others did not. "
+        "A small range means the chatbot performed at a similar level across all responses."
+    ),
+    "σ": (
+        "Measures how spread out the scores are around the average. A low σ means most "
+        "responses scored close to the mean — predictable, consistent behaviour. A high σ "
+        "means scores varied widely — some responses were much better or worse than average. "
+        "When comparing two parameters with the same mean, the one with the lower σ is more reliable."
+    ),
+    "Overall Mean Score": (
+        "The average quality score across every response and every evaluation parameter in this run. "
+        "Think of it as the overall grade for the chatbot — closer to the evaluator's maximum is better."
+    ),
+    "Overall Verdict Distribution": (
+        "How the evaluator classified each response overall — for example, how many Passed, "
+        "how many triggered a Warning, how many Failed. A quick summary of the run's quality at a glance."
+    ),
+}
 
 
 def _can_delete(job) -> bool:
@@ -35,14 +82,28 @@ def _can_delete(job) -> bool:
     )
 
 
-def _can_delete_from_meta(meta: dict) -> bool:
-    return meta["status"] in _ALWAYS_DELETABLE or (
-        meta["status"] == JobStatus.COMPLETED.value and (meta.get("failed_count") or 0) > 0
-    )
-
-
 def _truthy(value: str | None) -> bool:
     return (value or "").lower() in {"1", "true", "on", "yes"}
+
+
+def _analytics_context(utterances: list, dims: list[str], total_count: int | None = None) -> dict:
+    """Shared analytics computation used by job_detail and _rerender_error.
+
+    total_count: use job.total_utterance_count (declared capacity) for the 5K guard;
+    falls back to len(utterances) when not available (e.g. in _rerender_error).
+    """
+    guard_count = total_count if (total_count is not None and total_count > 0) else len(utterances)
+    if guard_count > 5000:
+        return {"analytics": None, "analytics_skipped": True, "analytics_empty": False}
+    entries = score_entries_from_utterances(utterances)
+    valid_entries = [e for e in entries if not e.error]
+    if not valid_entries:
+        return {"analytics": None, "analytics_skipped": False, "analytics_empty": True}
+    return {
+        "analytics": compute_analytics(entries, dims),
+        "analytics_skipped": False,
+        "analytics_empty": False,
+    }
 
 
 @router.get("/jobs/{job_id}/detail")
@@ -69,14 +130,11 @@ def job_detail(
             raise HTTPException(status_code=404)
         meta = view.metadata_view(job, now)
         dims = meta["declared_dimensions"]
-        all_rows = [
-            view.row_view(u, dims) for u in UtteranceRepository(session).get_by_job_ordered(job_id)
-        ]
-        can_export = bool(all_rows) and job.status not in {
-            JobStatus.DRAFT.value, JobStatus.QUEUED.value
-        }
-        job_status = job.status
-        can_cancel = job_status in _CANCELLABLE
+        utterances = UtteranceRepository(session).get_by_job_ordered(job_id)
+        all_rows = [view.row_view(u, dims) for u in utterances]
+        analytics_ctx = _analytics_context(utterances, dims, job.total_utterance_count)
+        is_terminal = job.status in _TERMINAL
+        can_cancel = job.status in _CANCELLABLE
         can_delete = _can_delete(job)
 
     test_id_options = view.distinct_test_ids(all_rows)
@@ -104,8 +162,10 @@ def job_detail(
             "filtered": filtered,
             "can_cancel": can_cancel,
             "can_delete": can_delete,
-            "can_export": can_export,
+            "is_terminal": is_terminal,
+            "tooltip_copy": TOOLTIP_COPY,
             "error": None,
+            **analytics_ctx,
             **ctx(request),
         },
     )
@@ -137,21 +197,42 @@ def detail_json(
     }
 
 
-@router.get("/jobs/{job_id}/download.csv")
-def download_csv(
+@router.get("/jobs/{job_id}/download-results.csv")
+def download_results_csv(
     request: Request,
     job_id: str,
     user: dict = Depends(require_auth),
 ):
+    """Long-format evaluated results CSV; terminal jobs only (FR-025)."""
     with get_session() as session:
         job = JobRepository(session).get(job_id)
-        if job is None:
+        if job is None or job.status not in _TERMINAL:
             raise HTTPException(status_code=404)
         utterances = UtteranceRepository(session).get_by_job_ordered(job_id)
-        filename, body = view.reconstruct_csv(job, utterances)
+        filename, body = results_csv_builder(job, utterances)
     return Response(
         content=body,
-        media_type="text/csv",
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/jobs/{job_id}/download-results.json")
+def download_results_json(
+    request: Request,
+    job_id: str,
+    user: dict = Depends(require_auth),
+):
+    """Nested-by-utterance evaluated results JSON; terminal jobs only (FR-025)."""
+    with get_session() as session:
+        job = JobRepository(session).get(job_id)
+        if job is None or job.status not in _TERMINAL:
+            raise HTTPException(status_code=404)
+        utterances = UtteranceRepository(session).get_by_job_ordered(job_id)
+        filename, body = results_json_builder(job, utterances)
+    return Response(
+        content=body,
+        media_type="application/json; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
@@ -205,10 +286,9 @@ def _rerender_error(request: Request, job_id: str, message: str, status_code: in
             raise HTTPException(status_code=404)
         meta = view.metadata_view(job, now)
         dims = meta["declared_dimensions"]
-        rows = [
-            view.row_view(u, dims)
-            for u in UtteranceRepository(session).get_by_job_ordered(job_id)
-        ]
+        utterances = UtteranceRepository(session).get_by_job_ordered(job_id)
+        rows = [view.row_view(u, dims) for u in utterances]
+        analytics_ctx = _analytics_context(utterances, dims)
     return templates.TemplateResponse(
         request,
         "detail/index.html",
@@ -226,10 +306,11 @@ def _rerender_error(request: Request, job_id: str, message: str, status_code: in
             "visible_m": len(rows),
             "filtered": False,
             "can_cancel": meta["status"] in _CANCELLABLE,
-            "can_delete": _can_delete_from_meta(meta),
-            "can_export": bool(rows)
-            and meta["status"] not in {JobStatus.DRAFT.value, JobStatus.QUEUED.value},
+            "can_delete": _can_delete(job),
+            "is_terminal": meta["status"] in _TERMINAL,
+            "tooltip_copy": TOOLTIP_COPY,
             "error": message,
+            **analytics_ctx,
             **ctx(request),
         },
         status_code=status_code,

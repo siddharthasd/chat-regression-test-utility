@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -18,10 +19,13 @@ from harness.ui.dashboard.view import format_timestamp
 if TYPE_CHECKING:
     from harness.persistence.models import Job, Utterance
 
+from harness.ui.detail.analytics import ScoreEntry
+
 _MASK = "•" * 8  # ••••••••
 _SECRET_SUBFIELDS = ("credential", "password")
 _TRUNCATE = 200
 _VERDICT_ORDER = {"fail": 0, "warn": 1, "pass": 2}
+_ERROR_STATUSES = frozenset({"failed", "cancelled"})
 
 
 def mask_descriptor(descriptor: dict | None) -> dict:
@@ -100,21 +104,27 @@ def _score_cells(result, declared_dims: list[str]) -> list[dict]:
     for d in declared_dims:
         entry = by_name.get(d)
         if entry is None:
-            cells.append({"name": d, "score": "—", "reasoning": ""})
+            cells.append({"name": d, "score": "—", "reasoning": "", "verdict": None})
         else:
             cells.append(
                 {
                     "name": d,
                     "score": entry.get("score"),
                     "reasoning": entry.get("reasoning") or "(none)",
+                    "verdict": entry.get("verdict"),
                 }
             )
     for s in scores:
         name = s.get("parameter_name") if isinstance(s, dict) else None
         if name and name not in declared_dims:
             cells.append(
-                {"name": name, "score": s.get("score"), "reasoning": s.get("reasoning") or "(none)",
-                 "unexpected": True}
+                {
+                    "name": name,
+                    "score": s.get("score"),
+                    "reasoning": s.get("reasoning") or "(none)",
+                    "verdict": s.get("verdict"),
+                    "unexpected": True,
+                }
             )
     return cells
 
@@ -165,7 +175,7 @@ def apply_filters(
     for r in rows:
         if verdicts and r["verdict"] not in verdicts:
             continue
-        if error_only and r["error_status"] != "failed":
+        if error_only and r["error_status"] not in _ERROR_STATUSES:
             continue
         if test_ids and r["test_id"] not in test_ids:
             continue
@@ -196,6 +206,127 @@ def sort_rows(rows: list[dict], sort: str | None, direction: str | None) -> list
 
 def distinct_test_ids(rows: list[dict]) -> list[str]:
     return sorted({r["test_id"] for r in rows if r["test_id"]})
+
+
+def score_entries_from_utterances(utterances: list) -> list[ScoreEntry]:
+    """Map ORM Utterance list to ScoreEntry list for the RunAnalytics engine."""
+    entries = []
+    for u in utterances:
+        result = u.evaluation_result
+        is_error = bool(result and result.error_status in _ERROR_STATUSES) or result is None
+        overall_verdict = result.evaluation_verdict if result else None
+        scores = (result.evaluation_scores or []) if result else []
+        for s in scores:
+            if not isinstance(s, dict):
+                continue
+            entries.append(
+                ScoreEntry(
+                    parameter_name=s.get("parameter_name", ""),
+                    score=float(s.get("score") or 0.0),
+                    reasoning=s.get("reasoning") or "",
+                    verdict=s.get("verdict"),
+                    overall_verdict=overall_verdict,
+                    error=is_error,
+                    unit_id=str(u.utterance_id),
+                )
+            )
+        if not scores:
+            # Sentinel: utterance with no score entries — still counts toward
+            # evaluated_count (non-error) or error_count (error) via unit_id.
+            entries.append(
+                ScoreEntry(
+                    parameter_name="",
+                    score=0.0,
+                    reasoning="",
+                    verdict=None,
+                    overall_verdict=overall_verdict,
+                    error=is_error,
+                    unit_id=str(u.utterance_id),
+                )
+            )
+    return entries
+
+
+def results_csv_builder(job: Job, utterances: list) -> tuple[str, str]:
+    """Build long-format evaluated results CSV. Returns (filename, csv_body)."""
+    base = (job.source_csv_filename or f"job-{job.job_id[:8]}").rsplit(".csv", 1)[0]
+    filename = f"{base}-results.csv"
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(
+        ["utteranceText", "testId", "chatbotResponse", "overallVerdict",
+         "parameterName", "score", "verdict", "reasoning"]
+    )
+    for u in utterances:
+        result = u.evaluation_result
+        contract = result.normalized_contract if result else None
+        response_text = ""
+        if contract:
+            response_text = (contract.get("chatbotResponse") or {}).get("normalizedText") or ""
+        overall_verdict = (result.evaluation_verdict if result else None) or ""
+        scores = (result.evaluation_scores or []) if result else []
+        if not scores:
+            writer.writerow([
+                u.utterance_text, u.test_id or "", response_text, overall_verdict,
+                "", "", "", "",
+            ])
+        else:
+            for s in scores:
+                if not isinstance(s, dict):
+                    continue
+                writer.writerow([
+                    u.utterance_text,
+                    u.test_id or "",
+                    response_text,
+                    overall_verdict,
+                    s.get("parameter_name", ""),
+                    s.get("score", ""),
+                    s.get("verdict") or "",
+                    s.get("reasoning", ""),
+                ])
+    return filename, buf.getvalue()
+
+
+def results_json_builder(job: Job, utterances: list) -> tuple[str, str]:
+    """Build nested-by-utterance results JSON. Returns (filename, json_body)."""
+    base = (job.source_csv_filename or f"job-{job.job_id[:8]}").rsplit(".csv", 1)[0]
+    filename = f"{base}-results.json"
+
+    result_array = []
+    for u in utterances:
+        result = u.evaluation_result
+        is_error = bool(result and result.error_status in _ERROR_STATUSES) or result is None
+        contract = result.normalized_contract if result else None
+        response_text = None
+        if contract:
+            response_text = (contract.get("chatbotResponse") or {}).get("normalizedText")
+        scores = (result.evaluation_scores or []) if result else []
+        parameters = []
+        if not is_error:
+            for s in scores:
+                if not isinstance(s, dict):
+                    continue
+                entry: dict = {
+                    "parameter_name": s.get("parameter_name", ""),
+                    "score": s.get("score"),
+                    "reasoning": s.get("reasoning") or "",
+                }
+                if "verdict" in s:
+                    entry["verdict"] = s["verdict"]
+                parameters.append(entry)
+
+        result_array.append({
+            "utteranceText": u.utterance_text,
+            "testId": u.test_id,
+            "chatbotResponse": response_text,
+            "overallVerdict": result.evaluation_verdict if result else None,
+            "errorStatus": result.error_status if result else None,
+            "errorStage": result.error_stage if result else None,
+            "parameters": parameters,
+        })
+
+    return filename, json.dumps(result_array, indent=2, ensure_ascii=False)
 
 
 def reconstruct_csv(job: Job, utterances: list[Utterance]) -> tuple[str, str]:

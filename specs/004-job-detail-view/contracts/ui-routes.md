@@ -13,8 +13,14 @@ Metadata panel + results table. Query params (optional): `verdict` (repeatable),
 ### `GET /jobs/<id>/detail.json` (FR-015/016/020)
 `200 {status, status_label, badge_class, total, processed, failed, row_count, terminal}`; `404` if the job no longer exists. The page polls every 3 s, patches the panel, reloads on row-count growth, redirects to `/` on 404, stops at terminal.
 
-### `GET /jobs/<id>/download.csv` (FR-006/006a)
-Reconstructed `text/csv` attachment from persisted Utterances: `utteranceText,testId,<extra cols>`, **no password**. `<base>-reconstructed.csv`; non-terminal jobs also get `-partial` + an inline status/row-count marker. 404 if job unknown.
+### ~~`GET /jobs/<id>/download.csv` (FR-006/006a)~~ — **RETIRED by feature 018**
+~~Reconstructed `text/csv` attachment from persisted Utterances: `utteranceText,testId,<extra cols>`, **no password**. `<base>-reconstructed.csv`; non-terminal jobs also get `-partial` + an inline status/row-count marker. 404 if job unknown.~~
+
+> **Superseded**: Feature 018 (Job Run Analytics Dashboard) removes this route and the `reconstruct_csv()` view function entirely. Any request to this path returns **404** after 018 ships. The replacement routes are:
+> - `GET /jobs/<id>/download-results.csv` — long-format evaluated results CSV (terminal jobs only)
+> - `GET /jobs/<id>/download-results.json` — nested evaluated results JSON (terminal jobs only)
+>
+> See `specs/018-job-run-analytics-dashboard/contracts/ui-routes.md` for the full replacement contract.
 
 ### `POST /jobs/<id>/cancel` (FR-018)
 Iff status ∈ {queued, running} → `transition_to_cancelling`; `InvalidTransitionError` (raced to terminal) → 409 re-render with the current status. Else the control isn't shown. → redirect to detail.

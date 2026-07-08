@@ -70,3 +70,77 @@ body { background: #f0f2f5; }
 
 /* Annot badge (unexpected dims warning) */
 .annot { font-size: .7rem; color: #fd7e14; margin-left: .3rem; }
+
+/* ── Analytics Dashboard (018/019) ─────────────────────────────────────── */
+
+/* Two-column layout: sidebar + main */
+.detail-layout { display: flex; gap: 1.5rem; align-items: flex-start; }
+.detail-sidebar { width: 220px; flex-shrink: 0; position: sticky; top: 1rem; }
+.detail-main { flex: 1; min-width: 0; }
+
+/* Sidebar nav anchors */
+.sidebar-nav a { display: block; padding: .25rem .75rem; color: #6c757d;
+                 text-decoration: none; border-left: 2px solid transparent; font-size: .85rem; }
+.sidebar-nav a:hover { color: #1a237e; }
+.sidebar-nav a.active { color: #1a237e; border-left-color: #1a237e; font-weight: 600; }
+.sidebar-nav a.muted-anchor { color: #adb5bd; }
+
+/* Sidebar action buttons */
+.sidebar-actions { display: flex; flex-direction: column; gap: .4rem; }
+
+/* Stat tile grid */
+.stat-tile-grid { display: flex; flex-wrap: wrap; gap: .6rem; margin-bottom: .75rem; }
+.stat-tile { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: .375rem;
+             padding: .6rem .9rem; min-width: 90px; }
+.stat-tile .tile-label { font-size: .7rem; color: #6c757d; margin-bottom: .2rem;
+                         display: flex; align-items: center; gap: .25rem; }
+.stat-tile .tile-value { font-size: 1.15rem; font-weight: 700; color: #212529; }
+
+/* Info icon for tooltips */
+.info-icon { font-size: .7rem; color: #adb5bd; cursor: help; }
+
+/* Histogram */
+.histogram-wrap { position: relative; height: 100px; display: flex; align-items: flex-end;
+                  gap: 1px; border-bottom: 1px solid #dee2e6; margin-bottom: .2rem;
+                  background: #fff; }
+.histogram-bar { flex: 1; background: #1a237e; opacity: .65; min-height: 2px; }
+.histogram-bar:hover { opacity: 1; }
+.sigma-band { position: absolute; bottom: 0; top: 0;
+              background: rgba(255,193,7,.22); pointer-events: none; }
+.histogram-xaxis { display: flex; justify-content: space-between; font-size: .6rem;
+                   color: #adb5bd; margin-bottom: .5rem; }
+
+/* Overview tiles in Job Overview */
+.overview-tile { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: .375rem;
+                 padding: .75rem 1rem; }
+.overview-tile .tile-label { font-size: .72rem; color: #6c757d; margin-bottom: .3rem;
+                              display: flex; align-items: center; gap: .25rem; }
+.overview-tile .tile-value { font-size: 1.3rem; font-weight: 700; }
+
+/* Verdict pill inside tiles */
+.verdict-pill { display: inline-block; font-size: .7rem; font-weight: 600;
+                padding: .15em .5em; border-radius: .25rem; color: #fff;
+                background: #6c757d; margin: .1rem; }
+
+/* Analytics guide panel */
+.analytics-guide { background: #e8f4f8; border: 1px solid #bee5eb; border-radius: .375rem;
+                   padding: 1rem; margin-bottom: 1.25rem; font-size: .82rem; }
+.analytics-guide dt { font-weight: 600; margin-top: .5rem; }
+.analytics-guide dd { margin-left: 0; color: #495057; }
+
+/* Parameter block */
+.parameter-block { border: 1px solid #dee2e6; border-radius: .5rem; padding: 1rem;
+                   margin-bottom: 1rem; background: #fff; }
+.parameter-block h5 { font-size: .95rem; font-weight: 700; margin-bottom: .75rem; }
+
+/* Print */
+@media print {
+  .detail-sidebar { display: none !important; }
+  .detail-layout { display: block !important; }
+  .detail-main { width: 100% !important; }
+  #section-parameter-breakdown { page-break-before: always; }
+  #section-result-explorer { page-break-before: always; }
+  .histogram-bar { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .sigma-band { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  nav.breadcrumb { display: none; }
+}

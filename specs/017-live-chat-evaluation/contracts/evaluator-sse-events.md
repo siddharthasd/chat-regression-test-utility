@@ -70,9 +70,33 @@ The last event in the stream; carries the complete `EvaluationResult`.
 
 ```
 event: final
-data: {"overallScore": 0.91, "dimensions": [...], "passed": true, "summary": "..."}
+data: {
+  "evaluatorId": "quality-evaluator",
+  "evaluatorName": "Quality Evaluator",
+  "evaluatorVersion": "1.0",
+  "overallScore": 0.91,
+  "overallVerdict": "Pass",
+  "parameters": [
+    {
+      "parameterId": "groundedness",
+      "parameterName": "Groundedness",
+      "score": 0.91,
+      "verdict": "Pass",
+      "reasoning": "Response fully grounded in supplied content."
+    },
+    {
+      "parameterId": "completeness",
+      "parameterName": "Completeness",
+      "score": 0.82,
+      "verdict": "Warning",
+      "reasoning": "Response omitted approval timeline."
+    }
+  ]
+}
 
 ```
+
+Field names `overallVerdict` and `parameters` are canonical per `references/Evaluator_Contract_Specification_MVP.md §8`. The analytics engine (018/019) reads `.get("overallVerdict")` and `.get("parameters", [])` from this stored payload. Using any other key names (e.g., `dimensions`, `passed`) will cause analytics to silently produce zero results.
 
 The server reads the `final` payload directly into `ChatTurnResult.final_evaluation_result`.
 

@@ -36,8 +36,8 @@ description: "Task list for Job Detail & Traceability View (Module 13)"
 
 ## Phase 3: User Story 1 — Metadata panel for one job (Priority: P1) 🎯 MVP
 
-- [X] T004 [US1] `routes.py`: `GET /jobs/<id>/detail` (load job → `metadata_view` + rows; 404 unknown) rendering `detail/index.html`'s metadata panel; `GET /jobs/<id>/download.csv` (`reconstruct_csv` → `text/csv` attachment). `index.html` created with the panel (masked config, declared dims, counts, status badge, download link) + tester-identity chrome.
-- [X] T005 [US1] `tests/integration/test_detail_ui.py`: panel renders persisted config; a secret (bearer token / basic password) is **masked and never in the HTML** (SC-003); counts match; `draft` job shows blank started/completed; `download.csv` contains the utterances, omits `password`, and is marked reconstructed (partial for non-terminal) (SC-009). Per-test `engine.init_db(tmp)`.
+- [X] T004 [US1] `routes.py`: `GET /jobs/<id>/detail` (load job → `metadata_view` + rows; 404 unknown) rendering `detail/index.html`'s metadata panel; `GET /jobs/<id>/download.csv` (`reconstruct_csv` → `text/csv` attachment). `index.html` created with the panel (masked config, declared dims, counts, status badge, download link) + tester-identity chrome. **NOTE**: `GET /jobs/<id>/download.csv` and `reconstruct_csv()` are REMOVED by feature 018. Do not implement this route when 018 is in scope.
+- [X] T005 [US1] `tests/integration/test_detail_ui.py`: panel renders persisted config; a secret (bearer token / basic password) is **masked and never in the HTML** (SC-003); counts match; `draft` job shows blank started/completed; `download.csv` contains the utterances, omits `password`, and is marked reconstructed (partial for non-terminal) (SC-009). Per-test `engine.init_db(tmp)`. **NOTE**: SC-009 (`download.csv`) test is superseded by 018's results-download tests. Remove or skip this test case when implementing 018.
 
 **Checkpoint**: MVP — the panel answers "what is this job?" with secrets masked.
 

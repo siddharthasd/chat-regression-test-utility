@@ -1,7 +1,7 @@
 # Contract: Validation API
 
 **Module**: `harness.contract`
-**Stability**: Internal-stable — consumed by `012` (orchestrator, per-row boundary), and by connector/evaluator authors via re-export.
+**Stability**: Internal-stable — consumed by `012` (orchestrator, per-row boundary), `017` (live-chat stream orchestrator, per-turn contract validation — FR-LC-055), and by connector/evaluator authors via re-export.
 
 ---
 
