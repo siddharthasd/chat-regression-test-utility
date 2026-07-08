@@ -125,7 +125,8 @@ def test_download_results_csv_terminal(client) -> None:
     resp = client.get(f"/jobs/{job_id}/download-results.csv")
     assert resp.status_code == 200
     text = resp.text
-    assert "utteranceText" in text
+    header = text.splitlines()[0]
+    assert header == "utteranceText,testId,utteranceIntent,chatbotResponse,overallVerdict,parameterName,score,verdict,reasoning"
     assert "password" not in text
     assert "results.csv" in resp.headers["Content-Disposition"]
 

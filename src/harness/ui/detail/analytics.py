@@ -60,7 +60,7 @@ class ParameterStats:
 @dataclass(frozen=True)
 class IntentStats:
     intent: str
-    mean_score: float
+    mean_score: float | None  # None when all utterances had no parameter scores
     count: int  # distinct utterances carrying this intent
     verdict_distribution: tuple[VerdictCount, ...] | None
 
@@ -156,25 +156,30 @@ def _build_intent_breakdown(valid: list[ScoreEntry]) -> tuple[tuple[IntentStats,
 
     stats: list[IntentStats] = []
     for intent, entries in groups.items():
-        # count = distinct unit_ids for this intent
-        unit_ids = {e.unit_id for e in entries if e.unit_id is not None}
-        count = len(unit_ids) + sum(1 for e in entries if e.unit_id is None)
+        # Apply the same has_unit_ids guard as compute_analytics: when some entries
+        # have unit_ids, skip None-unit entries entirely (can't dedup, would inflate).
+        has_unit_ids = any(e.unit_id is not None for e in entries)
+        if has_unit_ids:
+            seen: set[str] = set()
+            count = 0
+            verdicts: list[str] = []
+            for e in entries:
+                if e.unit_id is None:
+                    continue  # skip — can't dedup without ID
+                if e.unit_id not in seen:
+                    seen.add(e.unit_id)
+                    count += 1
+                    if e.overall_verdict is not None:
+                        verdicts.append(e.overall_verdict)
+        else:
+            count = len(entries)
+            verdicts = [e.overall_verdict for e in entries if e.overall_verdict is not None]
 
-        # mean score: only real parameter entries (exclude parameter_name="" sentinels)
+        # mean score: only real parameter entries (exclude parameter_name="" sentinels).
+        # None when all utterances for this intent had no parameter scores — distinguishes
+        # "intent with no score data" from "intent with genuine 0.0 scores".
         scores = [e.score for e in entries if e.parameter_name]
-        mean_score = statistics.mean(scores) if scores else 0.0
-
-        # verdict distribution: one overall_verdict per deduped unit
-        seen: set[str] = set()
-        verdicts: list[str] = []
-        for e in entries:
-            if e.unit_id is None:
-                if e.overall_verdict is not None:
-                    verdicts.append(e.overall_verdict)
-            elif e.unit_id not in seen:
-                seen.add(e.unit_id)
-                if e.overall_verdict is not None:
-                    verdicts.append(e.overall_verdict)
+        mean_score: float | None = statistics.mean(scores) if scores else None
 
         stats.append(IntentStats(
             intent=intent,
@@ -184,7 +189,8 @@ def _build_intent_breakdown(valid: list[ScoreEntry]) -> tuple[tuple[IntentStats,
         ))
 
     total = len(stats)
-    stats.sort(key=lambda s: -s.mean_score)
+    # Sort by mean_score descending; intents with no score data sort last.
+    stats.sort(key=lambda s: -(s.mean_score if s.mean_score is not None else -1.0))
     return tuple(stats[:_MAX_INTENT_ROWS]), total
 
 

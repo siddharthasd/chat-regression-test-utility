@@ -36,6 +36,8 @@
         </small>
       </div>
       <div class="d-flex gap-2">
+        <a href="{{ url_for('chat_session_analytics', session_id=chat_session.chat_session_id) }}"
+           class="btn btn-outline-secondary btn-sm">Analytics</a>
         <a href="{{ url_for('chat_session_export', session_id=chat_session.chat_session_id) }}?format=json"
            class="btn btn-outline-secondary btn-sm">Export JSON</a>
         <a href="{{ url_for('chat_session_export', session_id=chat_session.chat_session_id) }}?format=csv"

@@ -32,4 +32,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_column("evaluation_result", "utterance_intent")
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    existing = {c["name"] for c in inspector.get_columns("evaluation_result")}
+    if "utterance_intent" in existing:
+        op.drop_column("evaluation_result", "utterance_intent")

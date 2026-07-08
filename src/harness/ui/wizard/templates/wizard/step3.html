@@ -50,7 +50,7 @@
               <option value="">— choose a connector —</option>
               {% for e in entries %}
                 <option value="{{ e.connector_id }}" {% if e.connector_id == selected %}selected{% endif %}>
-                  {{ e.display_name }} ({{ e.connector_id[:8] }}){% if e.expects_per_row_password %} — needs per-row password{% endif %}
+                  {{ e.display_name }} ({{ e.connector_id[:8] }}){% if e.expects_per_row_password %}, needs per-row password{% endif %}
                 </option>
               {% endfor %}
             </select>

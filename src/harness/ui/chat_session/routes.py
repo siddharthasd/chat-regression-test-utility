@@ -1,4 +1,4 @@
-"""Chat session routes: wizard, session list, chat interface, SSE endpoint, export (017)."""
+"""Chat session routes: wizard, session list, chat interface, SSE endpoint, export (017, 019)."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import json
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Query, Request
-from fastapi.responses import RedirectResponse, StreamingResponse
+from fastapi.responses import RedirectResponse, Response, StreamingResponse
 
 from harness.auth.middleware import require_auth
 from harness.chat import event_bus as bus_registry
@@ -43,6 +43,68 @@ def _require_session(repo: ChatSessionRepository, session_id: str, user: dict):
     if s is None:
         raise HTTPException(status_code=404, detail="Session not found")
     return s
+
+
+def _require_owner_session(repo: ChatSessionRepository, session_id: str, user: dict):
+    """Return session for analytics; always owner-scoped in production.
+
+    When auth is disabled (local/test mode) there is no real OID, so falls back
+    to the admin bypass — consistent with single-user dev behaviour.
+    """
+    from harness.auth.config import is_auth_enabled
+
+    if not is_auth_enabled():
+        s = repo.get_session(session_id, owner_oid=None)
+    else:
+        oid = _owner_oid(user)
+        if not oid:
+            raise HTTPException(status_code=403, detail="Access denied")
+        s = repo.get_session(session_id, owner_oid=oid)
+    if s is None:
+        raise HTTPException(status_code=403, detail="Access denied")
+    return s
+
+
+TOOLTIP_COPY_CHAT = {
+    "Mean": (
+        "The average score for this parameter across all turns. "
+        "Your baseline answer to \"how well did the chatbot perform on this dimension?\""
+    ),
+    "Median": (
+        "The middle score when all turns are ranked from lowest to highest. "
+        "If the median is noticeably lower than the mean, a small number of high-scoring "
+        "turns are inflating the average. If the median is higher than the mean, a few "
+        "poor turns are dragging it down. Mean and median close together means the scores "
+        "are consistently spread."
+    ),
+    "Min": (
+        "The lowest score any single turn received on this parameter. "
+        "Represents the worst-case performance observed in this session."
+    ),
+    "Max": (
+        "The highest score any single turn received on this parameter. "
+        "Represents the best-case performance observed in this session."
+    ),
+    "Range": (
+        "The gap between the best and worst scores (Max minus Min). A large range means "
+        "performance was inconsistent. Some turns scored well, others did not. "
+        "A small range means the chatbot performed at a similar level across all turns."
+    ),
+    "σ": (
+        "Measures how spread out the scores are around the average. A low σ means most "
+        "turns scored close to the mean. Predictable, consistent behaviour. A high σ "
+        "means scores varied widely. Some turns were much better or worse than average. "
+        "When comparing two parameters with the same mean, the one with the lower σ is more reliable."
+    ),
+    "Overall Mean Score": (
+        "The average quality score across every turn and every evaluation parameter in this session. "
+        "Think of it as the overall grade for the chatbot. Closer to the evaluator's maximum is better."
+    ),
+    "Overall Verdict Distribution": (
+        "How the evaluator classified each turn overall. For example, how many Passed, "
+        "how many triggered a Warning, how many Failed. A quick summary of the session's quality at a glance."
+    ),
+}
 
 
 # ---------------------------------------------------------------------------
@@ -560,6 +622,177 @@ def chat_session_delete(
     if stale_turn_id:
         bus_registry.remove_bus(stale_turn_id)
     return RedirectResponse(request.url_for("chat_session_list"), status_code=303)
+
+
+# ---------------------------------------------------------------------------
+# Analytics (019)
+
+@router.get("/chat/sessions/{session_id}/analytics", name="chat_session_analytics")
+def chat_session_analytics(
+    request: Request,
+    session_id: str,
+    q: str = Query(""),
+    verdict: list[str] = Query(None),
+    error_only: bool = Query(False),
+    sort: str = Query("turn_index"),
+    dir: str = Query("asc"),
+    user: dict = Depends(require_auth),
+):
+    from sqlalchemy import func, select
+    from sqlalchemy.orm import selectinload
+
+    from harness.persistence.models.chat_turn import ChatTurn
+    from harness.ui.chat_session.view import _VERDICT_ORDER
+    from harness.ui.detail.analytics import compute_analytics
+
+    with get_session() as db:
+        repo = ChatSessionRepository(db)
+        chat_session = _require_owner_session(repo, session_id, user)
+
+        total_turn_count = db.scalar(
+            select(func.count(ChatTurn.turn_id)).where(
+                ChatTurn.session_id == session_id
+            )
+        ) or 0
+
+        turns = list(
+            db.scalars(
+                select(ChatTurn)
+                .where(
+                    ChatTurn.session_id == session_id,
+                    ChatTurn.status.in_(["completed", "failed"]),
+                )
+                .order_by(ChatTurn.created_at)
+                .options(selectinload(ChatTurn.result))
+            )
+        )
+
+    declared_dims = chat_session.evaluator_declared_scoring_dimensions or []
+    skip_analytics = total_turn_count > 5000
+    failed_turn_count = sum(1 for t in turns if t.status == "failed")
+
+    analytics = None
+    analytics_empty = False
+    if not skip_analytics:
+        entries = session_view.score_entries_from_turns(turns)
+        analytics = compute_analytics(entries, declared_dims)
+        analytics_empty = analytics.evaluated_count == 0
+
+    all_rows = [
+        session_view.turn_explorer_view(t, i, declared_dims)
+        for i, t in enumerate(turns, start=1)
+    ]
+
+    filtered = list(all_rows)
+    if verdict:
+        filtered = [r for r in filtered if r["verdict"] in verdict]
+    if error_only:
+        filtered = [r for r in filtered if r["status"] == "failed"]
+    if q.strip():
+        needle = q.strip().lower()
+        filtered = [
+            r for r in filtered
+            if needle in (r["user_message"] or "").lower()
+            or needle in (r["assembled_response"] or "").lower()
+        ]
+
+    _sort_keys = {
+        "turn_index": lambda r: r["turn_index"],
+        "verdict": lambda r: _VERDICT_ORDER.get(r["verdict"] or "", 99),
+    }
+    key_fn = _sort_keys.get(sort, _sort_keys["turn_index"])
+    filtered = sorted(filtered, key=key_fn, reverse=(dir == "desc"))
+
+    return templates.TemplateResponse(
+        request,
+        "chat_session/analytics.html",
+        {
+            "chat_session": chat_session,
+            "analytics": analytics,
+            "analytics_empty": analytics_empty,
+            "skip_analytics": skip_analytics,
+            "total_turn_count": total_turn_count,
+            "failed_turn_count": failed_turn_count,
+            "rows": filtered,
+            "total_rows": len(all_rows),
+            "declared_dims": declared_dims,
+            "q": q,
+            "selected_verdicts": verdict or [],
+            "error_only": error_only,
+            "sort": sort,
+            "dir": dir,
+            "tooltip_copy": TOOLTIP_COPY_CHAT,
+            **ctx(request),
+        },
+    )
+
+
+@router.get("/chat/sessions/{session_id}/download-results.csv", name="chat_session_download_csv")
+def chat_session_download_csv(
+    request: Request,
+    session_id: str,
+    user: dict = Depends(require_auth),
+):
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+
+    from harness.persistence.models.chat_turn import ChatTurn
+
+    with get_session() as db:
+        repo = ChatSessionRepository(db)
+        chat_session = _require_owner_session(repo, session_id, user)
+        turns = list(
+            db.scalars(
+                select(ChatTurn)
+                .where(
+                    ChatTurn.session_id == session_id,
+                    ChatTurn.status.in_(["completed", "failed"]),
+                )
+                .order_by(ChatTurn.created_at)
+                .options(selectinload(ChatTurn.result))
+            )
+        )
+
+    filename, csv_body = session_view.results_csv_builder(chat_session, turns)
+    return Response(
+        content=csv_body.encode("utf-8"),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/chat/sessions/{session_id}/download-results.json", name="chat_session_download_json")
+def chat_session_download_json(
+    request: Request,
+    session_id: str,
+    user: dict = Depends(require_auth),
+):
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+
+    from harness.persistence.models.chat_turn import ChatTurn
+
+    with get_session() as db:
+        repo = ChatSessionRepository(db)
+        chat_session = _require_owner_session(repo, session_id, user)
+        turns = list(
+            db.scalars(
+                select(ChatTurn)
+                .where(
+                    ChatTurn.session_id == session_id,
+                    ChatTurn.status.in_(["completed", "failed"]),
+                )
+                .order_by(ChatTurn.created_at)
+                .options(selectinload(ChatTurn.result))
+            )
+        )
+
+    filename, json_body = session_view.results_json_builder(chat_session, turns)
+    return Response(
+        content=json_body.encode("utf-8"),
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 # ---------------------------------------------------------------------------

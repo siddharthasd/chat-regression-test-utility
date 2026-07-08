@@ -1,0 +1,430 @@
+{% extends "base.html" %}
+{% block title %}Analytics: {{ chat_session.session_name }}{% endblock %}
+
+{% block content %}
+
+<!-- Breadcrumb -->
+<nav aria-label="breadcrumb" class="mb-3">
+  <ol class="breadcrumb small">
+    <li class="breadcrumb-item"><a href="{{ url_for('chat_session_list') }}">All Sessions</a></li>
+    <li class="breadcrumb-item">
+      <a href="{{ url_for('chat_interface', session_id=chat_session.chat_session_id) }}">{{ chat_session.session_name }}</a>
+    </li>
+    <li class="breadcrumb-item active">Analytics</li>
+  </ol>
+</nav>
+
+<!-- Session header -->
+<div class="d-flex justify-content-between align-items-start mb-3">
+  <div>
+    <h4 class="fw-bold mb-1">{{ chat_session.session_name }}</h4>
+    <p class="text-muted mb-0 small">
+      Connector: <strong>{{ chat_session.connector_name or '—' }}</strong> &nbsp;·&nbsp;
+      Evaluator: <strong>{{ chat_session.evaluator_name or '—' }}</strong>
+    </p>
+  </div>
+</div>
+
+<!-- Dashboard layout -->
+<div class="detail-layout">
+
+  <!-- Sidebar -->
+  <aside class="detail-sidebar">
+    <nav class="sidebar-nav mb-3" id="sidebar-nav">
+      <a href="#section-session-overview">Session Overview</a>
+      <a href="#section-parameter-breakdown"
+         class="{{ 'muted-anchor' if (analytics_empty or skip_analytics) else '' }}">Parameter Breakdown</a>
+      <a href="#section-turn-explorer">Turn Explorer</a>
+    </nav>
+    <div class="sidebar-actions">
+      <button type="button" onclick="window.print()" class="btn btn-sm btn-outline-secondary w-100">
+        Print
+      </button>
+      <a href="{{ url_for('chat_session_download_csv', session_id=chat_session.chat_session_id) }}"
+         class="btn btn-sm btn-outline-primary">Download CSV</a>
+      <a href="{{ url_for('chat_session_download_json', session_id=chat_session.chat_session_id) }}"
+         class="btn btn-sm btn-outline-primary">Download JSON</a>
+      <a href="{{ url_for('chat_interface', session_id=chat_session.chat_session_id) }}"
+         class="btn btn-sm btn-outline-secondary">Back to Session</a>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <main class="detail-main">
+
+    <!-- SECTION 1: Session Overview -->
+    <section id="section-session-overview" class="mb-4">
+      <h5 class="fw-bold border-bottom pb-2 mb-3">Session Overview</h5>
+
+      <div class="row g-3 mb-3">
+        <!-- Metadata card -->
+        <div class="col-12 col-xl-6">
+          <div class="card shadow-sm border-0 h-100">
+            <div class="card-header bg-white fw-semibold small border-bottom py-2">Session Details</div>
+            <div class="card-body p-3">
+              <dl class="row row-cols-2 g-1 mb-0" style="font-size:.82rem">
+                <dt class="col-5 text-muted">Session Name</dt>
+                <dd class="col-7">{{ chat_session.session_name }}</dd>
+                <dt class="col-5 text-muted">Created</dt>
+                <dd class="col-7">{{ chat_session.created_at.strftime('%Y-%m-%d %H:%M') }}</dd>
+                <dt class="col-5 text-muted">Connector</dt>
+                <dd class="col-7">{{ chat_session.connector_name or '—' }}</dd>
+                <dt class="col-5 text-muted">Evaluator</dt>
+                <dd class="col-7">{{ chat_session.evaluator_name or '—' }}</dd>
+                <dt class="col-5 text-muted">Total Turns</dt>
+                <dd class="col-7">{{ total_turn_count }}</dd>
+                <dt class="col-5 text-muted">Failed Turns</dt>
+                <dd class="col-7">{{ failed_turn_count }}</dd>
+                {% if declared_dims %}
+                <dt class="col-5 text-muted">Dimensions</dt>
+                <dd class="col-7 small">{{ declared_dims | join(', ') }}</dd>
+                {% endif %}
+              </dl>
+            </div>
+          </div>
+        </div>
+
+        <!-- Analytics tiles -->
+        {% if analytics %}
+        <div class="col-12 col-xl-6">
+          <div class="overview-tile mb-2">
+            <div class="tile-label">
+              Overall Mean Score
+              <span class="info-icon" data-bs-toggle="tooltip"
+                    data-bs-title="{{ tooltip_copy['Overall Mean Score'] }}">ⓘ</span>
+            </div>
+            <div class="tile-value">
+              {{ "%.4f"|format(analytics.overall_mean_score) if analytics.overall_mean_score is not none else '—' }}
+            </div>
+          </div>
+          <div class="overview-tile">
+            <div class="tile-label">
+              Overall Verdict Distribution
+              <span class="info-icon" data-bs-toggle="tooltip"
+                    data-bs-title="{{ tooltip_copy['Overall Verdict Distribution'] }}">ⓘ</span>
+            </div>
+            <div class="d-flex flex-wrap gap-2 mt-1">
+              {% for vc in analytics.overall_verdict_distribution %}
+              <span class="verdict-pill verdict-pill-{{ vc.verdict.lower() }}">
+                {{ vc.verdict }}: {{ vc.count }} ({{ vc.pct }}%)
+              </span>
+              {% else %}
+              <span class="text-muted small">No verdict data</span>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </section>
+
+    <!-- SECTION 2: Parameter Breakdown -->
+    <section id="section-parameter-breakdown" class="mb-4">
+      <h5 class="fw-bold border-bottom pb-2 mb-3">Parameter Breakdown</h5>
+
+      {% if skip_analytics %}
+      <div class="alert alert-warning">
+        <strong>Analytics unavailable.</strong>
+        This session has more than 5,000 turns. The analytics report is skipped for performance.
+        Use <strong>Download CSV</strong> or <strong>Download JSON</strong> to analyse results externally.
+      </div>
+
+      {% elif analytics_empty %}
+      <div class="alert alert-secondary">
+        <strong>No evaluated results.</strong>
+        All turns resulted in errors or no results have been collected yet.
+        The Parameter Breakdown is not available.
+      </div>
+
+      {% elif analytics %}
+
+      <!-- Collapsible guide panel -->
+      <div class="analytics-guide" id="analytics-guide">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <strong>How to read this report</strong>
+          <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2"
+                  style="font-size:.72rem" onclick="toggleGuide()">Collapse</button>
+        </div>
+        <div id="analytics-guide-body">
+          <dl class="mb-0">
+            <dt>Mean</dt>
+            <dd>The average score for this parameter across all turns. Your baseline answer to "how well did the chatbot perform on this dimension?"</dd>
+            <dt>Median</dt>
+            <dd>The middle score when all turns are ranked from lowest to highest. If the median is noticeably lower than the mean, a small number of high-scoring turns are inflating the average. If the median is higher than the mean, a few poor turns are dragging it down. Mean and median close together means the scores are consistently spread.</dd>
+            <dt>Min / Max</dt>
+            <dd>The lowest and highest scores any single turn received. Represent worst-case and best-case performance observed in this session.</dd>
+            <dt>Range</dt>
+            <dd>The gap between the best and worst scores (Max minus Min). A large range means performance was inconsistent. Some turns scored well, others did not. A small range means the chatbot performed at a similar level across all turns.</dd>
+            <dt>σ (Standard Deviation)</dt>
+            <dd>Measures how spread out the scores are around the average. A low σ means predictable, consistent behaviour. A high σ means scores varied widely. When comparing two parameters with the same mean, the one with the lower σ is more reliable.</dd>
+            <dt>Score Distribution</dt>
+            <dd>Shows where scores clustered across the full range. Bars to the right mean most turns scored high; bars to the left mean most scored low. The shaded band marks where approximately 68% of scores fall (±1 standard deviation from the mean). Scores outside this band are outliers worth investigating.</dd>
+            <dt>Verdict Distribution</dt>
+            <dd>How the evaluator classified individual turns for this specific parameter. Shown only when the evaluator provides per-parameter verdicts; otherwise displayed as "not available."</dd>
+          </dl>
+        </div>
+      </div>
+
+      {% for param in analytics.parameters %}
+      <div class="parameter-block">
+        <h5>
+          {{ param.parameter_name }}
+          {% if param.is_unexpected %}
+          <span class="badge bg-warning text-dark ms-1" style="font-size:.65rem">unexpected</span>
+          {% endif %}
+        </h5>
+
+        {% if param.no_data %}
+        <p class="text-muted small mb-0">
+          <em>No valid data. All evaluated turns for this parameter resulted in errors.</em>
+        </p>
+        {% else %}
+
+        <!-- Stat tiles -->
+        <div class="stat-tile-grid">
+          {% for label, value in [
+              ('Mean', param.mean), ('Median', param.median),
+              ('Min', param.min), ('Max', param.max),
+              ('Range', param.range), ('σ', param.stddev)] %}
+          <div class="stat-tile">
+            <div class="tile-label">
+              {{ label }}
+              <span class="info-icon" data-bs-toggle="tooltip"
+                    data-bs-title="{{ tooltip_copy[label] }}">ⓘ</span>
+            </div>
+            <div class="tile-value">{{ "%.4f"|format(value) }}</div>
+          </div>
+          {% endfor %}
+        </div>
+
+        <!-- Histogram -->
+        {% set max_count = namespace(v=1) %}
+        {% for b in param.histogram_buckets %}
+          {% if b.count > max_count.v %}{% set max_count.v = b.count %}{% endif %}
+        {% endfor %}
+
+        <div class="histogram-wrap" title="Score Distribution (hover bars for range and count)">
+          {% if param.histogram_buckets %}
+          {% set b0 = param.histogram_buckets[0] %}
+          <div class="sigma-band"
+               style="left:{{ (b0.sigma_low * 100)|round(1) }}%;width:{{ ((b0.sigma_high - b0.sigma_low) * 100)|round(1) }}%;"></div>
+          {% for b in param.histogram_buckets %}
+          <div class="histogram-bar"
+               style="height:{{ ((b.count / max_count.v * 100) if max_count.v > 0 else 0)|round(1) }}%;"
+               title="[{{ '%.3f'|format(b.raw_low) }}–{{ '%.3f'|format(b.raw_high) }}]: {{ b.count }} turn(s)"></div>
+          {% endfor %}
+          {% endif %}
+        </div>
+        <div class="histogram-xaxis">
+          {% for b in param.histogram_buckets %}<span>{{ "%.2f"|format(b.raw_low) }}</span>{% endfor %}
+          {% if param.histogram_buckets %}<span>{{ "%.2f"|format(param.histogram_buckets[-1].raw_high) }}</span>{% endif %}
+        </div>
+
+        <!-- Verdict distribution -->
+        {% if param.verdict_distribution is none %}
+        <p class="text-muted small mt-2 mb-0">
+          <em>Verdict distribution not available. The evaluator does not emit per-parameter verdicts for this parameter.</em>
+        </p>
+        {% else %}
+        <div class="d-flex flex-wrap gap-2 mt-2 align-items-center">
+          {% for vc in param.verdict_distribution %}
+          <span class="verdict-pill verdict-pill-{{ vc.verdict.lower() }}">
+            {{ vc.verdict }}: {{ vc.count }} ({{ vc.pct }}%)
+          </span>
+          {% endfor %}
+          {% if param.verdict_coverage is not none %}
+          <span class="text-muted small">from {{ param.verdict_coverage }} turn(s)</span>
+          {% endif %}
+        </div>
+        {% endif %}
+        {% endif %}{# end no_data else #}
+      </div>
+      {% endfor %}
+
+      {% endif %}{# end analytics #}
+    </section>
+
+    <!-- SECTION 3: Turn Explorer -->
+    <section id="section-turn-explorer">
+      <h5 class="fw-bold border-bottom pb-2 mb-3">
+        Turn Explorer
+        <small class="text-muted fw-normal ms-2">Showing {{ rows | length }} of {{ total_rows }}</small>
+      </h5>
+
+      <!-- Filters -->
+      <form method="get" action="{{ url_for('chat_session_analytics', session_id=chat_session.chat_session_id) }}"
+            class="row g-2 align-items-end mb-3">
+        <div class="col-12 col-md-4">
+          <input type="search" class="form-control form-control-sm" name="q" value="{{ q }}"
+                 placeholder="Search message / response…">
+        </div>
+        <div class="col-auto">
+          <label class="form-label small mb-1 fw-semibold">Verdict</label>
+          <div class="d-flex gap-2">
+            {% for v in ['pass', 'warn', 'fail'] %}
+            <div class="form-check form-check-inline mb-0">
+              <input class="form-check-input" type="checkbox" name="verdict" value="{{ v }}" id="vd-{{ v }}"
+                {% if v in selected_verdicts %}checked{% endif %}>
+              <label class="form-check-label small" for="vd-{{ v }}">{{ v }}</label>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="col-auto">
+          <div class="form-check mb-0">
+            <input class="form-check-input" type="checkbox" name="error_only" value="1" id="err-only"
+              {% if error_only %}checked{% endif %}>
+            <label class="form-check-label small" for="err-only">Errors only</label>
+          </div>
+        </div>
+        <div class="col-auto d-flex gap-2">
+          <button type="submit" class="btn btn-sm btn-secondary">Apply</button>
+          <a href="{{ url_for('chat_session_analytics', session_id=chat_session.chat_session_id) }}"
+             class="btn btn-sm btn-outline-secondary">Clear</a>
+        </div>
+      </form>
+
+      {% macro sortlink(col, label) %}
+        {% set next_dir = 'desc' if (sort == col and dir == 'asc') else 'asc' %}
+        <a class="sort-link" href="{{ url_for('chat_session_analytics', session_id=chat_session.chat_session_id,
+            sort=col, dir=next_dir, q=q, verdict=selected_verdicts, error_only='1' if error_only else None) }}">
+          {{ label }}{% if sort == col %}&nbsp;{{ '▲' if dir == 'asc' else '▼' }}{% endif %}</a>
+      {% endmacro %}
+
+      <div class="table-responsive">
+        <table class="table table-hover harness-table mb-0">
+          <thead>
+            <tr>
+              <th>{{ sortlink('turn_index', '#') }}</th>
+              <th>User Message</th>
+              <th>Response</th>
+              <th>{{ sortlink('verdict', 'Verdict') }}</th>
+              <th>Scores</th>
+              <th>Error</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for r in rows %}
+            <tr class="result-row">
+              <td class="text-muted small">{{ r.turn_index }}</td>
+              <td class="small" title="{{ r.user_message }}">{{ r.user_message_short }}</td>
+              <td class="small" title="{{ r.assembled_response }}">{{ r.assembled_response_short or '—' }}</td>
+              <td>
+                {% if r.verdict %}
+                <span class="verdict-pill verdict-pill-{{ r.verdict.lower() }}">{{ r.verdict }}</span>
+                {% else %}—{% endif %}
+              </td>
+              <td>
+                <ul class="scores">
+                {% for c in r.score_cells %}
+                  <li{% if c.get('unexpected') %} class="unexpected"{% endif %}>
+                    {{ c.name }}: {{ "%.3f"|format(c.score) if c.score is not none else '—' }}{% if c.verdict %} <span class="text-muted">[{{ c.verdict }}]</span>{% endif %}
+                  </li>
+                {% else %}
+                  <li class="text-muted">—</li>
+                {% endfor %}
+                </ul>
+              </td>
+              <td class="small">
+                {% if r.status == 'failed' %}
+                <span class="text-danger" title="{{ r.error_details }}">{{ r.error_stage or 'failed' }}</span>
+                {% else %}
+                <span class="text-success">ok</span>
+                {% endif %}
+              </td>
+            </tr>
+            <tr class="expand-row table-light">
+              <td colspan="6" class="py-0">
+                <details>
+                  <summary class="py-2 small fw-semibold" style="cursor:pointer">Trace</summary>
+                  <div class="p-3 pt-1">
+                    <p class="small mb-2"><strong>User message:</strong> {{ r.user_message }}</p>
+                    {% if r.status == 'failed' %}
+                    <p class="text-danger small">Error: {{ r.error_stage }}: {{ r.error_details }}</p>
+                    {% endif %}
+                    {% for label, artifact in [
+                        ('Assembled response', r.assembled_response),
+                        ('Normalized contract', r.normalized_contract),
+                        ('Evaluation result', r.final_evaluation_result)] %}
+                    <div class="artifact mb-2">
+                      <div class="d-flex align-items-center gap-2 mb-1">
+                        <strong class="small">{{ label }}</strong>
+                        {% if artifact is not none %}
+                        <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2"
+                                style="font-size:.7rem" onclick="copyPre(this)">Copy</button>
+                        {% endif %}
+                      </div>
+                      {% if artifact is not none %}
+                        {% if artifact is string %}
+                        <pre>{{ artifact }}</pre>
+                        {% else %}
+                        <pre>{{ artifact | tojson(indent=2) }}</pre>
+                        {% endif %}
+                      {% else %}<span class="text-muted small">(none)</span>{% endif %}
+                    </div>
+                    {% endfor %}
+                  </div>
+                </details>
+              </td>
+            </tr>
+          {% else %}
+            <tr><td colspan="6" class="text-center text-muted py-4">No turns match the current filters.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+</div>{# /detail-layout #}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function copyPre(btn) {
+  var pre = btn.closest('.artifact').querySelector('pre');
+  if (pre && navigator.clipboard) navigator.clipboard.writeText(pre.textContent);
+}
+
+// Scrollspy
+(function () {
+  var sections = document.querySelectorAll('section[id]');
+  var navLinks = document.querySelectorAll('#sidebar-nav a');
+  if (!sections.length || !navLinks.length) return;
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) {
+        navLinks.forEach(function (a) { a.classList.remove('active'); });
+        var active = document.querySelector('#sidebar-nav a[href="#' + e.target.id + '"]');
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { threshold: 0.15 });
+  sections.forEach(function (s) { io.observe(s); });
+})();
+
+// Guide collapse
+function toggleGuide() {
+  var body = document.getElementById('analytics-guide-body');
+  if (!body) return;
+  var collapsed = body.style.display === 'none';
+  body.style.display = collapsed ? '' : 'none';
+  try { sessionStorage.setItem('chat-analytics-guide-collapsed', collapsed ? '0' : '1'); } catch (e) {}
+}
+(function () {
+  try {
+    if (sessionStorage.getItem('chat-analytics-guide-collapsed') === '1') {
+      var b = document.getElementById('analytics-guide-body');
+      if (b) b.style.display = 'none';
+    }
+  } catch (e) {}
+})();
+
+// Bootstrap tooltips
+document.addEventListener('DOMContentLoaded', function () {
+  document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (el) {
+    if (typeof bootstrap !== 'undefined') bootstrap.Tooltip.getOrCreateInstance(el);
+  });
+});
+</script>
+{% endblock %}

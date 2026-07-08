@@ -167,8 +167,7 @@
             </div>
             <div class="d-flex flex-wrap gap-2 mt-1">
               {% for vc in analytics.overall_verdict_distribution %}
-              <span class="verdict-pill"
-                    style="background:{% if vc.verdict.lower()=='pass' %}#198754{% elif vc.verdict.lower()=='fail' %}#dc3545{% elif vc.verdict.lower()=='warn' %}#fd7e14{% else %}#6c757d{% endif %}">
+              <span class="verdict-pill verdict-pill-{{ vc.verdict.lower() }}">
                 {{ vc.verdict }}: {{ vc.count }} ({{ vc.pct }}%)
               </span>
               {% else %}
@@ -221,11 +220,11 @@
             <dt>Min / Max</dt>
             <dd>The lowest and highest scores any single response received. Represent worst-case and best-case performance observed in this run.</dd>
             <dt>Range</dt>
-            <dd>The gap between the best and worst scores (Max minus Min). A large range means performance was inconsistent — some responses scored well, others did not. A small range means the chatbot performed at a similar level across all responses.</dd>
+            <dd>The gap between the best and worst scores (Max minus Min). A large range means performance was inconsistent. Some responses scored well, others did not. A small range means the chatbot performed at a similar level across all responses.</dd>
             <dt>σ (Standard Deviation)</dt>
             <dd>Measures how spread out the scores are around the average. A low σ means predictable, consistent behaviour. A high σ means scores varied widely. When comparing two parameters with the same mean, the one with the lower σ is more reliable.</dd>
             <dt>Score Distribution</dt>
-            <dd>Shows where scores clustered across the full range. Bars to the right mean most responses scored high; bars to the left mean most scored low. The shaded band marks where approximately 68% of scores fall (±1 standard deviation from the mean) — scores outside this band are outliers worth investigating.</dd>
+            <dd>Shows where scores clustered across the full range. Bars to the right mean most responses scored high; bars to the left mean most scored low. The shaded band marks where approximately 68% of scores fall (±1 standard deviation from the mean). Scores outside this band are outliers worth investigating.</dd>
             <dt>Verdict Distribution</dt>
             <dd>How the evaluator classified individual responses for this specific parameter. Shown only when the evaluator provides per-parameter verdicts; otherwise displayed as "not available."</dd>
           </dl>
@@ -243,7 +242,7 @@
 
         {% if param.no_data %}
         <p class="text-muted small mb-0">
-          <em>No valid data — all evaluated responses for this parameter resulted in errors.</em>
+          <em>No valid data. All evaluated responses for this parameter resulted in errors.</em>
         </p>
         {% else %}
 
@@ -290,13 +289,12 @@
         <!-- Verdict distribution -->
         {% if param.verdict_distribution is none %}
         <p class="text-muted small mt-2 mb-0">
-          <em>Verdict distribution not available — evaluator does not emit per-parameter verdicts for this parameter.</em>
+          <em>Verdict distribution not available. The evaluator does not emit per-parameter verdicts for this parameter.</em>
         </p>
         {% else %}
         <div class="d-flex flex-wrap gap-2 mt-2 align-items-center">
           {% for vc in param.verdict_distribution %}
-          <span class="verdict-pill"
-                style="background:{% if vc.verdict.lower()=='pass' %}#198754{% elif vc.verdict.lower()=='fail' %}#dc3545{% elif vc.verdict.lower()=='warn' %}#fd7e14{% else %}#6c757d{% endif %}">
+          <span class="verdict-pill verdict-pill-{{ vc.verdict.lower() }}">
             {{ vc.verdict }}: {{ vc.count }} ({{ vc.pct }}%)
           </span>
           {% endfor %}
@@ -312,7 +310,73 @@
       {% endif %}{# end analytics #}
     </section>
 
-    <!-- ════ SECTION 4 (was 3): Result Explorer ════ -->
+    <!-- ════ SECTION 3: Intent Breakdown ════ -->
+    <section id="section-intent-breakdown" class="mb-4">
+      <h5 class="fw-bold border-bottom pb-2 mb-3">Intent Breakdown</h5>
+      {% if analytics and analytics.intent_breakdown %}
+        {% if analytics.intent_total_count > analytics.intent_breakdown | length %}
+        <p class="text-muted small mb-2">
+          Showing top {{ analytics.intent_breakdown | length }} of {{ analytics.intent_total_count }} intents by mean score.
+        </p>
+        {% endif %}
+        <div class="table-responsive">
+          <table class="table table-sm table-hover align-middle mb-0" style="font-size:.83rem">
+            <thead class="table-light">
+              <tr>
+                <th style="min-width:160px">Intent</th>
+                <th style="min-width:140px">Mean Score</th>
+                <th class="text-end" style="width:70px">Count</th>
+                <th style="min-width:160px">Verdict Distribution</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for stat in analytics.intent_breakdown %}
+              {% if stat.mean_score is not none %}
+              {% set pct = (stat.mean_score * 100) | round(1) %}
+              {% set bar_class = 'bg-success' if stat.mean_score >= 0.7 else ('bg-warning' if stat.mean_score >= 0.4 else 'bg-danger') %}
+              {% endif %}
+              <tr>
+                <td class="fw-semibold">{{ stat.intent }}</td>
+                <td>
+                  {% if stat.mean_score is not none %}
+                  <div class="d-flex align-items-center gap-2">
+                    <div class="progress flex-grow-1" style="height:8px" role="progressbar"
+                         aria-valuenow="{{ pct }}" aria-valuemin="0" aria-valuemax="100">
+                      <div class="progress-bar {{ bar_class }}" style="width:{{ pct }}%"></div>
+                    </div>
+                    <span class="text-muted" style="min-width:3rem;text-align:right">{{ "%.2f"|format(stat.mean_score) }}</span>
+                  </div>
+                  {% else %}
+                  <span class="text-muted small">no score data</span>
+                  {% endif %}
+                </td>
+                <td class="text-end text-muted">{{ stat.count }}</td>
+                <td>
+                  {% if stat.verdict_distribution %}
+                    {% for vc in stat.verdict_distribution %}
+                      <span class="verdict verdict-{{ vc.verdict }} me-1"
+                            title="{{ vc.count }} {{ vc.verdict }} ({{ vc.pct }}%)">{{ vc.count }} {{ vc.verdict }}</span>
+                    {% endfor %}
+                  {% else %}
+                    <span class="text-muted">—</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="text-muted small">
+          No intent data available.
+          {% if analytics_skipped %}Run on a smaller job to see intent breakdown.{% endif %}
+          {% if analytics_empty %}No evaluated utterances carried intent labels.{% endif %}
+          {% if not analytics %}Analytics not available for this job.{% endif %}
+        </p>
+      {% endif %}
+    </section>
+
+    <!-- ════ SECTION 4: Result Explorer ════ -->
     <section id="section-result-explorer">
       <h5 class="fw-bold border-bottom pb-2 mb-3">
         Result Explorer
@@ -403,7 +467,7 @@
                       {% if r.utterance_intent %}<br><span class="text-muted">intent: <strong>{{ r.utterance_intent }}</strong></span>{% endif %}
                       {% if r.extra_metadata %}<br><span class="text-muted">metadata: {{ r.extra_metadata }}</span>{% endif %}</p>
                     {% if r.error_status %}
-                      <p class="text-danger small">Error: {{ r.error_status }} / {{ r.error_stage }} — {{ r.error_details }}</p>
+                      <p class="text-danger small">Error: {{ r.error_status }} / {{ r.error_stage }}: {{ r.error_details }}</p>
                     {% endif %}
                     {% for label, artifact in [
                         ('Raw chatbot response', r.raw_chatbot_response),
@@ -436,67 +500,6 @@
       </div>
     </section>
 
-    <!-- ════ SECTION 3: Intent Breakdown ════ -->
-    <section id="section-intent-breakdown" class="mb-4">
-      <h5 class="fw-bold border-bottom pb-2 mb-3">Intent Breakdown</h5>
-      {% if analytics and analytics.intent_breakdown %}
-        {% if analytics.intent_total_count > analytics.intent_breakdown | length %}
-        <p class="text-muted small mb-2">
-          Showing top {{ analytics.intent_breakdown | length }} of {{ analytics.intent_total_count }} intents by mean score.
-        </p>
-        {% endif %}
-        <div class="table-responsive">
-          <table class="table table-sm table-hover align-middle mb-0" style="font-size:.83rem">
-            <thead class="table-light">
-              <tr>
-                <th style="min-width:160px">Intent</th>
-                <th style="min-width:140px">Mean Score</th>
-                <th class="text-end" style="width:70px">Count</th>
-                <th style="min-width:160px">Verdict Distribution</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for stat in analytics.intent_breakdown %}
-              {% set pct = (stat.mean_score * 100) | round(1) %}
-              {% set bar_class = 'bg-success' if stat.mean_score >= 0.7 else ('bg-warning' if stat.mean_score >= 0.4 else 'bg-danger') %}
-              <tr>
-                <td class="fw-semibold">{{ stat.intent }}</td>
-                <td>
-                  <div class="d-flex align-items-center gap-2">
-                    <div class="progress flex-grow-1" style="height:8px" role="progressbar"
-                         aria-valuenow="{{ pct }}" aria-valuemin="0" aria-valuemax="100">
-                      <div class="progress-bar {{ bar_class }}" style="width:{{ pct }}%"></div>
-                    </div>
-                    <span class="text-muted" style="min-width:3rem;text-align:right">{{ "%.2f"|format(stat.mean_score) }}</span>
-                  </div>
-                </td>
-                <td class="text-end text-muted">{{ stat.count }}</td>
-                <td>
-                  {% if stat.verdict_distribution %}
-                    {% for vc in stat.verdict_distribution %}
-                      <span class="verdict verdict-{{ vc.verdict }} me-1"
-                            title="{{ vc.count }} {{ vc.verdict }} ({{ vc.pct }}%)">{{ vc.count }} {{ vc.verdict }}</span>
-                    {% endfor %}
-                  {% else %}
-                    <span class="text-muted">—</span>
-                  {% endif %}
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      {% else %}
-        <p class="text-muted small">
-          No intent data available.
-          {% if analytics_skipped %}Run on a smaller job to see intent breakdown.{% endif %}
-          {% if analytics_empty %}No evaluated utterances carried intent labels.{% endif %}
-          {% if not analytics %}Analytics not available for this job.{% endif %}
-        </p>
-      {% endif %}
-    </section>
-
-    <!-- ════ SECTION 4: Result Explorer ════ -->
   </main>
 </div>{# /detail-layout #}
 </div>{# /data-job-id wrapper #}

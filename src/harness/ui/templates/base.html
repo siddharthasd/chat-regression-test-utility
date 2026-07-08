@@ -21,7 +21,7 @@
         <circle cx="13.5" cy="14.5" r="0.8" fill="white" opacity="0.65"/>
         <circle cx="11.5" cy="19.2" r="0.7" fill="white" opacity="0.65"/>
       </svg>
-      Eval<span style="color:#ffd740">Brew</span>
+      Eval<span class="brand-accent">Brew</span>
     </a>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMain"
             aria-controls="navbarMain" aria-expanded="false" aria-label="Toggle navigation">
@@ -42,9 +42,9 @@
           <a class="nav-link dropdown-toggle px-3" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
             Job Sessions
           </a>
-          <ul class="dropdown-menu dropdown-menu-dark" style="background:#283593">
+          <ul class="dropdown-menu dropdown-menu-dark harness-dropdown-menu">
             <li><a class="dropdown-item" href="{{ url_for('index') }}">All Job Sessions</a></li>
-            <li><hr class="dropdown-divider" style="border-color:#3949ab"></li>
+            <li><hr class="dropdown-divider harness-dropdown-divider"></li>
             <li><a class="dropdown-item" href="{{ url_for('new_job') }}">+ New Job</a></li>
           </ul>
         </li>
@@ -52,9 +52,9 @@
           <a class="nav-link dropdown-toggle px-3" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
             Chat Sessions
           </a>
-          <ul class="dropdown-menu dropdown-menu-dark" style="background:#283593">
+          <ul class="dropdown-menu dropdown-menu-dark harness-dropdown-menu">
             <li><a class="dropdown-item" href="{{ url_for('chat_session_list') }}">All Chat Sessions</a></li>
-            <li><hr class="dropdown-divider" style="border-color:#3949ab"></li>
+            <li><hr class="dropdown-divider harness-dropdown-divider"></li>
             <li><a class="dropdown-item" href="{{ url_for('wizard_step1') }}">+ New Chat Session</a></li>
           </ul>
         </li>
@@ -62,9 +62,9 @@
           <a class="nav-link dropdown-toggle px-3" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
             Connectors
           </a>
-          <ul class="dropdown-menu dropdown-menu-dark" style="background:#283593">
+          <ul class="dropdown-menu dropdown-menu-dark harness-dropdown-menu">
             <li><a class="dropdown-item" href="{{ url_for('list_connectors') }}">View All Connectors</a></li>
-            <li><hr class="dropdown-divider" style="border-color:#3949ab"></li>
+            <li><hr class="dropdown-divider harness-dropdown-divider"></li>
             <li><a class="dropdown-item" href="/connectors/new?next=dashboard">Register New Connector</a></li>
           </ul>
         </li>
@@ -72,9 +72,9 @@
           <a class="nav-link dropdown-toggle px-3" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
             Evaluators
           </a>
-          <ul class="dropdown-menu dropdown-menu-dark" style="background:#283593">
+          <ul class="dropdown-menu dropdown-menu-dark harness-dropdown-menu">
             <li><a class="dropdown-item" href="{{ url_for('list_evaluators') }}">View All Evaluators</a></li>
-            <li><hr class="dropdown-divider" style="border-color:#3949ab"></li>
+            <li><hr class="dropdown-divider harness-dropdown-divider"></li>
             <li><a class="dropdown-item" href="/evaluators/new?next=dashboard">Register New Evaluator</a></li>
           </ul>
         </li>
@@ -82,15 +82,15 @@
           <a class="nav-link dropdown-toggle px-3" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
             Documentation
           </a>
-          <ul class="dropdown-menu dropdown-menu-dark" style="background:#283593">
+          <ul class="dropdown-menu dropdown-menu-dark harness-dropdown-menu">
             <li><a class="dropdown-item" href="{{ url_for('docs_guide', guide='about') }}">About the Harness</a></li>
-            <li><hr class="dropdown-divider" style="border-color:#3949ab"></li>
+            <li><hr class="dropdown-divider harness-dropdown-divider"></li>
             <li><a class="dropdown-item" href="{{ url_for('docs_guide', guide='csv-upload') }}">CSV Upload Guide</a></li>
-            <li><hr class="dropdown-divider" style="border-color:#3949ab"></li>
+            <li><hr class="dropdown-divider harness-dropdown-divider"></li>
             <li><a class="dropdown-item" href="{{ url_for('docs_guide', guide='connector-developer-guide') }}">Connector Developer Guide</a></li>
-            <li><hr class="dropdown-divider" style="border-color:#3949ab"></li>
+            <li><hr class="dropdown-divider harness-dropdown-divider"></li>
             <li><a class="dropdown-item" href="{{ url_for('docs_guide', guide='evaluator-developer-guide') }}">Evaluator Developer Guide</a></li>
-            <li><hr class="dropdown-divider" style="border-color:#3949ab"></li>
+            <li><hr class="dropdown-divider harness-dropdown-divider"></li>
             <li><a class="dropdown-item" href="{{ url_for('docs_guide', guide='solution-architecture') }}">Solution Architecture</a></li>
           </ul>
         </li>
@@ -99,11 +99,11 @@
           <a class="nav-link dropdown-toggle px-3" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
             Admin
           </a>
-          <ul class="dropdown-menu dropdown-menu-dark" style="background:#283593">
+          <ul class="dropdown-menu dropdown-menu-dark harness-dropdown-menu">
             <li><a class="dropdown-item" href="{{ url_for('admin_maintenance') }}">Job Maintenance</a></li>
-            <li><hr class="dropdown-divider" style="border-color:#3949ab"></li>
+            <li><hr class="dropdown-divider harness-dropdown-divider"></li>
             <li><a class="dropdown-item" href="{{ url_for('admin_chat_maintenance') }}">Chat Session Maintenance</a></li>
-            <li><hr class="dropdown-divider" style="border-color:#3949ab"></li>
+            <li><hr class="dropdown-divider harness-dropdown-divider"></li>
             <li><a class="dropdown-item" href="{{ url_for('admin_users') }}">Users</a></li>
           </ul>
         </li>

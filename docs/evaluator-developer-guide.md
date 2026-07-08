@@ -77,18 +77,28 @@ shape is validated programmatically by the harness, not by the contract schema �
 | `evaluationTimestamp` | string | RFC 3339 / ISO-8601 datetime, e.g. `2026-06-05T14:32:05Z`. |
 | `evaluationVerdict` | string | **Exactly one of `pass` / `fail` / `warn`.** Any other value fails the row. |
 | `evaluationScores` | array | Zero or more score entries; see below. `[]` is allowed. |
+| `utteranceIntent` | string \| omitted | **Optional.** An intent category or label your evaluator assigns to this utterance (e.g. `"account inquiry"`, `"complaint"`). When present, the harness stores it (truncated to 255 chars) and surfaces it in the Intent Breakdown panel of the analytics dashboard. Omit the key entirely when you do not classify intents — `null` and `""` are treated the same as omission. |
 | `metadata` | object | Free-form evaluator metadata (model, prompt id, token usage…). No keys standardized. **`{}` is valid.** |
 
 ### Each `evaluationScores` entry
 
+Two shapes are accepted. Both are valid and the harness stores them transparently.
+
+**v1 — without per-parameter verdict:**
 ```json
 { "parameter_name": "relevance", "score": 0.92, "reasoning": "Directly answers the question." }
+```
+
+**v2 — with optional per-parameter verdict:**
+```json
+{ "parameter_name": "relevance", "score": 0.92, "verdict": "pass", "reasoning": "Directly answers the question." }
 ```
 
 | Field | Type | Rules |
 |---|---|---|
 | `parameter_name` | string | The scoring dimension's name. Align these with your **declared dimensions** (§7). |
 | `score` | number **or** string | A numeric score or a label (e.g. `0.92`, `4`, `"high"`). **Booleans are rejected.** |
+| `verdict` | string \| omitted | **Optional.** A per-parameter verdict (e.g. `"pass"`, `"fail"`, `"warn"`). When present across entries, the analytics dashboard shows a per-parameter verdict distribution tile. When absent, that tile shows a "not available" placeholder — omitting `verdict` is not an error. You may emit it for some parameters and not others. |
 | `reasoning` | string | Why this score. Empty string is allowed, but prefer a real explanation — it surfaces in the detail view and exports. |
 
 ### Complete example response
@@ -99,10 +109,11 @@ shape is validated programmatically by the harness, not by the contract schema �
   "evaluationAgentId": "acme-llm-judge",
   "evaluationTimestamp": "2026-06-05T14:32:05Z",
   "evaluationVerdict": "pass",
+  "utteranceIntent": "account inquiry",
   "evaluationScores": [
-    { "parameter_name": "relevance",    "score": 0.92, "reasoning": "Directly answers the question." },
+    { "parameter_name": "relevance",    "score": 0.92, "verdict": "pass", "reasoning": "Directly answers the question." },
     { "parameter_name": "tone",         "score": "appropriate", "reasoning": "Polite and concise." },
-    { "parameter_name": "groundedness", "score": 0.80, "reasoning": "Matches the knowledge base." }
+    { "parameter_name": "groundedness", "score": 0.80, "verdict": "pass", "reasoning": "Matches the knowledge base." }
   ],
   "metadata": { "model": "acme-judge-v2", "promptTokens": 318 }
 }
@@ -111,6 +122,9 @@ shape is validated programmatically by the harness, not by the contract schema �
 > There is **no** top-level `reasoning` field — per-score reasoning lives inside each
 > `evaluationScores` entry. Do not invent a `userFeedback*` field; the harness has no
 > feedback concept.
+>
+> Both `utteranceIntent` and per-entry `verdict` are **optional** — existing evaluators
+> that omit them continue to work without any changes.
 
 ---
 
@@ -393,7 +407,7 @@ agentChain, metadata}`, `conversationContext`, `connectorId`, `timestamp`,
 **Evaluator → harness (EvaluationResult):**
 `utteranceId` (echoed), `evaluationAgentId`, `evaluationTimestamp` (ISO-8601),
 `evaluationVerdict` (`pass`|`fail`|`warn`), `evaluationScores`
-[`{parameter_name, score, reasoning}`], `metadata`.
+[`{parameter_name, score, reasoning, verdict?}`], `utteranceIntent?` (optional intent label, ≤ 255 chars), `metadata`.
 
 **Evaluator error stages:** `evaluator_transport`, `evaluator_response`,
 `evaluator_result`, `evaluator_auth`.
