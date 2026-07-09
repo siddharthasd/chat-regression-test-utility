@@ -137,57 +137,6 @@
 {% endif %}
 {% endif %}
 
-{% if chat_sessions is defined %}
-<!-- Chat Sessions section -->
-<div class="page-section-hdr mt-5">
-  <div>
-    <h2 class="section-title">Chat Sessions</h2>
-    <p class="section-subtitle">{{ chat_session_count }} session{{ 's' if chat_session_count != 1 else '' }} total</p>
-  </div>
-  <div class="d-flex gap-2">
-    <a href="{{ url_for('chat_session_list') }}" class="btn btn-outline-secondary btn-sm">View All</a>
-    <a href="{{ url_for('wizard_step1') }}" class="btn btn-primary btn-sm">+ New Chat Session</a>
-  </div>
-</div>
-{% if chat_sessions %}
-  <div class="harness-card">
-    <div class="table-responsive">
-      <table class="table table-hover harness-table mb-0">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Connector</th>
-            <th>Evaluator</th>
-            <th>Turns</th>
-            <th>Created</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for s in chat_sessions %}
-            <tr>
-              <td>
-                <a class="row-link" href="{{ url_for('chat_interface', session_id=s.chat_session_id) }}">
-                  {{ s.session_name }}
-                </a>
-              </td>
-              <td>{{ s.connector_name }}</td>
-              <td>{{ s.evaluator_name }}</td>
-              <td>{{ s.turn_count }}</td>
-              <td class="text-muted">{{ s.created_at.strftime('%Y-%m-%d %H:%M') if s.created_at else '—' }}</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-{% else %}
-  <div class="harness-card text-center py-4">
-    <p class="text-muted mb-3">No chat sessions yet.</p>
-    <a href="{{ url_for('wizard_step1') }}" class="btn btn-primary btn-sm">Create your first session</a>
-  </div>
-{% endif %}
-{% endif %}
-
 {% endblock %}
 
 {% block scripts %}
