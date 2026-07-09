@@ -302,6 +302,15 @@ Your evaluator is ready to register when it:
 - [ ] Enforces whatever auth mode you'll register (or `none`).
 - [ ] Is reachable from the harness host at the URL you'll register.
 
+**Additional requirements for SSE (live chat) evaluators:**
+
+- [ ] Responds with `Content-Type: text/event-stream`.
+- [ ] Ends the stream with exactly one `final` event.
+- [ ] The `final` payload uses `overallVerdict` (not `evaluationVerdict`) and `parameters[]`
+      (not `evaluationScores[]`), with `parameter_name` (snake_case) in each entry.
+- [ ] Uses lowercase `pass`, `fail`, or `warn` for `overallVerdict`.
+- [ ] Registered with **Supports live chat** toggled on in the Evaluator Registry.
+
 ---
 
 ## 11. Live Chat mode — SSE evaluator protocol
@@ -312,54 +321,97 @@ Evaluation Contract to your endpoint and expects an SSE stream of evaluation eve
 
 ### What changes in SSE mode
 
-The **request** is identical to batch mode (§2): the same Standard Evaluation Contract JSON
-body. Only the **response** changes:
+The **request** is nearly identical to batch mode (§2), with one additional header:
+
+| Aspect | Value |
+|---|---|
+| Method | `POST` |
+| `Content-Type` | `application/json` |
+| `Accept` | `text/event-stream` |
+| Body | The Standard Evaluation Contract (same as batch mode) |
+| Timeout | Stall-based: the harness fails the turn if no new SSE chunk arrives within `timeoutSeconds` of the previous one |
+
+Only the **response** changes:
 
 - Respond with **`Content-Type: text/event-stream`** (Server-Sent Events).
-- Emit any number of named **intermediate events** (progress, reasoning steps, scores, …).
-- End the stream with exactly one **`final` event** whose payload is the completed
-  EvaluationResult (same shape as §3).
+- Emit zero or more **intermediate events** before the final.
+- End the stream with exactly one **`final`** event.
 
-### Response you must return (SSE stream)
+> **The SSE `final` payload uses a different shape from the batch-mode EvaluationResult.**
+> The batch-mode fields `evaluationVerdict`, `evaluationScores`, and `utteranceId` are
+> **not** read in SSE mode. Use `overallVerdict` and `parameters[]` instead — see below.
 
-**1 — Optional intermediate events** (any event name except `final`):
+### Intermediate event types
+
+Four event types are defined. Emit zero or more of any of them before `final`.
+
+| Event type | Example payload | Purpose |
+|---|---|---|
+| `score_update` | `{"dimension": "relevance", "score": 0.82, "partial": true}` | Stream a partial score as it is computed |
+| `warning` | `{"message": "Response contains an ambiguous claim"}` | Flag a non-fatal quality concern |
+| `insight` | `{"message": "Response correctly cites source Y"}` | Surface a positive observation |
+| `diagnostic` | `{"stage": "embedding", "latency_ms": 142}` | Internal evaluator timing or debug info |
+
+Any other event type is forwarded to the browser and persisted as-is — the harness never
+errors on unknown event types. This preserves forward compatibility as your evaluator evolves.
+
+### The `final` event
+
+The last event in the stream must have type `final`. Its JSON payload is stored verbatim as
+the turn's evaluation result. The analytics engine reads `overallVerdict` and
+`parameters[].parameter_name` from it — using any other key names causes analytics to
+silently show no results.
+
+**Top-level fields:**
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `overallVerdict` | string | **Yes** | Overall verdict for the turn. Use lowercase `pass`, `fail`, or `warn` — the harness normalises case, but lowercase matches the batch mode enum and is recommended. |
+| `parameters` | array | **Yes** | Per-dimension score entries. `[]` is valid. |
+| `evaluatorId` | string | No | Identifier for your evaluator (stored verbatim). |
+| `evaluatorName` | string | No | Human-readable evaluator name (stored verbatim). |
+| `evaluatorVersion` | string | No | Version string (stored verbatim). |
+| `overallScore` | number | No | Aggregate numeric score (stored verbatim). |
+
+**Each `parameters` entry** — same key names as the batch-mode `evaluationScores` entry:
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `parameter_name` | string | **Yes** | Dimension name. Use snake_case — same as batch mode. Must match your declared dimensions for correct column alignment. |
+| `score` | number or string | **Yes** | Numeric or label score. Booleans are rejected. |
+| `reasoning` | string | **Yes** | Explanation shown in the turn detail view. |
+| `verdict` | string | No | Per-parameter verdict. When present, the analytics dashboard shows a parameter verdict distribution. |
+
+> `parameter_name` is snake_case. Do **not** use `parameterId` or `parameterName` (camelCase)
+> — those keys are not read by the harness analytics engine.
+
+### Complete example
 
 ```
-event: thinking
-data: {"step": "Checking relevance against the knowledge base..."}
+event: diagnostic
+data: {"stage": "start", "latency_ms": 0}
 
-event: score
-data: {"parameter_name": "relevance", "score": 0.9, "reasoning": "Directly answers the question."}
+event: score_update
+data: {"dimension": "relevance", "score": 0.92, "partial": false}
 
-```
-
-**2 — Exactly one `final` event** (the completed EvaluationResult — same schema as §3):
-
-```
 event: final
-data: {"utteranceId":"a3f1...","evaluationAgentId":"acme-llm-judge","evaluationTimestamp":"2026-06-05T14:32:05Z","evaluationVerdict":"pass","evaluationScores":[{"parameter_name":"relevance","score":0.92,"reasoning":"Directly answers the question."}],"metadata":{}}
+data: {"overallVerdict":"pass","evaluatorId":"acme-llm-judge","parameters":[{"parameter_name":"relevance","score":0.92,"verdict":"pass","reasoning":"Directly answers the question."},{"parameter_name":"groundedness","score":0.85,"verdict":"pass","reasoning":"Matches the knowledge base."}]}
 
 ```
-
-The harness records **all events** — including intermediate ones — in the chat session
-transcript so testers can see your reasoning steps. The `final` event's payload is the
-authoritative result; only it is validated and stored as the EvaluationResult. The harness
-closes the SSE connection after receiving `final`.
 
 ### SSE error stages
 
 | Stage | When it happens |
 |---|---|
-| `evaluator_stream` | Harness could not connect, received HTTP non-2xx, or the stream stalled for longer than `timeoutSeconds` without a new chunk |
+| `evaluator_stream` | Harness could not connect, received HTTP non-2xx, stream closed before `final`, or no new chunk arrived within `timeoutSeconds` |
 
-(Result validation errors — malformed `final` payload, wrong verdict, mismatched `utteranceId`
-— are recorded under the existing `evaluator_result` stage.)
+Validation errors on the `final` payload (wrong verdict value, malformed JSON) are recorded
+under the existing `evaluator_result` stage.
 
 ### Reference SSE evaluator (Python / FastAPI)
 
 ```python
 import json
-from datetime import datetime, timezone
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 
@@ -372,18 +424,17 @@ async def sse_evaluate(contract: dict):
     answer = contract["chatbotResponse"]["normalizedText"]
 
     async def event_stream():
-        # Optional: stream intermediate reasoning
-        yield f"event: thinking\ndata: {json.dumps({'step': 'Evaluating relevance'})}\n\n"
+        # Optional: emit intermediate events
+        yield f"event: diagnostic\ndata: {json.dumps({'stage': 'start'})}\n\n"
 
-        verdict, scores = await run_my_judge(utterance, answer)   # <- your scoring logic
+        verdict, scores = await run_my_judge(utterance, answer)
+        # verdict: "pass" | "fail" | "warn"
+        # scores: [{"parameter_name": "...", "score": 0.9, "verdict": "pass", "reasoning": "..."}, ...]
 
         result = {
-            "utteranceId": contract["utteranceId"],          # echo it back
-            "evaluationAgentId": AGENT_ID,
-            "evaluationTimestamp": datetime.now(timezone.utc).isoformat(),
-            "evaluationVerdict": verdict,                    # "pass" | "fail" | "warn"
-            "evaluationScores": scores,                      # [{parameter_name, score, reasoning}, ...]
-            "metadata": {},
+            "overallVerdict": verdict,   # NOT evaluationVerdict
+            "evaluatorId": AGENT_ID,
+            "parameters": scores,        # uses parameter_name — NOT evaluationScores
         }
         yield f"event: final\ndata: {json.dumps(result)}\n\n"
 
@@ -392,22 +443,35 @@ async def sse_evaluate(contract: dict):
 
 **Registering an SSE evaluator.** In the Evaluator Registry, toggle **Supports live chat** on
 before saving. Only evaluators with this flag appear in the Chat Sessions wizard. All other
-registration fields (auth mode, timeout, dimensions, credentials) work identically to the
-batch mode.
+registration fields (auth mode, timeout, dimensions, credentials) work identically to batch mode.
 
 ---
 
 ## Appendix — field quick reference
 
-**Request → evaluator:** a Standard Evaluation Contract
+**Request → evaluator (both modes):** a Standard Evaluation Contract
 (`utteranceId`, `utteranceText`, `testId`, `chatbotResponse{rawPayload, normalizedText,
 agentChain, metadata}`, `conversationContext`, `connectorId`, `timestamp`,
-`contractVersion`).
+`contractVersion`). SSE mode additionally sends `Accept: text/event-stream`.
 
-**Evaluator → harness (EvaluationResult):**
+**Batch mode — evaluator → harness (EvaluationResult):**
 `utteranceId` (echoed), `evaluationAgentId`, `evaluationTimestamp` (ISO-8601),
 `evaluationVerdict` (`pass`|`fail`|`warn`), `evaluationScores`
-[`{parameter_name, score, reasoning, verdict?}`], `utteranceIntent?` (optional intent label, ≤ 255 chars), `metadata`.
+[`{parameter_name, score, reasoning, verdict?}`], `utteranceIntent?` (optional intent label,
+≤ 255 chars), `metadata`.
 
-**Evaluator error stages:** `evaluator_transport`, `evaluator_response`,
+**SSE mode — `final` event payload:**
+`overallVerdict` (`pass`|`fail`|`warn`), `parameters`
+[`{parameter_name, score, reasoning, verdict?}`], plus optional `evaluatorId`,
+`evaluatorName`, `evaluatorVersion`, `overallScore`. Note: `overallVerdict`/`parameters`
+are **different key names** from the batch-mode `evaluationVerdict`/`evaluationScores`.
+The `parameter_name` key inside each entry is identical in both modes.
+
+**SSE intermediate event types:** `score_update`, `warning`, `insight`, `diagnostic`.
+Unknown types are forwarded and persisted without error.
+
+**Evaluator error stages (batch):** `evaluator_transport`, `evaluator_response`,
 `evaluator_result`, `evaluator_auth`.
+
+**Evaluator error stage (SSE):** `evaluator_stream` (connection failure, non-2xx, stall
+timeout, or stream closed before `final`). Malformed `final` payload → `evaluator_result`.
