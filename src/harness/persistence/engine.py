@@ -131,7 +131,11 @@ def init_db(db_path: Path | str | None = None) -> Engine:
     global _engine
     database_url = os.environ.get("DATABASE_URL")
     if database_url:
-        engine = create_engine(database_url)
+        # pool_pre_ping reconnects silently after firewall/server-side idle timeouts.
+        # pool_size=2 / max_overflow=3 caps each worker at 5 connections; with the
+        # default workers=cpu*2+1 formula, a 2-vCPU host (5 workers) uses 25 connections
+        # — well within Azure Flexible Server B1ms's max_connections=50.
+        engine = create_engine(database_url, pool_pre_ping=True, pool_size=2, max_overflow=3)
     else:
         path = Path(db_path) if db_path is not None else resolve_db_path()
         _ensure_directory(path)

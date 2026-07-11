@@ -93,9 +93,13 @@ def _isolate_harness_paths(tmp_path_factory: pytest.TempPathFactory) -> Iterator
     encryption utility an isolated key file.
     """
     base = tmp_path_factory.mktemp("harness_home")
-    prev = {k: os.environ.get(k) for k in ("HARNESS_DB_PATH", "HARNESS_KEY_FILE")}
+    # DATABASE_URL must also be cleared: if it is set in the caller's environment it
+    # takes precedence over HARNESS_DB_PATH inside init_db(), silently connecting every
+    # test to the external DB and voiding all per-test SQLite isolation.
+    prev = {k: os.environ.get(k) for k in ("HARNESS_DB_PATH", "HARNESS_KEY_FILE", "DATABASE_URL")}
     os.environ["HARNESS_DB_PATH"] = str(base / "data.db")
     os.environ["HARNESS_KEY_FILE"] = str(base / "master.key")
+    os.environ.pop("DATABASE_URL", None)
     yield
     for key, value in prev.items():
         if value is None:
