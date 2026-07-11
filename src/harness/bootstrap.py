@@ -15,6 +15,10 @@ even if a code path calls `initialize_harness()` twice.
 
 from __future__ import annotations
 
+import structlog
+
+log = structlog.get_logger(__name__)
+
 
 def initialize_harness() -> None:
     """One-time harness initialization.
@@ -69,4 +73,8 @@ def initialize_harness() -> None:
     )
 
     with get_session() as _session:
-        ChatSessionRepository(_session).recover_stale_turns()
+        recovered = ChatSessionRepository(_session).recover_stale_turns()
+    if recovered:
+        log.warning("startup.stale_turns_recovered", count=recovered)
+
+    log.info("startup.complete")

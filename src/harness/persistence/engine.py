@@ -19,12 +19,15 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
+import structlog
 from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import NullPool
 
 from harness.persistence.exceptions import HarnessDatabaseTooNewError
+
+log = structlog.get_logger(__name__)
 
 #: Shared session factory. Bound to a concrete engine by ``init_db()``.
 SessionLocal = sessionmaker(expire_on_commit=False)
@@ -108,15 +111,29 @@ def run_migrations(engine: Engine) -> None:
         current = MigrationContext.configure(conn).get_current_revision()
 
     if current == head:
+        log.info("db.migrations.at_head", revision=head)
         return
 
     if current is not None:
         known = {rev.revision for rev in script.walk_revisions()}
         if current not in known:
-            # DB written by a newer harness that knows a revision we don't.
+            log.error("db.migrations.schema_too_new", current_revision=current, known_head=head)
             raise HarnessDatabaseTooNewError()
 
+    # Count pending revisions: walk_revisions() goes head→base; stop at current.
+    pending = 0
+    for rev in script.walk_revisions():
+        if rev.revision == current:
+            break
+        pending += 1
+    log.info(
+        "db.migrations.applying",
+        from_revision=current or "none",
+        to_revision=head,
+        count=pending,
+    )
     command.upgrade(cfg, "head")
+    log.info("db.migrations.done", revision=head, applied=pending)
 
 
 def init_db(db_path: Path | str | None = None) -> Engine:
@@ -136,6 +153,7 @@ def init_db(db_path: Path | str | None = None) -> Engine:
         # default workers=cpu*2+1 formula, a 2-vCPU host (5 workers) uses 25 connections
         # — well within Azure Flexible Server B1ms's max_connections=50.
         engine = create_engine(database_url, pool_pre_ping=True, pool_size=2, max_overflow=3)
+        log.info("db.backend", backend="postgresql", url=engine.url.render_as_string(hide_password=True))
     else:
         path = Path(db_path) if db_path is not None else resolve_db_path()
         _ensure_directory(path)
@@ -151,6 +169,7 @@ def init_db(db_path: Path | str | None = None) -> Engine:
         )
         apply_sqlite_pragmas(engine)
         enable_transactional_ddl(engine)
+        log.info("db.backend", backend="sqlite", path=str(path))
     run_migrations(engine)
     SessionLocal.configure(bind=engine)
     _engine = engine

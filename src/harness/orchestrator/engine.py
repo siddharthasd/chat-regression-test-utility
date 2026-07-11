@@ -158,3 +158,8 @@ def reconcile_orphans() -> None:
             jobs.transition_to_failed(
                 job_id, f"harness restarted while job was {status}"
             )
+            logger.warning("startup.orphan_recovered", extra={"job_id": job_id, "prior_status": status})
+    if orphans:
+        logger.info("startup.orphans_reconciled", extra={"count": len(orphans)})
+    else:
+        logger.info("startup.orphans_reconciled", extra={"count": 0})
