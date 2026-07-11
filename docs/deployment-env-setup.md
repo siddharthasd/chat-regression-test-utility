@@ -1,7 +1,8 @@
 # Deployment Environment Setup
 
 This guide explains every environment variable the harness reads, when each one is
-required, and how to configure a `.env` file for a new deployment.
+required, and how to configure a deployment — including step-by-step instructions for
+deploying to an Azure container backed by Azure Database for PostgreSQL.
 
 ---
 
@@ -10,11 +11,13 @@ required, and how to configure a `.env` file for a new deployment.
 The harness reads all configuration from environment variables. On startup, it
 automatically loads a `.env` file from the project root if one is present.
 Variables already set in the process environment (shell exports, systemd
-`EnvironmentFile`, Docker `--env`, etc.) always take precedence over `.env` values —
-so production deployments that inject secrets directly are unaffected by the file.
+`EnvironmentFile`, Docker `--env`, App Service Application Settings, etc.) always
+take precedence over `.env` values — so production deployments that inject secrets
+directly are unaffected by the file.
 
 **Never commit `.env` to source control.** The repository already lists it in
-`.gitignore`. Keep real secrets (client secrets, session keys) out of version history.
+`.gitignore`. Keep real secrets (client secrets, session keys, database passwords)
+out of version history.
 
 ---
 
@@ -55,15 +58,27 @@ python -c "import secrets; print(secrets.token_hex(32))"
 
 ### Database
 
+The harness supports SQLite (local/dev) and PostgreSQL (cloud/container). The choice
+is made at startup based on which variable is set.
+
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `HARNESS_DB_PATH` | No | `~/.harness/data.db` (Windows: `%USERPROFILE%\.harness\data.db`) | Absolute path to the SQLite database file. Set this when you want the database in a specific location (e.g. a shared drive). |
+| `DATABASE_URL` | No | — | Full SQLAlchemy connection URL. **When set, `HARNESS_DB_PATH` is ignored.** Use this for PostgreSQL on Azure. Format: `postgresql+psycopg2://user:password@host:5432/dbname?sslmode=require` |
+| `HARNESS_DB_PATH` | No | `~/.harness/data.db` | Absolute path to the SQLite database file. Used only when `DATABASE_URL` is not set. Ignored in container deployments backed by PostgreSQL. |
+
+> **Container deployments must use `DATABASE_URL`.**
+> The container filesystem is ephemeral — a SQLite file stored on it is lost on every
+> redeploy. PostgreSQL on a managed Azure service persists across deployments.
 
 ### Encryption
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `HARNESS_KEY_FILE` | No | `%LOCALAPPDATA%\harness\master.key` (Windows) / `~/.harness/master.key` (Linux/Mac) | Path to the master encryption key file used to protect connector and evaluator credentials at rest. The file is created automatically on first run if it does not exist. |
+| `HARNESS_KEY_FILE` | No | `%LOCALAPPDATA%\harness\master.key` (Windows) / `~/.harness/master.key` (Linux/Mac) | Path to the master encryption key used to protect connector and evaluator credentials at rest. The file is created automatically on first run if it does not exist. |
+
+> **Container deployments must mount this file on persistent storage** (e.g., an Azure
+> Files share). If the key file is lost, all stored connector and evaluator credentials
+> become unreadable.
 
 ### File upload
 
@@ -80,148 +95,383 @@ python -c "import secrets; print(secrets.token_hex(32))"
 
 ---
 
-## 3. Sample `.env` file
+## 3. Sample `.env` files
 
-Copy this template to `.env` at the project root and fill in your values.
+### Local development (SQLite, no SSO)
 
 ```dotenv
-# =============================================================================
-# EvalBrew — environment configuration
-#
-# Copy this file to .env and fill in the values for your environment.
-# Lines starting with # are comments and are ignored.
-# Variables already set in the process environment take precedence over this
-# file, so CI/container deployments that inject secrets directly are unaffected.
-# =============================================================================
+HARNESS_AUTH_ENABLED=false
 
+# SQLite — default path is used; no DATABASE_URL needed.
+# Uncomment to override the location:
+# HARNESS_DB_PATH=C:\Users\you\.harness\data.db
+```
 
-# -----------------------------------------------------------------------------
-# Authentication mode
-# Set to "false" for local development (no login page, all routes accessible).
-# Set to "true" (or remove this line) for a shared server deployment with SSO.
-# -----------------------------------------------------------------------------
+### Azure container deployment (PostgreSQL, SSO enabled)
+
+```dotenv
+# Authentication
 HARNESS_AUTH_ENABLED=true
-
-
-# -----------------------------------------------------------------------------
-# Azure AD app registration
-# Required when HARNESS_AUTH_ENABLED=true. Obtain these from the Azure portal
-# (App registrations → your harness app → Overview / Certificates & secrets).
-# -----------------------------------------------------------------------------
 HARNESS_AZURE_TENANT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 HARNESS_AZURE_CLIENT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 HARNESS_AZURE_CLIENT_SECRET=your-client-secret-value-here
+HARNESS_REDIRECT_URI=https://your-app.azurewebsites.net/auth/callback
 
-# Full callback URL registered in Azure AD.
-# For local dev: http://localhost:5000/auth/callback
-# For a shared server: https://your-server.accenture.com/auth/callback
-HARNESS_REDIRECT_URI=https://your-server.accenture.com/auth/callback
+# Session signing key (generate with: python -c "import secrets; print(secrets.token_hex(32))")
+HARNESS_SESSION_SECRET=replace-with-a-random-64-char-hex-string
 
+# PostgreSQL on Azure (set in App Service Application Settings, not in a .env file)
+DATABASE_URL=postgresql+psycopg2://harness_user:PASSWORD@your-server.postgres.database.azure.com:5432/evalbrew?sslmode=require
 
-# -----------------------------------------------------------------------------
-# Session signing key
-# Required when HARNESS_AUTH_ENABLED=true. Must be at least 32 characters.
-# Generate a strong key with:
-#   python -c "import secrets; print(secrets.token_hex(32))"
-# Keep this secret — anyone who knows it can forge session cookies.
-# -----------------------------------------------------------------------------
-HARNESS_SESSION_SECRET=replace-with-output-of-the-command-above
+# Encryption key — must point to a path on a mounted Azure Files share
+HARNESS_KEY_FILE=/mnt/harness-data/master.key
+```
 
+> Do not commit the Azure `.env` to source control. In App Service, set these as
+> Application Settings rather than deploying a `.env` file.
 
-# -----------------------------------------------------------------------------
-# Database
-# Path to the SQLite database file.
-# Default (if unset): ~/.harness/data.db  (Windows: %USERPROFILE%\.harness\data.db)
-# Uncomment and set if you want the database in a specific location.
-# -----------------------------------------------------------------------------
-# HARNESS_DB_PATH=C:\harness-data\data.db
+---
 
+## 4. Azure Container Deployment
 
-# -----------------------------------------------------------------------------
-# Encryption key file
-# Path to the master encryption key used to protect connector/evaluator
-# credentials at rest.
-# Default (if unset): %LOCALAPPDATA%\harness\master.key  (Windows)
-#                     ~/.harness/master.key               (Linux/Mac)
-# Uncomment and set if you want the key file in a specific location.
-# -----------------------------------------------------------------------------
-# HARNESS_KEY_FILE=C:\harness-data\master.key
+This section walks through deploying EvalBrew to **Azure App Service (Web App for
+Containers)** backed by **Azure Database for PostgreSQL — Flexible Server**.
 
+### Prerequisites
 
-# -----------------------------------------------------------------------------
-# File upload limit
-# Maximum size in bytes for CSV uploads. Default: 52428800 (50 MiB).
-# Uncomment to override.
-# -----------------------------------------------------------------------------
-# HARNESS_MAX_UPLOAD_BYTES=52428800
+- Azure CLI installed and logged in (`az login`)
+- Docker Desktop installed and running
+- An Azure subscription with permission to create resources
 
+Set shell variables used throughout the steps below (adjust values for your environment):
 
-# -----------------------------------------------------------------------------
-# Mock connector / evaluator behaviour (development and testing only)
-# Leave these commented out in production.
-# -----------------------------------------------------------------------------
-# HARNESS_MOCK_MODE=ok
-# HARNESS_MOCK_DIMENSIONS=
+```bash
+RG=rg-evalbrew-prod
+LOCATION=australiaeast
+ACR_NAME=acrevalbrew
+APP_NAME=evalbrew
+APP_PLAN=asp-evalbrew
+PG_SERVER=pg-evalbrew
+PG_DB=evalbrew
+PG_ADMIN=harness_admin
+PG_PASSWORD="<choose-a-strong-password>"
+STORAGE_ACCOUNT=stevalbrew
+FILE_SHARE=harness-data
 ```
 
 ---
 
-## 4. Deployment checklist
+### Step 1 — Create the resource group
 
-Work through this list when setting up a new server deployment.
+```bash
+az group create --name $RG --location $LOCATION
+```
 
-**Azure AD (one-time, done by IT / Azure admin)**
+---
+
+### Step 2 — Create Azure Container Registry
+
+```bash
+az acr create \
+  --resource-group $RG \
+  --name $ACR_NAME \
+  --sku Basic \
+  --admin-enabled true
+```
+
+Note the login server (it will be `<ACR_NAME>.azurecr.io`):
+
+```bash
+ACR_SERVER=$(az acr show --name $ACR_NAME --query loginServer -o tsv)
+```
+
+---
+
+### Step 3 — Build and push the Docker image
+
+```bash
+# Log in to ACR
+az acr login --name $ACR_NAME
+
+# Build and tag
+docker build -t $ACR_SERVER/evalbrew:latest .
+
+# Push
+docker push $ACR_SERVER/evalbrew:latest
+```
+
+To rebuild and redeploy after code changes, repeat this step then restart the App
+Service (Step 7).
+
+---
+
+### Step 4 — Create Azure Database for PostgreSQL — Flexible Server
+
+```bash
+az postgres flexible-server create \
+  --resource-group $RG \
+  --name $PG_SERVER \
+  --location $LOCATION \
+  --admin-user $PG_ADMIN \
+  --admin-password $PG_PASSWORD \
+  --sku-name Standard_B1ms \
+  --tier Burstable \
+  --storage-size 32 \
+  --version 16 \
+  --public-access 0.0.0.0
+```
+
+> `--public-access 0.0.0.0` creates a firewall rule that allows all Azure-internal IPs
+> (including App Service). Restrict this further in production using VNet integration.
+
+Create the database:
+
+```bash
+az postgres flexible-server db create \
+  --resource-group $RG \
+  --server-name $PG_SERVER \
+  --database-name $PG_DB
+```
+
+Note the fully qualified hostname:
+
+```bash
+PG_HOST="${PG_SERVER}.postgres.database.azure.com"
+```
+
+Compose the connection URL:
+
+```bash
+DATABASE_URL="postgresql+psycopg2://${PG_ADMIN}:${PG_PASSWORD}@${PG_HOST}:5432/${PG_DB}?sslmode=require"
+```
+
+---
+
+### Step 5 — Create an Azure Files share for the encryption key
+
+The master encryption key must survive container restarts and redeployments. Mount it
+on an Azure Files share.
+
+```bash
+# Create storage account
+az storage account create \
+  --resource-group $RG \
+  --name $STORAGE_ACCOUNT \
+  --sku Standard_LRS \
+  --kind StorageV2
+
+# Create the file share
+STORAGE_KEY=$(az storage account keys list \
+  --resource-group $RG \
+  --account-name $STORAGE_ACCOUNT \
+  --query "[0].value" -o tsv)
+
+az storage share create \
+  --account-name $STORAGE_ACCOUNT \
+  --account-key $STORAGE_KEY \
+  --name $FILE_SHARE
+```
+
+---
+
+### Step 6 — Create App Service and deploy the container
+
+```bash
+# App Service Plan (Linux)
+az appservice plan create \
+  --resource-group $RG \
+  --name $APP_PLAN \
+  --is-linux \
+  --sku B2
+
+# Web App for Containers
+ACR_PASSWORD=$(az acr credential show --name $ACR_NAME --query passwords[0].value -o tsv)
+
+az webapp create \
+  --resource-group $RG \
+  --plan $APP_PLAN \
+  --name $APP_NAME \
+  --deployment-container-image-name $ACR_SERVER/evalbrew:latest \
+  --docker-registry-server-url https://$ACR_SERVER \
+  --docker-registry-server-user $ACR_NAME \
+  --docker-registry-server-password $ACR_PASSWORD
+```
+
+Mount the Azure Files share at `/mnt/harness-data` inside the container:
+
+```bash
+az webapp config storage-account add \
+  --resource-group $RG \
+  --name $APP_NAME \
+  --custom-id harness-data \
+  --storage-type AzureFiles \
+  --account-name $STORAGE_ACCOUNT \
+  --share-name $FILE_SHARE \
+  --access-key $STORAGE_KEY \
+  --mount-path /mnt/harness-data
+```
+
+---
+
+### Step 7 — Set Application Settings (environment variables)
+
+These replace the `.env` file in production. App Service injects them directly into the
+container's environment.
+
+```bash
+az webapp config appsettings set \
+  --resource-group $RG \
+  --name $APP_NAME \
+  --settings \
+    DATABASE_URL="$DATABASE_URL" \
+    HARNESS_KEY_FILE="/mnt/harness-data/master.key" \
+    HARNESS_AUTH_ENABLED="true" \
+    HARNESS_AZURE_TENANT_ID="<your-tenant-id>" \
+    HARNESS_AZURE_CLIENT_ID="<your-client-id>" \
+    HARNESS_AZURE_CLIENT_SECRET="<your-client-secret>" \
+    HARNESS_REDIRECT_URI="https://${APP_NAME}.azurewebsites.net/auth/callback" \
+    HARNESS_SESSION_SECRET="<generate-with-python-secrets-token-hex-32>" \
+    WEBSITES_PORT="8000"
+```
+
+> `WEBSITES_PORT=8000` tells App Service which port the container listens on (Gunicorn
+> binds to `0.0.0.0:8000` by default).
+
+---
+
+### Step 8 — First-run: migrations and admin user
+
+Alembic migrations run automatically when the harness starts. Verify in the App Service
+log stream:
+
+```bash
+az webapp log tail --resource-group $RG --name $APP_NAME
+```
+
+Look for lines like:
+```
+Running migrations...
+INFO  [alembic.runtime.migration] Running upgrade -> 0001, initial schema
+...
+INFO  [alembic.runtime.migration] Running upgrade 0005 -> 0006, add utterance intent
+```
+
+Then register the first admin user via the App Service console or SSH:
+
+```bash
+az webapp ssh --resource-group $RG --name $APP_NAME
+# inside the container:
+harness users add --email you@accenture.com --role admin
+```
+
+---
+
+### Step 9 — Verify
+
+1. Open `https://<APP_NAME>.azurewebsites.net` in a browser.
+2. You should be redirected to the Azure AD login page.
+3. After login, confirm you land on the dashboard with an **Admin** role badge.
+4. Navigate to **Admin → Job Maintenance** to confirm admin features are accessible.
+
+---
+
+### Redeploying after code changes
+
+```bash
+docker build -t $ACR_SERVER/evalbrew:latest .
+docker push $ACR_SERVER/evalbrew:latest
+az webapp restart --resource-group $RG --name $APP_NAME
+```
+
+The harness will automatically run any new Alembic migrations on startup. No manual
+database intervention is needed.
+
+---
+
+## 5. Deployment checklist
+
+### Azure AD (one-time, done by IT / Azure admin)
 
 - [ ] Create an app registration in your Azure AD tenant.
-- [ ] Add a redirect URI: `https://your-server/auth/callback` (Web platform, not SPA).
+- [ ] Add a redirect URI: `https://<APP_NAME>.azurewebsites.net/auth/callback` (Web platform, not SPA).
 - [ ] Generate a client secret (Certificates & secrets → New client secret). Note the **value** — it is only shown once.
 - [ ] Grant the `openid`, `profile`, and `email` API permissions (Microsoft Graph → Delegated).
 - [ ] Note your Tenant ID and Client ID from the app registration Overview.
 
-**Server host**
+### Azure resources
 
-- [ ] Copy the `.env` template above to the project root as `.env`.
-- [ ] Set `HARNESS_AUTH_ENABLED=true`.
-- [ ] Fill in `HARNESS_AZURE_TENANT_ID`, `HARNESS_AZURE_CLIENT_ID`, `HARNESS_AZURE_CLIENT_SECRET`.
-- [ ] Set `HARNESS_REDIRECT_URI` to the exact URL registered in Azure AD.
-- [ ] Generate and set `HARNESS_SESSION_SECRET` (minimum 32 characters).
-- [ ] Optionally set `HARNESS_DB_PATH` and `HARNESS_KEY_FILE` to non-default locations.
-- [ ] Verify `.env` is **not** committed to git (`git status` should not show it).
-- [ ] Restrict file permissions: `chmod 600 .env` (Linux/Mac) or remove non-owner read access (Windows).
+- [ ] Resource group created.
+- [ ] Azure Container Registry created and image pushed.
+- [ ] Azure Database for PostgreSQL — Flexible Server created.
+- [ ] `evalbrew` database created on the server.
+- [ ] Firewall rule allows App Service egress (or VNet integration configured).
+- [ ] Azure Storage Account and Files share created for the encryption key.
 
-**First run**
+### App Service configuration
 
-- [ ] Start the server once to apply database migrations: `harness serve`.
-- [ ] Pre-register the first admin via CLI: `harness users add --email you@accenture.com --role admin`.
-- [ ] Navigate to the harness URL, log in with your Azure AD account, and confirm you land on the dashboard with an admin role badge.
+- [ ] Web App for Containers created and pointing to the ACR image.
+- [ ] Azure Files share mounted at `/mnt/harness-data`.
+- [ ] `DATABASE_URL` set in Application Settings (PostgreSQL connection string with `sslmode=require`).
+- [ ] `HARNESS_KEY_FILE` set to `/mnt/harness-data/master.key`.
+- [ ] `HARNESS_AUTH_ENABLED=true`.
+- [ ] `HARNESS_AZURE_TENANT_ID`, `HARNESS_AZURE_CLIENT_ID`, `HARNESS_AZURE_CLIENT_SECRET` set.
+- [ ] `HARNESS_REDIRECT_URI` matches the redirect URI registered in Azure AD exactly.
+- [ ] `HARNESS_SESSION_SECRET` set (minimum 32 characters, random).
+- [ ] `WEBSITES_PORT=8000` set.
+
+### First run
+
+- [ ] App Service started; log stream shows migrations completing without errors.
+- [ ] First admin user registered: `harness users add --email you@accenture.com --role admin`.
+- [ ] Login verified end-to-end in a browser.
 
 ---
 
-## 5. Rotating secrets
+## 6. Rotating secrets
 
-**Client secret expired or compromised**
+### Client secret expired or compromised
 
 1. Create a new client secret in the Azure portal (Certificates & secrets → New client secret).
-2. Update `AZURE_CLIENT_SECRET` in `.env` (or your secret manager).
-3. Restart the harness process to pick up the new value.
+2. Update `HARNESS_AZURE_CLIENT_SECRET` in App Service Application Settings.
+3. Restart the App Service to pick up the new value.
 4. Delete the old secret from the Azure portal.
 
-**Session key rotation**
+### Session key rotation
 
-Rotating `HARNESS_SECRET_KEY` invalidates all active sessions — every logged-in user will be redirected to the login page on their next request.
+Rotating `HARNESS_SESSION_SECRET` invalidates all active sessions — every logged-in
+user will be redirected to the login page on their next request.
 
 1. Generate a new key: `python -c "import secrets; print(secrets.token_hex(32))"`
-2. Update `HARNESS_SECRET_KEY` in `.env`.
-3. Restart the harness process.
+2. Update `HARNESS_SESSION_SECRET` in App Service Application Settings.
+3. Restart the App Service.
+
+### PostgreSQL password rotation
+
+1. Update the password in Azure Portal (PostgreSQL server → Settings → Server parameters, or via CLI).
+2. Update `DATABASE_URL` in App Service Application Settings with the new password.
+3. Restart the App Service.
 
 ---
 
-## 6. Local development (no SSO)
+## 7. Local development (no SSO)
 
 Set `HARNESS_AUTH_ENABLED=false`. All other auth variables are ignored. A synthetic
 admin identity is used, so all routes and admin features are accessible without a login
 page.
 
-The included `.env` ships with `HARNESS_AUTH_ENABLED=false` for this reason — it works
-out of the box for local use. Change it to `true` only when deploying to a shared
-server.
+For the database, two options:
+
+**SQLite (default — no setup needed)**
+
+Leave `DATABASE_URL` unset. The harness creates `~/.harness/data.db` automatically.
+
+**PostgreSQL (local install)**
+
+Install PostgreSQL locally, create a database, then set:
+
+```bash
+DATABASE_URL=postgresql+psycopg2://postgres:YOUR_PASSWORD@localhost:5432/evalbrew
+```
+
+Alembic migrations run automatically on first start regardless of which database is
+used.
