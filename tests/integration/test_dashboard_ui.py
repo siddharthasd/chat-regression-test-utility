@@ -37,7 +37,7 @@ def _seed(
         return job.job_id
 
 
-def _html(client, path="/"):
+def _html(client, path="/jobs"):
     return client.get(path).text
 
 
@@ -87,7 +87,7 @@ def test_row_links_to_detail(client) -> None:
 def test_status_filter(client) -> None:
     _seed(status=JobStatus.RUNNING, name="RunOnly")
     _seed(status=JobStatus.COMPLETED, name="DoneOnly")
-    body = _html(client, "/?status=running")
+    body = _html(client, "/jobs?status=running")
     assert "RunOnly" in body and "DoneOnly" not in body
 
 
@@ -96,7 +96,7 @@ def test_connector_filter_and_search_combine(client) -> None:
     _seed(name="Beta", connector="ConnB")
     _seed(name="AlphaTwo", connector="ConnA")
     # connector=ConnA AND name search "Two"
-    body = _html(client, "/?connector=ConnA&q=Two")
+    body = _html(client, "/jobs?connector=ConnA&q=Two")
     assert "AlphaTwo" in body
     assert "Beta" not in body
     assert ">Alpha<" not in body  # 'Alpha' (ConnA but no 'Two') filtered out
@@ -105,20 +105,20 @@ def test_connector_filter_and_search_combine(client) -> None:
 def test_created_by_filter(client) -> None:
     _seed(name="ByAlice", created_by="alice")
     _seed(name="ByBob", created_by="bob")
-    body = _html(client, "/?created_by=bob")
+    body = _html(client, "/jobs?created_by=bob")
     assert "ByBob" in body and "ByAlice" not in body
 
 
 def test_sort_by_name_ascending(client) -> None:
     _seed(name="Zeta")
     _seed(name="Alpha")
-    body = _html(client, "/?sort=job_name&dir=asc")
+    body = _html(client, "/jobs?sort=job_name&dir=asc")
     assert body.index("Alpha") < body.index("Zeta")
 
 
 def test_no_matches_state_distinct_from_empty(client) -> None:
     _seed(status=JobStatus.RUNNING, name="OnlyRunning")
-    body = _html(client, "/?status=completed")
+    body = _html(client, "/jobs?status=completed")
     assert "No jobs match the current filters" in body
     assert "No jobs yet" not in body
 

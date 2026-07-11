@@ -16,6 +16,8 @@ from __future__ import annotations
 import logging
 import threading
 
+import structlog
+
 from harness import password_store
 from harness.orchestrator.pipeline import process_row
 from harness.persistence import get_session
@@ -28,6 +30,7 @@ from harness.persistence.repositories import (
 )
 
 logger = logging.getLogger("harness.orchestrator")
+log = structlog.get_logger(__name__)  # structured events (startup logs)
 
 #: Plan-level cap on concurrently-running jobs (parent: tuning concern). Excess
 #: enqueue_job callers block on the semaphore until a slot frees.
@@ -158,8 +161,5 @@ def reconcile_orphans() -> None:
             jobs.transition_to_failed(
                 job_id, f"harness restarted while job was {status}"
             )
-            logger.warning("startup.orphan_recovered", extra={"job_id": job_id, "prior_status": status})
-    if orphans:
-        logger.info("startup.orphans_reconciled", extra={"count": len(orphans)})
-    else:
-        logger.info("startup.orphans_reconciled", extra={"count": 0})
+            log.warning("startup.orphan_recovered", job_id=job_id, prior_status=str(status))
+    log.info("startup.orphans_reconciled", count=len(orphans))

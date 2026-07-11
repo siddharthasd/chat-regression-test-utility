@@ -18,6 +18,14 @@ def harness_group() -> None:
 
     Run `harness <subcommand>`. See `harness --help` for the subcommand list.
     """
+    # Wire harness.* log lines to stderr before initialize_harness() fires, so
+    # startup log lines (db.backend, db.migrations.*, startup.complete) are
+    # visible. Lazy import avoids a circular reference at module-load time; by
+    # call time all CLI submodules are fully imported. (harness.cli.serve imports
+    # harness.cli, but that module is already cached in sys.modules here.)
+    from harness.cli.serve import _configure_harness_logging  # noqa: PLC0415
+    _configure_harness_logging()
+
     # Initialize the harness for every CLI invocation. Each CLI invocation is a
     # separate process, so `IdentityContext._initialize_once()` fires exactly
     # once per process across both the CLI and UI surfaces (per

@@ -148,7 +148,7 @@ def _detail_results_section(run) -> str:
     which legitimately shows a 'Per-row password' config-flag label)."""
     html = run.client.get(f"/jobs/{run.job_id}/detail").text
     # Split at the results card header — everything after it is the utterance table.
-    marker = "Utterance Results"
+    marker = "Result Explorer"
     assert marker in html, f"Could not find '{marker}' landmark in detail page HTML"
     return html.split(marker, 1)[1]
 
