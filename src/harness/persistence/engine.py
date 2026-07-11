@@ -1,9 +1,15 @@
-"""Engine creation, SQLite PRAGMA tuning, session factory, and startup migration.
+"""Engine creation, session factory, and startup migration.
 
-``init_db()`` is the bootstrap entry point: it resolves the DB path, ensures the
-parent directory, builds a PRAGMA-tuned engine, runs pending Alembic migrations
-(or refuses to start if the DB is newer than the harness), and binds the shared
-``SessionLocal`` factory. See research R2/R3/R6.
+``init_db()`` is the bootstrap entry point: it builds a database engine, runs
+pending Alembic migrations (or refuses to start if the DB is newer than the
+harness), and binds the shared ``SessionLocal`` factory.
+
+Database selection (12-factor config):
+- ``DATABASE_URL`` set → use it as the SQLAlchemy URL (PostgreSQL for cloud).
+- ``DATABASE_URL`` unset → SQLite at ``HARNESS_DB_PATH`` (or ``~/.harness/data.db``).
+
+SQLite-specific tuning (PRAGMAs, transactional DDL, NullPool) is only applied
+when running SQLite. See research R2/R3/R6.
 """
 
 from __future__ import annotations
@@ -118,22 +124,29 @@ def init_db(db_path: Path | str | None = None) -> Engine:
 
     Returns the bound engine. Raises ``HarnessDatabaseTooNewError`` if the
     on-disk schema is newer than this harness (FR-016).
+
+    When ``DATABASE_URL`` is set in the environment it is used as-is and
+    ``db_path`` is ignored. When absent the existing SQLite path logic applies.
     """
     global _engine
-    path = Path(db_path) if db_path is not None else resolve_db_path()
-    _ensure_directory(path)
-    # check_same_thread=False lets the orchestrator's per-job worker threads (012)
-    # open sessions off any thread; NullPool gives each session its OWN connection
-    # so two overlapping workers never share a single SQLite connection (which is
-    # unsafe even with check_same_thread=False). WAL + busy_timeout serialize the
-    # short per-row writes safely in the single-process harness (012 research R2).
-    engine = create_engine(
-        f"sqlite:///{path}",
-        connect_args={"check_same_thread": False},
-        poolclass=NullPool,
-    )
-    apply_sqlite_pragmas(engine)
-    enable_transactional_ddl(engine)
+    database_url = os.environ.get("DATABASE_URL")
+    if database_url:
+        engine = create_engine(database_url)
+    else:
+        path = Path(db_path) if db_path is not None else resolve_db_path()
+        _ensure_directory(path)
+        # check_same_thread=False lets the orchestrator's per-job worker threads (012)
+        # open sessions off any thread; NullPool gives each session its OWN connection
+        # so two overlapping workers never share a single SQLite connection (which is
+        # unsafe even with check_same_thread=False). WAL + busy_timeout serialize the
+        # short per-row writes safely in the single-process harness (012 research R2).
+        engine = create_engine(
+            f"sqlite:///{path}",
+            connect_args={"check_same_thread": False},
+            poolclass=NullPool,
+        )
+        apply_sqlite_pragmas(engine)
+        enable_transactional_ddl(engine)
     run_migrations(engine)
     SessionLocal.configure(bind=engine)
     _engine = engine

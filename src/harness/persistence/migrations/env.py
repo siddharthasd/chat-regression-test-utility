@@ -3,7 +3,8 @@
 ``target_metadata`` is ``Base.metadata`` (with all models imported) for
 ``--autogenerate`` support. When ``init_db()`` runs migrations at startup it
 injects the live engine via ``config.attributes['connection']`` (research R3).
-SQLite ALTERs run in batch mode so later migrations can alter columns.
+``render_as_batch`` is enabled only for SQLite (which lacks native ALTER TABLE);
+PostgreSQL handles DDL natively so batch mode is skipped.
 """
 
 from __future__ import annotations
@@ -22,11 +23,12 @@ target_metadata = Base.metadata
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode (emit SQL to a script)."""
     url = config.get_main_option("sqlalchemy.url")
+    is_sqlite = url.startswith("sqlite")
     context.configure(
         url=url,
         target_metadata=target_metadata,
         literal_binds=True,
-        render_as_batch=True,
+        render_as_batch=is_sqlite,
         dialect_opts={"paramstyle": "named"},
     )
     with context.begin_transaction():
@@ -44,10 +46,11 @@ def run_migrations_online() -> None:
         )
 
     with connectable.connect() as connection:
+        is_sqlite = connection.dialect.name == "sqlite"
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
-            render_as_batch=True,
+            render_as_batch=is_sqlite,
         )
         with context.begin_transaction():
             context.run_migrations()
