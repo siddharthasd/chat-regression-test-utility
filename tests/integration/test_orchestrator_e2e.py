@@ -7,6 +7,7 @@ Each test gets an isolated DB (per-test init_db) + a fresh password store.
 
 from __future__ import annotations
 
+import sys
 import threading
 import time
 from contextlib import contextmanager
@@ -181,6 +182,7 @@ def test_reconcile_orphans(db) -> None:
 
 
 # --------------------------------------------------------------------------- US5
+@pytest.mark.skipif(sys.platform == "win32", reason="SQLite WAL file-locking is unreliable under concurrent writers on Windows")
 def test_two_jobs_concurrent_independent(db) -> None:
     # Drive two run_job workers truly concurrently and join them deterministically
     # (no wall-clock deadline). Servers stay up until both threads finish.

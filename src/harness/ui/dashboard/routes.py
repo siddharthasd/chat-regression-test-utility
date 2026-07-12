@@ -1,8 +1,8 @@
 """Dashboard & Job Listing routes (002). The harness root page + cleanup actions.
 
-Read-only triage surface (drill-in to 004, Create-New-Job to 003) plus the
-failed/cancelled cleanup affordances. Near-real-time row updates are served by
-`/dashboard/jobs.json` and a thin inline poller in the template.
+The root `/` renders an overview dashboard (jobs + sessions + KPI stats).
+The full sortable jobs table lives at `/jobs` (name: `job_list`).
+Near-real-time row updates for the jobs table are served by `/dashboard/jobs.json`.
 """
 
 from __future__ import annotations
@@ -16,6 +16,7 @@ from harness.auth.middleware import require_auth
 from harness.persistence import get_session
 from harness.persistence.enums import JobStatus
 from harness.persistence.repositories import JobRepository
+from harness.persistence.repositories.chat_session_repository import ChatSessionRepository
 from harness.ui._context import ctx
 from harness.ui._templates import templates
 from harness.ui.dashboard import view
@@ -35,8 +36,56 @@ def _list_jobs(session, user: dict):
     return repo.list_all()
 
 
+def _list_sessions(session, user: dict):
+    repo = ChatSessionRepository(session)
+    if user and user.get("role") == "admin":
+        return repo.list_all_sessions()
+    oid = user.get("oid") if user else None
+    if oid:
+        return repo.list_sessions_for_owner(oid)
+    return repo.list_all_sessions()
+
+
 @router.get("/")
-def index(
+def index(request: Request, user: dict = Depends(require_auth)):
+    """Overview dashboard: KPI strip + unified recent activity feed."""
+    is_admin = user.get("role") == "admin" if user else True
+    now = datetime.now(UTC)
+    with get_session() as db:
+        jobs = _list_jobs(db, user)
+        sessions = _list_sessions(db, user)
+        session_ids = [s.chat_session_id for s in sessions]
+        turn_counts = ChatSessionRepository(db).get_turn_counts(session_ids)
+
+    total_jobs = len(jobs)
+    total_sessions = len(sessions)
+    total_utterances = sum(j.processed_count or 0 for j in jobs)
+    total_turns = sum(turn_counts.values())
+
+    job_rows = [view.job_activity_view(j, now) for j in jobs]
+    session_rows = [
+        view.session_activity_view(s, turn_counts.get(s.chat_session_id, 0), now)
+        for s in sessions
+    ]
+    activity = sorted(job_rows + session_rows, key=lambda r: r["activity_at"], reverse=True)[:15]
+
+    return templates.TemplateResponse(
+        request,
+        "dashboard/overview.html",
+        {
+            "activity": activity,
+            "total_jobs": total_jobs,
+            "total_sessions": total_sessions,
+            "total_utterances": total_utterances,
+            "total_turns": total_turns,
+            "is_admin": is_admin,
+            **ctx(request),
+        },
+    )
+
+
+@router.get("/jobs", name="job_list")
+def job_list(
     request: Request,
     status: list[str] = Query([]),
     connector: list[str] = Query([]),
@@ -46,6 +95,7 @@ def index(
     dir: str = Query("desc"),
     user: dict = Depends(require_auth),
 ):
+    """Full sortable/filterable job sessions table."""
     is_admin = user.get("role") == "admin" if user else True
     now = datetime.now(UTC)
     with get_session() as session:
@@ -132,14 +182,14 @@ def delete_job(
                     "sort": "created_at",
                     "dir": "desc",
                     "terminal_clearable": sum(1 for r in all_rows if r["deletable"]),
-                    "error": f"Job is '{job.status}' and cannot be deleted from the dashboard.",
+                    "error": f"Job is '{job.status}' and cannot be deleted.",
                     "is_admin": is_admin,
                     **ctx(request),
                 },
                 status_code=409,
             )
         repo.delete(job_id)
-    return RedirectResponse(request.url_for("index"), status_code=303)
+    return RedirectResponse(request.url_for("job_list"), status_code=303)
 
 
 @router.post("/dashboard/clear-terminal")
@@ -147,7 +197,7 @@ def clear_terminal(request: Request, user: dict = Depends(require_auth)):
     """Delete every failed, cancelled, and completed-with-errors job atomically (FR-010c)."""
     with get_session() as session:
         JobRepository(session).delete_all_clearable()
-    return RedirectResponse(request.url_for("index"), status_code=303)
+    return RedirectResponse(request.url_for("job_list"), status_code=303)
 
 
 @router.post("/dashboard/clear-all", name="clear_all")
@@ -161,4 +211,4 @@ def clear_all(request: Request, user: dict = Depends(require_auth)):
             repo.delete_all_terminal()
         else:
             repo.delete_all_terminal_by_owner(oid)
-    return RedirectResponse(request.url_for("index"), status_code=303)
+    return RedirectResponse(request.url_for("job_list"), status_code=303)

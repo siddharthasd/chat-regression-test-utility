@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Release Notes{% endblock %}
+
+{% block content %}
+
+<div class="page-section-hdr mb-4">
+  <div>
+    <h1 class="section-title">Release Notes</h1>
+    <p class="section-subtitle">What's new in each version of EvalBrew</p>
+  </div>
+</div>
+
+{% for r in releases %}
+<div class="harness-card mb-3">
+  <!-- Card header -->
+  <div class="d-flex align-items-center gap-3 px-4 pt-4 pb-3" style="border-bottom:1px solid var(--color-border)">
+    <span class="badge fs-6 fw-bold px-3 py-2" style="{{ r.badge_style }}">v{{ r.version }}</span>
+    <div>
+      <div class="fw-bold" style="font-size:1.05rem">{{ r.title }}</div>
+      <div class="text-muted small">{{ r.date }}</div>
+    </div>
+  </div>
+
+  <!-- Card body -->
+  <div class="px-4 py-3">
+    <p class="text-muted mb-3" style="font-size:.9rem">{{ r.summary }}</p>
+
+    {% for section in r.sections %}
+    <div class="mb-3">
+      <div class="fw-semibold mb-2" style="font-size:.8rem; text-transform:uppercase; letter-spacing:.05em; color:var(--color-muted)">
+        {{ section.title }}
+      </div>
+      <ul class="mb-0" style="font-size:.875rem; padding-left:1.25rem">
+        {% for item in section.bullets %}
+        <li class="mb-1">{{ item }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endfor %}
+
+{% endblock %}

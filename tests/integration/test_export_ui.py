@@ -112,8 +112,8 @@ def test_download_zip(client) -> None:
 def test_control_present_on_detail_page(client) -> None:
     job_id = _seed(rows=[{"text": "hi", "test_id": "t1", "result": _ok_result()}])
     body = client.get(f"/jobs/{job_id}/detail").text
-    assert "Download Results" in body
-    assert f"/jobs/{job_id}/export" in body
+    assert "Download CSV" in body
+    assert f"/jobs/{job_id}/download-results.csv" in body
 
 
 def test_no_secret_in_export(client) -> None:

@@ -41,7 +41,7 @@
 
 <!-- Filters -->
 <div class="harness-card mb-3 p-3">
-  <form method="get" action="{{ url_for('index') }}" class="row g-2 align-items-end">
+  <form method="get" action="{{ url_for('job_list') }}" class="row g-2 align-items-end">
     <div class="col-12 col-md-4">
       <input type="search" class="form-control form-control-sm" name="q" value="{{ q }}" placeholder="Search job name…">
     </div>
@@ -59,14 +59,14 @@
     </div>
     <div class="col-12 col-md-4 d-flex gap-2">
       <button type="submit" class="btn btn-sm btn-secondary">Apply</button>
-      <a href="{{ url_for('index') }}" class="btn btn-sm btn-outline-secondary">Clear</a>
+      <a href="{{ url_for('job_list') }}" class="btn btn-sm btn-outline-secondary">Clear</a>
     </div>
   </form>
 </div>
 
 {% macro sortlink(col, label) %}
   {% set next_dir = 'desc' if (sort == col and dir == 'asc') else 'asc' %}
-  <a class="sort-link" href="{{ url_for('index', sort=col, dir=next_dir, q=q,
+  <a class="sort-link" href="{{ url_for('job_list', sort=col, dir=next_dir, q=q,
       status=selected.status, created_by=selected.created_by) }}">
     {{ label }}{% if sort == col %}&nbsp;{{ '▲' if dir == 'asc' else '▼' }}{% endif %}</a>
 {% endmacro %}
@@ -74,7 +74,7 @@
 {% if not rows %}
 <div class="harness-card text-center py-4">
   <p class="text-muted mb-2">No jobs match the current filters.</p>
-  <a href="{{ url_for('index') }}" class="btn btn-sm btn-outline-secondary mx-auto" style="width:fit-content">Clear filters</a>
+  <a href="{{ url_for('job_list') }}" class="btn btn-sm btn-outline-secondary mx-auto" style="width:fit-content">Clear filters</a>
 </div>
 {% else %}
 <div class="harness-card">

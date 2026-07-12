@@ -46,7 +46,7 @@ def test_schema_version_recorded(tmp_path) -> None:
             current = MigrationContext.configure(conn).get_current_revision()
         # alembic_version is the single-row schema-version sentinel (FR-013).
         assert "alembic_version" in inspect(engine).get_table_names()
-        assert current == "0005"  # current head
+        assert current == "0006"  # current head
     finally:
         engine.dispose()
 

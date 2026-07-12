@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from harness.persistence.enums import TERMINAL_STATUSES, JobStatus
+from harness.persistence.models.chat_session import ChatSession
 
 if TYPE_CHECKING:
     from harness.persistence.models import Job
@@ -140,4 +141,69 @@ def distinct_facets(rows: list[dict]) -> dict:
         "statuses": [s for s in STATUS_ORDER if any(r["status"] == s for r in rows)],
         "connectors": sorted({r["connector_name"] for r in rows if r["connector_name"]}),
         "created_bys": sorted({r["created_by"] for r in rows if r["created_by"]}),
+    }
+
+
+def job_activity_view(job: "Job", now: datetime | None = None) -> dict:
+    """Project a Job into the unified dashboard activity row."""
+    now = now or datetime.now(UTC)
+    failed = job.failed_count or 0
+    raw_activity = job.completed_at or job.started_at or job.created_at
+    activity_at = _aware(raw_activity) if raw_activity else datetime.min.replace(tzinfo=UTC)
+    activity_display, activity_title = format_timestamp(raw_activity, now)
+    processed = job.processed_count or 0
+    total = job.total_utterance_count
+    count_label = f"{processed}/{total if total is not None else '?'} utterances"
+    terminal = job.status in {s.value for s in TERMINAL_STATUSES}
+    can_download = terminal and processed > 0
+    return {
+        "type": "job",
+        "id": job.job_id,
+        "job_id": job.job_id,
+        "name": job.job_name,
+        "status": job.status,
+        "status_label": _status_label(job.status, failed),
+        "badge_class": _badge_class(job.status, failed),
+        "connector_name": job.connector_name,
+        "activity_at": activity_at,
+        "activity_display": activity_display,
+        "activity_title": activity_title,
+        "count_label": count_label,
+        "detail_url": f"/jobs/{job.job_id}/detail",
+        "chat_url": None,
+        "download_url": f"/jobs/{job.job_id}/download-results.csv",
+        "can_download": can_download,
+        "terminal": terminal,
+        "deletable": job.status in _DELETABLE or (
+            job.status == JobStatus.COMPLETED.value and failed > 0
+        ),
+    }
+
+
+def session_activity_view(session: ChatSession, turn_count: int = 0, now: datetime | None = None) -> dict:
+    """Project a ChatSession into the unified dashboard activity row."""
+    now = now or datetime.now(UTC)
+    activity_at = _aware(session.created_at)
+    activity_display, activity_title = format_timestamp(session.created_at, now)
+    count_label = f"{turn_count} turn{'s' if turn_count != 1 else ''}"
+    sid = session.chat_session_id
+    return {
+        "type": "chat",
+        "id": sid,
+        "job_id": None,
+        "name": session.session_name,
+        "status": "active" if turn_count > 0 else "new",
+        "status_label": "Active" if turn_count > 0 else "New",
+        "badge_class": "badge-running" if turn_count > 0 else "badge-draft",
+        "connector_name": session.connector_name or None,
+        "activity_at": activity_at,
+        "activity_display": activity_display,
+        "activity_title": activity_title,
+        "count_label": count_label,
+        "detail_url": f"/chat/sessions/{sid}/analytics",
+        "chat_url": f"/chat/sessions/{sid}",
+        "download_url": f"/chat/sessions/{sid}/download-results.csv",
+        "can_download": turn_count > 0,
+        "terminal": True,
+        "deletable": False,
     }

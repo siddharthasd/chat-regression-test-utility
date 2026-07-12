@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+
+<!-- Page header -->
+<div class="page-section-hdr">
+  <div>
+    <h1 class="section-title">Overview</h1>
+    <p class="section-subtitle">Your recent activity at a glance</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-primary btn-sm fw-semibold" href="{{ url_for('new_job') }}">+ New Job</a>
+    <a class="btn btn-primary btn-sm fw-semibold" href="{{ url_for('wizard_step1') }}">+ New Chat Session</a>
+  </div>
+</div>
+
+<!-- KPI strip -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="kpi-tile harness-card h-100">
+      <div class="kpi-label">Job Runs</div>
+      <div class="kpi-value">{{ total_jobs }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-tile harness-card h-100">
+      <div class="kpi-label">Chat Sessions</div>
+      <div class="kpi-value">{{ total_sessions }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-tile harness-card h-100">
+      <div class="kpi-label">Utterances Evaluated</div>
+      <div class="kpi-value">{{ total_utterances }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-tile harness-card h-100">
+      <div class="kpi-label">Turns Evaluated</div>
+      <div class="kpi-value">{{ total_turns }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Recent activity header + filter pills -->
+<div class="page-section-hdr mb-2">
+  <div>
+    <h2 style="font-size:.9rem; font-weight:700; margin:0">Recent Activity</h2>
+    <p class="section-subtitle">Last 15 runs across jobs and chat sessions</p>
+  </div>
+  <div class="d-flex gap-1 flex-wrap">
+    <button class="btn btn-sm btn-primary activity-filter" data-filter="all">All</button>
+    <button class="btn btn-sm btn-outline-secondary activity-filter" data-filter="job">Jobs</button>
+    <button class="btn btn-sm btn-outline-secondary activity-filter" data-filter="chat">Chat</button>
+    <button class="btn btn-sm btn-outline-secondary activity-filter" data-filter="running">Running</button>
+    <button class="btn btn-sm btn-outline-secondary activity-filter" data-filter="failed">Failed</button>
+  </div>
+</div>
+
+{% if not activity %}
+<div class="harness-card text-center py-5">
+  <div class="empty-state-icon mb-3">🧪</div>
+  <h5 class="text-muted">No activity yet</h5>
+  <p class="text-muted mb-4">Start a job run or open a chat session to see your activity here.</p>
+  <div class="d-flex gap-2 justify-content-center">
+    <a href="{{ url_for('new_job') }}" class="btn btn-outline-primary">New Job Run</a>
+    <a href="{{ url_for('wizard_step1') }}" class="btn btn-primary">New Chat Session</a>
+  </div>
+</div>
+{% else %}
+<div class="harness-card">
+  <div class="table-responsive">
+    <table class="table table-hover harness-table mb-0" id="activity-table">
+      <thead>
+        <tr>
+          <th style="width:4.5rem">Type</th>
+          <th>Name</th>
+          <th style="width:10rem">Status</th>
+          <th>Connector</th>
+          <th style="width:8rem">Last Activity</th>
+          <th style="width:9rem">Count</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in activity %}
+        <tr data-type="{{ r.type }}" data-status="{{ r.status }}">
+          <td>
+            {% if r.type == "job" %}
+            <span class="badge badge-type-job">Job</span>
+            {% else %}
+            <span class="badge badge-type-chat">Chat</span>
+            {% endif %}
+          </td>
+          <td>
+            <a class="row-link" href="{{ r.detail_url }}" title="{{ r.name }}">{{ r.name[:70] }}</a>
+          </td>
+          <td>
+            <span class="badge {{ r.badge_class }}">{{ r.status_label }}</span>
+          </td>
+          <td class="text-muted">{{ r.connector_name or '—' }}</td>
+          <td class="text-muted" title="{{ r.activity_title }}">{{ r.activity_display }}</td>
+          <td class="text-muted small">{{ r.count_label }}</td>
+          <td>
+            <div class="d-flex gap-1 flex-wrap">
+              {% if r.type == "job" %}
+              <a href="{{ r.detail_url }}" class="btn btn-sm btn-outline-primary py-0">View Report</a>
+              {% else %}
+              <a href="{{ r.detail_url }}" class="btn btn-sm btn-outline-primary py-0">Analytics</a>
+              <a href="{{ r.chat_url }}" class="btn btn-sm btn-outline-secondary py-0">Open Chat</a>
+              {% endif %}
+              {% if r.can_download %}
+              <a href="{{ r.download_url }}" class="btn btn-sm btn-outline-secondary py-0">Download</a>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div id="activity-empty-msg" class="harness-card text-center py-4 mt-2" style="display:none">
+  <p class="text-muted mb-0">No items match the current filter.</p>
+</div>
+{% endif %}
+
+<!-- Footer links to full lists -->
+<div class="d-flex gap-4 mt-3">
+  <a href="{{ url_for('job_list') }}" class="text-muted small">View all job sessions →</a>
+  <a href="{{ url_for('chat_session_list') }}" class="text-muted small">View all chat sessions →</a>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var btns = document.querySelectorAll('.activity-filter');
+  var rows = document.querySelectorAll('#activity-table tbody tr');
+  var emptyMsg = document.getElementById('activity-empty-msg');
+
+  function applyFilter(f) {
+    btns.forEach(function (b) {
+      var active = b.getAttribute('data-filter') === f;
+      b.classList.toggle('btn-primary', active);
+      b.classList.toggle('btn-outline-secondary', !active);
+    });
+    var visible = 0;
+    rows.forEach(function (row) {
+      var type = row.getAttribute('data-type');
+      var status = row.getAttribute('data-status');
+      var show = f === 'all'
+        || (f === 'job'     && type === 'job')
+        || (f === 'chat'    && type === 'chat')
+        || (f === 'running' && status === 'running')
+        || (f === 'failed'  && status === 'failed');
+      row.style.display = show ? '' : 'none';
+      if (show) visible++;
+    });
+    if (emptyMsg) emptyMsg.style.display = (rows.length > 0 && visible === 0) ? '' : 'none';
+  }
+
+  btns.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      applyFilter(this.getAttribute('data-filter'));
+    });
+  });
+
+  applyFilter('all');
+})();
+</script>
+{% endblock %}
