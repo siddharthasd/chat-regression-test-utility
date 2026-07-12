@@ -100,8 +100,14 @@
         <tr data-job-id="{{ r.job_id }}">
           <td>
             <a class="row-link" href="/jobs/{{ r.job_id }}/detail" title="{{ r.job_name }}">{{ r.job_name[:60] }}</a>
+            {% if r.product_name or r.feature_name %}
+            <div class="text-muted small">{{ r.product_name or '' }}{% if r.product_name and r.feature_name %} / {% endif %}{{ r.feature_name or '' }}</div>
+            {% endif %}
           </td>
-          <td><span class="badge {{ r.badge_class }}" data-cell="status">{{ r.status_label }}</span></td>
+          <td>
+            <span class="badge {{ r.badge_class }}" data-cell="status">{{ r.status_label }}</span>
+            {% if r.source_label %}<span class="badge bg-secondary ms-1">{{ r.source_label }}</span>{% endif %}
+          </td>
           <td class="text-muted">{{ r.created_by }}</td>
           <td class="text-muted" title="{{ r.created_at[1] }}">{{ r.created_at[0] }}</td>
           <td class="text-muted" title="{{ r.started_at[1] }}">{{ r.started_at[0] }}</td>

@@ -88,6 +88,13 @@ def row_view(job: Job, now: datetime | None = None) -> dict:
             job.status == JobStatus.COMPLETED.value and failed > 0
         ),
         "terminal": job.status in {s.value for s in TERMINAL_STATUSES},
+        # Headless submission metadata (020)
+        "submission_source": getattr(job, "submission_source", "wizard"),
+        "source_label": "API" if getattr(job, "submission_source", "wizard") == "api" else None,
+        "source_system": getattr(job, "source_system", None),
+        "product_name": getattr(job, "product_name", None),
+        "feature_name": getattr(job, "feature_name", None),
+        "has_report": job.status == JobStatus.COMPLETED.value,
     }
 
 

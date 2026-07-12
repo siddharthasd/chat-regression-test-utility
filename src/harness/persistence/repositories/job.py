@@ -222,6 +222,36 @@ class JobRepository:
         job.completed_at = _utcnow()
         self._session.flush()
 
+    # -------------------------------------------------------- headless in-flight (020)
+    def count_headless_non_terminal_by_user(self, owner_id: str) -> int:
+        """API-submitted jobs in non-terminal state for *owner_id* (FR-013)."""
+        terminal_vals = [s.value for s in TERMINAL_STATUSES]
+        return int(
+            self._session.scalar(
+                select(func.count())
+                .select_from(Job)
+                .where(
+                    Job.submission_source == "api",
+                    Job.created_by == owner_id,
+                    Job.status.not_in(terminal_vals),
+                )
+            )
+            or 0
+        )
+
+    def list_headless_non_terminal_by_user(self, owner_id: str) -> list[Job]:
+        """API-submitted jobs in non-terminal state for *owner_id* (diagnostics)."""
+        terminal_vals = [s.value for s in TERMINAL_STATUSES]
+        return list(
+            self._session.scalars(
+                select(Job).where(
+                    Job.submission_source == "api",
+                    Job.created_by == owner_id,
+                    Job.status.not_in(terminal_vals),
+                )
+            )
+        )
+
     # ----------------------------------------------------------------------- counts
     def count_all(self) -> int:
         """Return total number of jobs regardless of status."""

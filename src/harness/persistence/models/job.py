@@ -77,6 +77,12 @@ class Job(Base):
         JSON, nullable=True
     )
 
+    # --- Headless submission metadata (020) ---
+    submission_source: Mapped[str] = mapped_column(String(20), nullable=False, default="wizard")
+    source_system: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    product_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    feature_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
     # --- Aggregate counters ---
     total_utterance_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     processed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

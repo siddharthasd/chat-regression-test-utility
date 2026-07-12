@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import threading
+from typing import Callable
 
 import structlog
 
@@ -38,11 +39,25 @@ MAX_CONCURRENT_JOBS = 4
 _slots = threading.BoundedSemaphore(MAX_CONCURRENT_JOBS)
 
 
-def run_job(job_id: str) -> None:
-    """Execute one Job synchronously: queued/running → completed | cancelled | failed."""
+def run_job(
+    job_id: str,
+    *,
+    progress_callback: Callable[[str, int, int], None] | None = None,
+    job_started_callback: Callable[[str], None] | None = None,
+    job_terminal_callback: Callable[[str, str, dict], None] | None = None,
+) -> None:
+    """Execute one Job synchronously: queued/running → completed | cancelled | failed.
+
+    Optional callbacks for headless SSE streaming (020):
+    - job_started_callback(job_id): fired on transition to running
+    - progress_callback(job_id, processed_count, failed_count): fired after each row
+    - job_terminal_callback(job_id, final_status, summary_dict): fired on terminal transition
+    """
     try:
         with get_session() as session:
             JobRepository(session).transition_to_running(job_id)
+        if job_started_callback:
+            job_started_callback(job_id)
 
         # Snapshot the row list + the per-row-password flag up front.
         with get_session() as session:
@@ -60,25 +75,48 @@ def run_job(job_id: str) -> None:
                     "credentials no longer in memory — re-upload CSV via a new job",
                 )
             password_store.clear_job(job_id)
+            if job_terminal_callback:
+                job_terminal_callback(job_id, "failed", {})
             return
 
         for utterance_id in utterance_ids:
             if _is_cancelling(job_id):
                 _finish_cancel(job_id)
+                if job_terminal_callback:
+                    with get_session() as session:
+                        j = JobRepository(session).get(job_id)
+                        summary = _build_summary(j)
+                    job_terminal_callback(job_id, "cancelled", summary)
                 return
             _process_one(job_id, utterance_id)
+            if progress_callback:
+                with get_session() as session:
+                    j = JobRepository(session).get(job_id)
+                    progress_callback(job_id, j.processed_count or 0, j.failed_count or 0)
 
         # A cancel may have arrived during the final row.
         if _is_cancelling(job_id):
             _finish_cancel(job_id)
+            if job_terminal_callback:
+                with get_session() as session:
+                    j = JobRepository(session).get(job_id)
+                    summary = _build_summary(j)
+                job_terminal_callback(job_id, "cancelled", summary)
             return
 
         with get_session() as session:
             JobRepository(session).transition_to_completed(job_id)
         password_store.clear_job(job_id)
+        if job_terminal_callback:
+            with get_session() as session:
+                j = JobRepository(session).get(job_id)
+                summary = _build_summary(j)
+            job_terminal_callback(job_id, "completed", summary)
     except Exception as exc:  # noqa: BLE001 — engine-level failure → job failed (FR-016)
         logger.exception("orchestrator: job %s failed", job_id)
         _fail_safely(job_id, f"orchestrator error: {exc!r}")
+        if job_terminal_callback:
+            job_terminal_callback(job_id, "failed", {})
 
 
 def _process_one(job_id: str, utterance_id: str) -> None:
@@ -106,6 +144,15 @@ def _process_one(job_id: str, utterance_id: str) -> None:
             jobs.increment_failed_count(job_id)
 
 
+def _build_summary(job) -> dict:
+    """Build a minimal summary dict from a Job ORM instance (020 headless)."""
+    return {
+        "total": job.total_utterance_count or 0,
+        "passed": max(0, (job.processed_count or 0) - (job.failed_count or 0)),
+        "failed": job.failed_count or 0,
+    }
+
+
 def _is_cancelling(job_id: str) -> bool:
     with get_session() as session:
         return JobRepository(session).get(job_id).status == JobStatus.CANCELLING
@@ -128,17 +175,32 @@ def _fail_safely(job_id: str, details: str) -> None:
         password_store.clear_job(job_id)
 
 
-def enqueue_job(job_id: str) -> None:
+def enqueue_job(
+    job_id: str,
+    *,
+    progress_callback: Callable[[str, int, int], None] | None = None,
+    job_started_callback: Callable[[str], None] | None = None,
+    job_terminal_callback: Callable[[str, str, dict], None] | None = None,
+) -> None:
     """Start a Job asynchronously on a daemon worker thread (FR-001/022).
 
     Acquires a concurrency slot (released when the worker finishes) and returns
     immediately; the caller (wizard/UI request) never blocks on job completion.
+
+    Optional *_callback keyword args are forwarded to run_job() for headless SSE
+    streaming (020). All existing call sites use positional-only ``job_id`` and
+    are unaffected.
     """
 
     def _worker() -> None:
         _slots.acquire()
         try:
-            run_job(job_id)
+            run_job(
+                job_id,
+                progress_callback=progress_callback,
+                job_started_callback=job_started_callback,
+                job_terminal_callback=job_terminal_callback,
+            )
         finally:
             _slots.release()
 
