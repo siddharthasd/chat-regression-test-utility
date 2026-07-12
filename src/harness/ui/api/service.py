@@ -234,7 +234,7 @@ def get_job_result(job_id: str, owner_id: str) -> HeadlessJobResult:
 
         if is_completed:
             result_status = "completed"
-            results_url = f"/jobs/{job_id}/detail"
+            results_url = _absolute_url(f"/jobs/{job_id}/detail")
         elif is_failed:
             result_status = "failed"
             results_url = None
