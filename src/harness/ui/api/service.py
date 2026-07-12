@@ -36,6 +36,13 @@ _MAX_CASES = 100
 _MAX_IN_FLIGHT = 2
 
 
+def _absolute_url(path: str) -> str:
+    """Prepend HARNESS_PUBLIC_URL when set; otherwise return the path as-is."""
+    import os
+    base = os.environ.get("HARNESS_PUBLIC_URL", "").rstrip("/")
+    return f"{base}{path}" if base else path
+
+
 def submit_job(
     submission: HeadlessJobSubmission,
     user: dict,
@@ -174,7 +181,7 @@ def submit_job(
             return
         if final_status == "completed":
             payload: dict[str, Any] = {
-                "results_url": f"/jobs/{jid}/detail",
+                "results_url": _absolute_url(f"/jobs/{jid}/detail"),
                 "summary": summary,
             }
             loop.call_soon_threadsafe(b.push, "job_complete", payload)
