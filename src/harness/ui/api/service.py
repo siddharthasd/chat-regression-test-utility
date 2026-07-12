@@ -174,7 +174,7 @@ def submit_job(
             return
         if final_status == "completed":
             payload: dict[str, Any] = {
-                "results_url": f"/jobs/{jid}",
+                "results_url": f"/jobs/{jid}/detail",
                 "summary": summary,
             }
             loop.call_soon_threadsafe(b.push, "job_complete", payload)
@@ -227,7 +227,7 @@ def get_job_result(job_id: str, owner_id: str) -> HeadlessJobResult:
 
         if is_completed:
             result_status = "completed"
-            results_url = f"/jobs/{job_id}"
+            results_url = f"/jobs/{job_id}/detail"
         elif is_failed:
             result_status = "failed"
             results_url = None
