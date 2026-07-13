@@ -1,44 +1,11 @@
-# Per-branch session pointer written by speckit slash commands;
-# its value differs on every feature branch and would just churn.
-.specify/feature.json
+# Sensitive environment config
+.env
 
-# Python
+# Release branch working copies (tracked separately when ready)
+eval-brew-3-1/
+
+# Python / OS artifacts
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
-.Python
-build/
-dist/
-*.egg-info/
-*.egg
-MANIFEST
-
-# Virtualenvs
-.venv/
-venv/
-env/
-ENV/
-
-# Test / coverage / lint caches
-.pytest_cache/
-.ruff_cache/
-.mypy_cache/
-.coverage
-.coverage.*
-htmlcov/
-.tox/
-
-# Editor / OS
 .DS_Store
 Thumbs.db
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# Runtime / harness data
-~/.harness/
-data.db
-*.log
-*.tmp
