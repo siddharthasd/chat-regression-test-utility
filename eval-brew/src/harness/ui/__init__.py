@@ -86,4 +86,9 @@ def create_app() -> FastAPI:
     app.include_router(admin_router)
     app.include_router(docs_router)
 
+    # Headless API (020) — Bearer JWT auth, no session cookie required
+    from harness.ui.api import create_api_router
+
+    app.include_router(create_api_router())
+
     return app
