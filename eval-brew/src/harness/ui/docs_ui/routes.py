@@ -23,6 +23,40 @@ _GUIDES: dict[str, tuple[str, str]] = {
 
 _RELEASES = [
     {
+        "version": "3.2",
+        "title": "Headless API & Security Hardening",
+        "date": "17 July 2026",
+        "badge_style": "background:#460073",
+        "summary": "Programmatic job execution via a REST API for CI/CD integration, a self-contained Accenture design system with no external CDN dependency, and critical SSO identity and browser compatibility fixes.",
+        "sections": [
+            {
+                "title": "New Features",
+                "bullets": [
+                    "Headless Execution API — Bearer JWT-authenticated REST endpoints to create jobs, poll status, and retrieve results programmatically without the UI. Enables CI/CD pipelines and automated regression runs.",
+                    "POST /api/v1/jobs — create a job from a JSON payload with utterances, connector, and evaluator; returns a job ID.",
+                    "GET /api/v1/jobs/{job_id}/status — poll job status and progress (queued, running, completed, failed).",
+                    "GET /api/v1/jobs/{job_id}/results — retrieve full scored results as JSON once the job completes; includes a results_url linking to the analytics dashboard.",
+                    "HARNESS_PUBLIC_URL environment variable — sets the base URL used in results_url for absolute links from external callers.",
+                ],
+            },
+            {
+                "title": "UI & Design System",
+                "bullets": [
+                    "Accenture Design System — self-contained CSS replacing Bootstrap CDN; zero external dependencies. Full Accenture purple spectrum, black navbar, neutral surface background, and Bootstrap-compatible utility class names so templates required no changes.",
+                    "IE11 / Edge IE-compatibility mode fix — CSS literal-value fallbacks added to navbar and footer for environments where CSS custom properties are not supported; X-UA-Compatible meta tag added to force Edge out of IE rendering mode.",
+                ],
+            },
+            {
+                "title": "Security & Bug Fixes",
+                "bullets": [
+                    "SSO identity fix — wizard job creation and clone routes now record the authenticated user's Azure OID as the job owner instead of the container OS username. Jobs are now correctly scoped to the creating user on the dashboard.",
+                    "RBAC enforcement confirmed — users whose enterprise ID is not in the user_registration table are redirected to /auth/unauthorised at login; every subsequent request re-validates OID against the RBAC table.",
+                    "Headless API auth fix — corrected environment variable names and M2M audience resolution for Bearer JWT validation.",
+                ],
+            },
+        ],
+    },
+    {
         "version": "3.1",
         "title": "Infrastructure & Dashboard",
         "date": "11 July 2026",

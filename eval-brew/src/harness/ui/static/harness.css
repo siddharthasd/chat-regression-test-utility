@@ -93,7 +93,9 @@ small, .small { font-size: .8125rem; }
 .nav-cb { display: none; }
 
 .harness-navbar {
+  background: #000000;
   background: var(--color-black);
+  border-bottom: 3px solid #A100FF;
   border-bottom: 3px solid var(--color-primary);
   position: relative;
   z-index: 100;
@@ -254,7 +256,9 @@ main { flex: 1 1 auto; padding: 1.25rem var(--space-lg); }
 
 /* ── 6. Footer ───────────────────────────────────────────────────────────── */
 footer {
+  background: #000000;
   background: var(--color-black);
+  border-top: 3px solid #A100FF;
   border-top: 3px solid var(--color-primary);
   padding: .75rem var(--space-lg);
   display: flex;
