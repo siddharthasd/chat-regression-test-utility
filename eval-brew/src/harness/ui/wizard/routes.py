@@ -70,7 +70,7 @@ def clone_job(
         if source is None:
             raise HTTPException(status_code=404)
 
-        created_by = IdentityContext.current().value
+        created_by = (user.get("oid") if user else None) or IdentityContext.current().value
         new_job = JobRepository(session).create_draft(
             f"{source.job_name} (retry)", source.description, created_by
         )
@@ -135,7 +135,7 @@ def create_job(
             status_code=400,
         )
     with get_session() as session:
-        created_by = IdentityContext.current().value
+        created_by = (user.get("oid") if user else None) or IdentityContext.current().value
         job = JobRepository(session).create_draft(name, desc, created_by)
         job_id = job.job_id
     return RedirectResponse(request.url_for("step2", job_id=job_id), status_code=303)
