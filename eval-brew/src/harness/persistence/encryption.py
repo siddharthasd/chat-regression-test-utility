@@ -35,12 +35,19 @@ def _key_file_path() -> Path:
 def get_or_create_key() -> bytes:
     """Return the Fernet key bytes, creating the key file on first use.
 
-    File is created with mode ``0o600`` via ``O_CREAT | O_EXCL`` to prevent
-    races. Parent directories are created if absent. Thread-safe.
+    Priority order:
+    1. ``HARNESS_MASTER_KEY`` env var — key bytes supplied directly (no file
+       needed; preferred for container/PaaS deployments).
+    2. File at ``HARNESS_KEY_FILE`` (or the platform default path) — created
+       with mode ``0o600`` via ``O_CREAT | O_EXCL`` on first use. Thread-safe.
     """
     global _CACHED_KEY
     with _KEY_LOCK:
         if _CACHED_KEY is not None:
+            return _CACHED_KEY
+        env_key = os.environ.get("HARNESS_MASTER_KEY")
+        if env_key:
+            _CACHED_KEY = env_key.strip().encode("ascii")
             return _CACHED_KEY
         path = _key_file_path()
         if path.exists():

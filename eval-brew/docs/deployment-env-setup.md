@@ -74,11 +74,18 @@ is made at startup based on which variable is set.
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `HARNESS_KEY_FILE` | No | `%LOCALAPPDATA%\harness\master.key` (Windows) / `~/.harness/master.key` (Linux/Mac) | Path to the master encryption key used to protect connector and evaluator credentials at rest. The file is created automatically on first run if it does not exist. |
+| `HARNESS_MASTER_KEY` | No | — | Fernet key supplied directly as an environment variable. **Recommended for container and PaaS deployments.** When set, no key file is read or written. Takes precedence over `HARNESS_KEY_FILE`. |
+| `HARNESS_KEY_FILE` | No | `%LOCALAPPDATA%\harness\master.key` (Windows) / `~/.harness/master.key` (Linux/Mac) | Path to the master encryption key file. Used only when `HARNESS_MASTER_KEY` is not set. The file is created automatically on first run if it does not exist. |
 
-> **Container deployments must mount this file on persistent storage** (e.g., an Azure
-> Files share). If the key file is lost, all stored connector and evaluator credentials
-> become unreadable.
+> **Container deployments must set `HARNESS_MASTER_KEY`** (or mount `HARNESS_KEY_FILE`
+> on persistent storage). The container filesystem is ephemeral — if the key is lost,
+> all stored connector and evaluator credentials become unreadable.
+>
+> Generate a key once and store it as a permanent secret:
+>
+> ```bash
+> python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+> ```
 
 ### File upload
 
@@ -123,8 +130,8 @@ HARNESS_SESSION_SECRET=replace-with-a-random-64-char-hex-string
 # PostgreSQL on Azure (set in App Service Application Settings, not in a .env file)
 DATABASE_URL=postgresql+psycopg2://harness_user:PASSWORD@your-server.postgres.database.azure.com:5432/evalbrew?sslmode=require
 
-# Encryption key — must point to a path on a mounted Azure Files share
-HARNESS_KEY_FILE=/mnt/harness-data/master.key
+# Encryption key — set once, store as a permanent secret (generate with the command above)
+HARNESS_MASTER_KEY=<your-fernet-key>
 ```
 
 > Do not commit the Azure `.env` to source control. In App Service, set these as
@@ -247,10 +254,25 @@ DATABASE_URL="postgresql+psycopg2://${PG_ADMIN}:${PG_PASSWORD}@${PG_HOST}:5432/$
 
 ---
 
-### Step 5 — Create an Azure Files share for the encryption key
+### Step 5 — Generate and store the encryption key
 
-The master encryption key must survive container restarts and redeployments. Mount it
-on an Azure Files share.
+The master encryption key must survive container restarts and redeployments.
+
+**Recommended: `HARNESS_MASTER_KEY` App Service Application Setting**
+
+Generate a key once and keep it — you will set it as an Application Setting in Step 7:
+
+```bash
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+Copy the output. Do not regenerate it later; any new key will make previously stored
+credentials unreadable.
+
+**Alternative: Azure Files share (if you prefer file-based key storage)**
+
+If you have a policy reason to keep the key on a mounted volume rather than in an
+Application Setting, create a storage account and file share:
 
 ```bash
 # Create storage account
@@ -271,6 +293,9 @@ az storage share create \
   --account-key $STORAGE_KEY \
   --name $FILE_SHARE
 ```
+
+Then in Step 6, mount it at `/mnt/harness-data` and in Step 7 set
+`HARNESS_KEY_FILE=/mnt/harness-data/master.key` instead of `HARNESS_MASTER_KEY`.
 
 ---
 
@@ -324,7 +349,7 @@ az webapp config appsettings set \
   --name $APP_NAME \
   --settings \
     DATABASE_URL="$DATABASE_URL" \
-    HARNESS_KEY_FILE="/mnt/harness-data/master.key" \
+    HARNESS_MASTER_KEY="<key-from-step-5>" \
     HARNESS_AUTH_ENABLED="true" \
     HARNESS_AZURE_TENANT_ID="<your-tenant-id>" \
     HARNESS_AZURE_CLIENT_ID="<your-client-id>" \
@@ -405,14 +430,13 @@ database intervention is needed.
 - [ ] Azure Database for PostgreSQL — Flexible Server created.
 - [ ] `evalbrew` database created on the server.
 - [ ] Firewall rule allows App Service egress (or VNet integration configured).
-- [ ] Azure Storage Account and Files share created for the encryption key.
+- [ ] Fernet encryption key generated (Step 5) and saved somewhere safe.
 
 ### App Service configuration
 
 - [ ] Web App for Containers created and pointing to the ACR image.
-- [ ] Azure Files share mounted at `/mnt/harness-data`.
 - [ ] `DATABASE_URL` set in Application Settings (PostgreSQL connection string with `sslmode=require`).
-- [ ] `HARNESS_KEY_FILE` set to `/mnt/harness-data/master.key`.
+- [ ] `HARNESS_MASTER_KEY` set in Application Settings (Fernet key from Step 5).
 - [ ] `HARNESS_AUTH_ENABLED=true`.
 - [ ] `HARNESS_AZURE_TENANT_ID`, `HARNESS_AZURE_CLIENT_ID`, `HARNESS_AZURE_CLIENT_SECRET` set.
 - [ ] `HARNESS_REDIRECT_URI` matches the redirect URI registered in Azure AD exactly.
