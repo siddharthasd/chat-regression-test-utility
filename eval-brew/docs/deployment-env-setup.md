@@ -27,7 +27,7 @@ out of version history.
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `HARNESS_AUTH_ENABLED` | No | `true` | Set to `false` to disable SSO (local dev only). When `false`, all auth checks are skipped and a synthetic admin identity is used. |
+| `HARNESS_AUTH_ENABLED` | No | `false` | Set to `true` to enable SSO (required for multi-user and production deployments). When `false` (the default), all auth checks are skipped and a synthetic admin identity is used. |
 
 ### Azure AD app registration
 
@@ -39,6 +39,7 @@ All four variables are required when `HARNESS_AUTH_ENABLED=true`.
 | `HARNESS_AZURE_CLIENT_ID` | Yes* | Client ID of the harness app registration. Found in App registrations → your app → Overview. |
 | `HARNESS_AZURE_CLIENT_SECRET` | Yes* | Client secret value. Created in App registrations → your app → Certificates & secrets → New client secret. |
 | `HARNESS_REDIRECT_URI` | Yes* | Full callback URL registered in the app registration. Use `http://localhost:5000/auth/callback` for local, `https://your-server/auth/callback` for a shared server. |
+| `HARNESS_AZURE_API_AUDIENCE` | No | Expected `aud` claim for Bearer tokens on the headless API. Defaults to `HARNESS_AZURE_CLIENT_ID` when not set — leave unset unless your M2M clients request a different resource URI. |
 
 \* Required when `HARNESS_AUTH_ENABLED=true`.
 
@@ -99,6 +100,15 @@ is made at startup based on which variable is set.
 |---|---|---|---|
 | `HARNESS_MOCK_MODE` | No | `ok` | Controls mock connector/evaluator response type. Options: `ok` (well-formed response), `nonconformant` (malformed response), `status500` (HTTP 500), `slow` (5-second delay). |
 | `HARNESS_MOCK_DIMENSIONS` | No | _(evaluator default)_ | Comma-separated list of scoring dimensions reported by the mock evaluator, e.g. `accuracy,tone,completeness`. |
+
+### Container runtime (Gunicorn)
+
+These variables are read by `gunicorn.conf.py` inside the container image. They are not used when running the harness locally via `harness serve`.
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `GUNICORN_WORKERS` | No | `cpu_count × 2 + 1` | Number of Gunicorn worker processes. Override if the App Service plan has a known core count or you want to cap memory usage. |
+| `LOG_LEVEL` | No | `info` | Gunicorn/uvicorn log level. Options: `debug`, `info`, `warning`, `error`, `critical`. |
 
 ---
 
