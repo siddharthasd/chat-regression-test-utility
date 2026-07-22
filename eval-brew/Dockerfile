@@ -9,8 +9,7 @@ WORKDIR /app
 COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 COPY src/ src/
-COPY gunicorn.conf.py .
 RUN useradd -m -u 1001 harness
 USER harness
 EXPOSE 8000
-CMD ["gunicorn", "--config", "gunicorn.conf.py", "harness.ui:create_app()"]
+CMD ["uvicorn", "harness.ui:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]

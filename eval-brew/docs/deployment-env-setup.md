@@ -101,15 +101,6 @@ is made at startup based on which variable is set.
 | `HARNESS_MOCK_MODE` | No | `ok` | Controls mock connector/evaluator response type. Options: `ok` (well-formed response), `nonconformant` (malformed response), `status500` (HTTP 500), `slow` (5-second delay). |
 | `HARNESS_MOCK_DIMENSIONS` | No | _(evaluator default)_ | Comma-separated list of scoring dimensions reported by the mock evaluator, e.g. `accuracy,tone,completeness`. |
 
-### Container runtime (Gunicorn)
-
-These variables are read by `gunicorn.conf.py` inside the container image. They are not used when running the harness locally via `harness serve`.
-
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `GUNICORN_WORKERS` | No | `cpu_count × 2 + 1` | Number of Gunicorn worker processes. Override if the App Service plan has a known core count or you want to cap memory usage. |
-| `LOG_LEVEL` | No | `info` | Gunicorn/uvicorn log level. Options: `debug`, `info`, `warning`, `error`, `critical`. |
-
 ---
 
 ## 3. Sample `.env` files
@@ -369,7 +360,7 @@ az webapp config appsettings set \
     WEBSITES_PORT="8000"
 ```
 
-> `WEBSITES_PORT=8000` tells App Service which port the container listens on (Gunicorn
+> `WEBSITES_PORT=8000` tells App Service which port the container listens on (uvicorn
 > binds to `0.0.0.0:8000` by default).
 
 ---
