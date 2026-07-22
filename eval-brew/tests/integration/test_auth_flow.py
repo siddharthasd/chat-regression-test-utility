@@ -31,6 +31,23 @@ _FAKE_CLAIMS = {
     "name": _FAKE_NAME,
 }
 
+# Simulates Accenture federated SSO where preferred_username (UPN) differs
+# from the SMTP address the admin pre-registered.
+_FAKE_CLAIMS_UPN_MISMATCH = {
+    "oid": _FAKE_OID,
+    "preferred_username": "john.doe@accentureinternal.onmicrosoft.com",
+    "email": _FAKE_EMAIL,
+    "name": _FAKE_NAME,
+}
+
+# Only upn / unique_name claims carry the matching address.
+_FAKE_CLAIMS_LEGACY_CLAIM = {
+    "oid": _FAKE_OID,
+    "preferred_username": "john.doe@accentureinternal.onmicrosoft.com",
+    "upn": _FAKE_EMAIL,
+    "name": _FAKE_NAME,
+}
+
 
 @pytest.fixture
 def auth_client(tmp_path, monkeypatch):
@@ -185,6 +202,88 @@ def test_admin_role_can_access_admin_page(auth_client) -> None:
         c.get("/auth/callback?code=stub&state=fakestate")
         resp = c.get("/admin/users", follow_redirects=True)
     assert resp.status_code == 200
+
+
+# ----------------------------------------------------------------- logout
+
+# --------- SSO email-claim fallback (Accenture federated UPN vs SMTP address)
+
+def test_callback_falls_back_to_email_claim_when_upn_differs(auth_client, monkeypatch) -> None:
+    """User is pre-registered with SMTP address; UPN in preferred_username differs."""
+    import harness.ui.auth.routes as auth_routes_mod
+
+    monkeypatch.setattr(
+        auth_routes_mod.msal_client,
+        "complete_flow",
+        lambda cfg, flow, resp: _FAKE_CLAIMS_UPN_MISMATCH,
+    )
+    _register_user(role="user")
+    with auth_client as c:
+        c.get("/auth/login")
+        cb = c.get("/auth/callback?code=stub&state=fakestate")
+    assert cb.status_code == 302
+    assert "unauthorised" not in cb.headers["location"]
+
+
+def test_callback_falls_back_to_upn_claim(auth_client, monkeypatch) -> None:
+    """Matching address is in the explicit upn claim, not preferred_username."""
+    import harness.ui.auth.routes as auth_routes_mod
+
+    monkeypatch.setattr(
+        auth_routes_mod.msal_client,
+        "complete_flow",
+        lambda cfg, flow, resp: _FAKE_CLAIMS_LEGACY_CLAIM,
+    )
+    _register_user(role="user")
+    with auth_client as c:
+        c.get("/auth/login")
+        cb = c.get("/auth/callback?code=stub&state=fakestate")
+    assert cb.status_code == 302
+    assert "unauthorised" not in cb.headers["location"]
+
+
+def test_callback_session_email_is_canonical_db_email(auth_client, monkeypatch) -> None:
+    """Session stores the DB-canonical email, not the token UPN.
+
+    After login via the email-claim fallback the user's admin page shows the
+    pre-registered SMTP address, confirming the session was built from the DB
+    record rather than from the token's preferred_username (UPN).
+    """
+    import harness.ui.auth.routes as auth_routes_mod
+
+    monkeypatch.setattr(
+        auth_routes_mod.msal_client,
+        "complete_flow",
+        lambda cfg, flow, resp: _FAKE_CLAIMS_UPN_MISMATCH,
+    )
+    _register_user(role="admin")  # admin role so /admin/users is accessible
+    with auth_client as c:
+        c.get("/auth/login")
+        c.get("/auth/callback?code=stub&state=fakestate")
+        # /admin/users renders reg.email for every registered user — the
+        # canonical SMTP address must appear, NOT the mismatched UPN.
+        resp = c.get("/admin/users", follow_redirects=True)
+    assert resp.status_code == 200
+    assert _FAKE_EMAIL in resp.text
+    assert "accentureinternal.onmicrosoft.com" not in resp.text
+
+
+def test_callback_links_oid_via_email_claim_fallback(auth_client, monkeypatch) -> None:
+    """OID is correctly linked to the record found via the email claim fallback."""
+    import harness.ui.auth.routes as auth_routes_mod
+
+    monkeypatch.setattr(
+        auth_routes_mod.msal_client,
+        "complete_flow",
+        lambda cfg, flow, resp: _FAKE_CLAIMS_UPN_MISMATCH,
+    )
+    _register_user(role="user")
+    with auth_client as c:
+        c.get("/auth/login")
+        c.get("/auth/callback?code=stub&state=fakestate")
+    with get_session() as db:
+        reg = UserRegistrationRepository(db).find_by_email(_FAKE_EMAIL)
+    assert reg.azure_oid == _FAKE_OID
 
 
 # ----------------------------------------------------------------- logout

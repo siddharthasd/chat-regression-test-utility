@@ -314,6 +314,10 @@
     <section id="section-intent-breakdown" class="mb-4">
       <h5 class="fw-bold border-bottom pb-2 mb-3">Intent Breakdown</h5>
       {% if analytics and analytics.intent_breakdown %}
+        {% set _ns = namespace(max_score=0) %}
+        {% for stat in analytics.intent_breakdown %}
+          {% if stat.mean_score is not none and stat.mean_score > _ns.max_score %}{% set _ns.max_score = stat.mean_score %}{% endif %}
+        {% endfor %}
         {% if analytics.intent_total_count > analytics.intent_breakdown | length %}
         <p class="text-muted small mb-2">
           Showing top {{ analytics.intent_breakdown | length }} of {{ analytics.intent_total_count }} intents by mean score.
@@ -331,18 +335,17 @@
             </thead>
             <tbody>
               {% for stat in analytics.intent_breakdown %}
-              {% if stat.mean_score is not none %}
-              {% set pct = (stat.mean_score * 100) | round(1) %}
-              {% set bar_class = 'bg-success' if stat.mean_score >= 0.7 else ('bg-warning' if stat.mean_score >= 0.4 else 'bg-danger') %}
-              {% endif %}
               <tr>
                 <td class="fw-semibold">{{ stat.intent }}</td>
                 <td>
                   {% if stat.mean_score is not none %}
+                  {% set pct = ((stat.mean_score / _ns.max_score) * 100) | round(1) if _ns.max_score > 0 else 0 %}
+                  {% set bar_color = 'var(--color-green)' if pct >= 70 else ('var(--color-amber)' if pct >= 40 else 'var(--color-red)') %}
                   <div class="d-flex align-items-center gap-2">
-                    <div class="progress flex-grow-1" style="height:8px" role="progressbar"
-                         aria-valuenow="{{ pct }}" aria-valuemin="0" aria-valuemax="100">
-                      <div class="progress-bar {{ bar_class }}" style="width:{{ pct }}%"></div>
+                    <div class="progress flex-grow-1" style="height:8px">
+                      <div class="progress-bar" role="progressbar"
+                           style="width:{{ pct }}%; background-color:{{ bar_color }}"
+                           aria-valuenow="{{ pct }}" aria-valuemin="0" aria-valuemax="100"></div>
                     </div>
                     <span class="text-muted" style="min-width:3rem;text-align:right">{{ "%.2f"|format(stat.mean_score) }}</span>
                   </div>

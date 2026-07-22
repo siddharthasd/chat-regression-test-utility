@@ -54,23 +54,61 @@ def auth_callback(request: Request):
             status_code=400,
         )
 
+    # Temporary: log all identity claims so you can see exactly what
+    # Accenture ESO sends and decide the correct NameID → email mapping.
+    # Remove this block once the stable identifier claim is confirmed.
+    import logging as _logging
+    _logging.getLogger("harness.auth").info(
+        "sso_claims_debug oid=%r sub=%r preferred_username=%r email=%r upn=%r unique_name=%r name=%r",
+        claims.get("oid"), claims.get("sub"), claims.get("preferred_username"),
+        claims.get("email"), claims.get("upn"), claims.get("unique_name"), claims.get("name"),
+    )
+
     oid = claims.get("oid") or claims.get("sub")
-    email = (claims.get("preferred_username") or claims.get("email") or "").lower()
-    display_name = claims.get("name") or email
+    display_name = claims.get("name") or ""
+
+    # Build a priority-ordered list of email candidates from the OIDC token.
+    # In Accenture's federated SSO, Azure AD may surface the user's address in
+    # different claims depending on tenant and app-registration configuration:
+    #   preferred_username – the UPN; matches the SMTP address in most tenants
+    #   email              – explicit SMTP claim (requires the "email" scope)
+    #   upn                – UPN emitted explicitly by some ADFS federations
+    #   unique_name        – legacy on-prem ADFS / older Azure AD tokens
+    _raw = [
+        claims.get("preferred_username"),
+        claims.get("email"),
+        claims.get("upn"),
+        claims.get("unique_name"),
+    ]
+    seen: set[str] = set()
+    email_candidates: list[str] = []
+    for c in _raw:
+        if c and "@" in c:
+            lowered = c.lower()
+            if lowered not in seen:
+                seen.add(lowered)
+                email_candidates.append(lowered)
 
     with get_session() as db:
         repo = UserRegistrationRepository(db)
         reg = repo.find_by_oid(oid)
         if reg is None:
-            reg = repo.find_unlinked_by_email(email)
+            # First login: one IN query across all email candidates handles the
+            # common Accenture case where preferred_username (UPN) differs from
+            # the SMTP address the admin used when pre-registering the user.
+            reg = repo.find_unlinked_by_any_email(email_candidates)
             if reg is not None:
-                repo.link_oid(reg, oid, display_name)
+                repo.link_oid(reg, oid, display_name or reg.email)
         if reg is None:
             return RedirectResponse(request.url_for("unauthorised"), status_code=302)
         repo.update_last_login(reg)
         role = reg.role
+        # Use the canonical email from the DB (the address the admin registered),
+        # not whichever token claim happened to match during the lookup above.
+        canonical_email = reg.email
 
-    set_session_user(request, oid=oid, email=email, display_name=display_name, role=role)
+    display_name = display_name or canonical_email
+    set_session_user(request, oid=oid, email=canonical_email, display_name=display_name, role=role)
     next_url = request.session.pop("next", None) or str(request.url_for("index"))
     return RedirectResponse(next_url, status_code=302)
 

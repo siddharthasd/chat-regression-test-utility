@@ -40,6 +40,22 @@ class UserRegistrationRepository:
             )
         )
 
+    def find_unlinked_by_any_email(self, emails: list[str]) -> UserRegistration | None:
+        """Return the first unlinked registration matching any of the given email
+        addresses (first login, multi-claim SSO fallback).
+
+        A single IN query avoids one round-trip per candidate.
+        """
+        if not emails:
+            return None
+        lowered = [e.lower() for e in emails]
+        return self._session.scalar(
+            select(UserRegistration).where(
+                UserRegistration.email.in_(lowered),
+                UserRegistration.azure_oid.is_(None),
+            )
+        )
+
     def get(self, reg_id: str) -> UserRegistration | None:
         return self._session.get(UserRegistration, reg_id)
 
