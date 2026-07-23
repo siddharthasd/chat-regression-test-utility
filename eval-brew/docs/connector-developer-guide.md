@@ -163,6 +163,8 @@ def connect():
 
     raw = call_my_chatbot(utterance, password)   # <- your integration
 
+    usage = getattr(raw, "usage", None)  # present when calling an LLM SDK
+
     return jsonify({
         "contractVersion": "1",
         "utteranceId": str(uuid.uuid4()),
@@ -177,6 +179,12 @@ def connect():
             "agentChain": [],
             "metadata": {},
         },
+        # Omit tokenUsage entirely for non-LLM connectors.
+        **({"tokenUsage": {
+            "promptTokens": usage.prompt_tokens,
+            "completionTokens": usage.completion_tokens,
+            "totalTokens": usage.total_tokens,
+        }} if usage else {}),
     }), 200
 ```
 
@@ -386,7 +394,7 @@ data: {"content": "9 to 5, Monday through Friday."}
 
 ```
 event: contract
-data: {"contractVersion":"1","utteranceId":"a3f1...","utteranceText":"What are your opening hours?","testId":"hours-001","conversationContext":null,"connectorId":"acme-support-bot","timestamp":"2026-06-05T14:32:00Z","chatbotResponse":{"rawPayload":{},"normalizedText":"We're open 9 to 5, Monday through Friday.","agentChain":[],"metadata":{}}}
+data: {"contractVersion":"1","utteranceId":"a3f1...","utteranceText":"What are your opening hours?","testId":"hours-001","conversationContext":null,"connectorId":"acme-support-bot","timestamp":"2026-06-05T14:32:00Z","chatbotResponse":{"rawPayload":{},"normalizedText":"We're open 9 to 5, Monday through Friday.","agentChain":[],"metadata":{}},"tokenUsage":{"promptTokens":210,"completionTokens":38,"totalTokens":248}}
 
 ```
 
@@ -443,6 +451,8 @@ async def sse_connect(body: dict):
                 "agentChain": [],
                 "metadata": {},
             },
+            # Include tokenUsage when your chatbot is an LLM; omit for non-LLM connectors.
+            "tokenUsage": {"promptTokens": 210, "completionTokens": 38, "totalTokens": 248},
         }
         yield f"event: contract\ndata: {json.dumps(contract)}\n\n"
 

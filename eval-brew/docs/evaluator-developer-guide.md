@@ -164,7 +164,7 @@ def evaluate():
     utterance = contract["utteranceText"]
     answer = contract["chatbotResponse"]["normalizedText"]
 
-    verdict, scores = run_my_judge(utterance, answer)   # <- your scoring logic
+    verdict, scores, intent, usage = run_my_judge(utterance, answer)   # <- your scoring logic
 
     return jsonify({
         "utteranceId": contract["utteranceId"],          # echo it back
@@ -172,6 +172,15 @@ def evaluate():
         "evaluationTimestamp": datetime.now(timezone.utc).isoformat(),
         "evaluationVerdict": verdict,                    # "pass" | "fail" | "warn"
         "evaluationScores": scores,                      # [{parameter_name, score, reasoning}, ...]
+        # Optional: intent label surfaced in the analytics Intent Breakdown panel.
+        # Omit (or set to None / "") when your evaluator does not classify intents.
+        "utteranceIntent": intent,                       # e.g. "account inquiry"
+        # Optional: omit entirely for non-LLM evaluators.
+        "tokenUsage": {
+            "promptTokens": usage.prompt_tokens,
+            "completionTokens": usage.completion_tokens,
+            "totalTokens": usage.total_tokens,
+        },
         "metadata": {},
     }), 200
 ```
@@ -313,7 +322,8 @@ Your evaluator is ready to register when it:
 - [ ] Returns an EvaluationResult (§3): `utteranceId` (echoed from the request),
       `evaluationAgentId`, `evaluationTimestamp` (ISO-8601), `evaluationVerdict`
       (`pass`/`fail`/`warn`), `evaluationScores` (array of `{parameter_name, score,
-      reasoning}`), `metadata` (object), and optionally `tokenUsage` (§3).
+      reasoning}`), `metadata` (object), and optionally `utteranceIntent` (§3) and
+      `tokenUsage` (§3).
 - [ ] Uses a number or string `score` (never a boolean) in each score entry.
 - [ ] Emits `parameter_name`s aligned with its declared dimensions (extras are warned, not
       failed).
@@ -391,6 +401,7 @@ silently show no results.
 | `evaluatorName` | string | No | Human-readable evaluator name (stored verbatim). |
 | `evaluatorVersion` | string | No | Version string (stored verbatim). |
 | `overallScore` | number | No | Aggregate numeric score (stored verbatim). |
+| `tokenUsage` | object | No | LLM token counts for this evaluation call. Same shape as batch mode (`promptTokens?`, `completionTokens?`, `totalTokens?`). Include it to surface per-turn token counts in the chat analytics UI. |
 
 **Each `parameters` entry** — same key names as the batch-mode `evaluationScores` entry:
 
