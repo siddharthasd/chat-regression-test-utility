@@ -15,6 +15,12 @@ _TRUNCATE = 200
 _VERDICT_ORDER = {"fail": 0, "warn": 1, "pass": 2}
 
 
+def _extract_tokens(data: dict | None) -> int | None:
+    if not data:
+        return None
+    return (data.get("tokenUsage") or {}).get("totalTokens")
+
+
 def _utcnow() -> datetime:
     return datetime.now(UTC)
 
@@ -57,6 +63,10 @@ def turn_view(turn: ChatTurn) -> dict:
     """Flat dict for rendering one turn in the chat interface."""
     result = turn.result
     events = turn.evaluation_events or []
+    conn_tokens = _extract_tokens(result.normalized_contract if result else None)
+    ev_tokens = _extract_tokens(result.final_evaluation_result if result else None)
+    present = [t for t in (conn_tokens, ev_tokens) if t is not None]
+    total_tokens = sum(present) if present else None
     return {
         "turn_id": turn.turn_id,
         "status": turn.status,
@@ -67,6 +77,9 @@ def turn_view(turn: ChatTurn) -> dict:
         "final_evaluation_result": result.final_evaluation_result if result else None,
         "error_stage": result.error_stage if result else None,
         "error_details": result.error_details if result else None,
+        "connector_token_count": conn_tokens,
+        "evaluator_token_count": ev_tokens,
+        "total_token_count": total_tokens,
         "evaluation_events": [
             {
                 "event_type": ev.event_type,

@@ -400,7 +400,14 @@ def chat_interface(
         turns = list(reversed(turns))
         turn_views = [session_view.turn_view(t) for t in turns]
         eval_turns = [
-            {"turnIndex": idx, "events": tv["evaluation_events"], "finalResult": tv["final_evaluation_result"]}
+            {
+                "turnIndex": idx,
+                "events": tv["evaluation_events"],
+                "finalResult": tv["final_evaluation_result"],
+                "connectorTokens": tv.get("connector_token_count"),
+                "evaluatorTokens": tv.get("evaluator_token_count"),
+                "totalTokens": tv.get("total_token_count"),
+            }
             for idx, tv in enumerate(turn_views, start=1)
             if tv["evaluation_events"] or tv["final_evaluation_result"]
         ]

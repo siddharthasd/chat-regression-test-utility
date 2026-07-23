@@ -5,13 +5,13 @@
 <style>
   /* Chat interface fills the viewport — internal panes scroll, browser does not */
   html, body { height: 100%; overflow: hidden; }
-  main.flex-grow-1 {
+  main {
     display: flex !important;
     flex-direction: column;
     overflow: hidden;
     padding-bottom: 0 !important;
   }
-  main.flex-grow-1 > .container-fluid {
+  main > .container-fluid {
     flex: 1 1 0;
     min-height: 0;
     display: flex;
@@ -83,6 +83,15 @@
               <div class="mb-3 connector-response" data-turn="{{ turn.turn_id }}">
                 <div class="text-muted small mb-1">Connector</div>
                 <div class="gfm-content p-2 border rounded bg-white">{{ turn.assembled_response }}</div>
+                {% if turn.connector_token_count is not none %}
+                <div class="text-muted mt-1" style="font-size:0.7rem">{{ "{:,}".format(turn.connector_token_count) }} tokens</div>
+                {% endif %}
+              </div>
+            {% elif turn.status == 'completed' %}
+              <div class="mb-3 connector-response" data-turn="{{ turn.turn_id }}">
+                <div class="text-muted small mb-1">Connector</div>
+                <div class="p-2 border rounded bg-light"><em class="text-muted small">(no response)</em></div>
+                <div class="text-muted small mt-1 fst-italic">Connector returned an empty response.</div>
               </div>
             {% elif turn.status == 'failed' %}
               {% set _sl = {
@@ -92,9 +101,13 @@
                 'evaluator_auth': 'Evaluator (authentication)',
                 'evaluator_stream': 'Evaluator',
               } %}
-              <div class="mb-3 text-danger small">
-                <strong>{{ _sl.get(turn.error_stage, turn.error_stage) }} failed:</strong>
-                {{ turn.error_details }}
+              <div class="mb-3 connector-response" data-turn="{{ turn.turn_id }}">
+                <div class="text-muted small mb-1">Connector</div>
+                <div class="p-2 border rounded bg-light"><em class="text-muted small">(no response)</em></div>
+                <div class="text-danger small mt-1">
+                  <strong>{{ _sl.get(turn.error_stage, turn.error_stage) }} failed:</strong>
+                  {{ turn.error_details }}
+                </div>
               </div>
             {% endif %}
           {% endfor %}
@@ -127,7 +140,7 @@
             <button type="button" id="evalDevViewBtn" class="btn btn-outline-secondary btn-sm">Developer View</button>
           </div>
         </div>
-        <div id="evalPane" class="flex-grow-1 overflow-y-auto p-3" style="font-size:0.9rem; min-height:0">
+        <div id="evalPane" class="flex-grow-1 overflow-y-auto p-3" style="font-size:0.9rem; min-height:0; overflow-x:hidden">
           <div id="evalStaticContent"></div>
           <!-- Live eval events target -->
           <div id="liveEvalPane" style="display:none!important">
@@ -222,7 +235,9 @@ const TOTAL_TURNS = {{ turn_count }};
     badge.textContent = ev.event_type || '';
     const code = document.createElement('code');
     code.className = 'small ms-1';
-    code.textContent = JSON.stringify(ev.payload || {});
+    code.style.wordBreak = 'break-all';
+    code.style.whiteSpace = 'pre-wrap';
+    code.textContent = JSON.stringify(ev.payload || {}, null, 2);
     div.appendChild(badge);
     div.appendChild(document.createTextNode(' '));
     div.appendChild(code);
@@ -278,10 +293,19 @@ const TOTAL_TURNS = {{ turn_count }};
   function buildTurnEl(turn, isLast) {
     const wrapper = document.createElement('div');
     wrapper.className = 'mb-3' + (isLast ? '' : ' border-bottom pb-2');
-    const label = document.createElement('div');
-    label.className = 'text-muted small mb-1';
-    label.textContent = 'Turn ' + turn.turnIndex;
-    wrapper.appendChild(label);
+    const labelRow = document.createElement('div');
+    labelRow.className = 'text-muted small mb-1 d-flex justify-content-between align-items-center';
+    const turnLabel = document.createElement('span');
+    turnLabel.textContent = 'Turn ' + turn.turnIndex;
+    labelRow.appendChild(turnLabel);
+    if (turn.totalTokens != null) {
+      const totalBadge = document.createElement('span');
+      totalBadge.className = 'badge bg-light text-dark border fw-normal';
+      totalBadge.style.fontSize = '0.7rem';
+      totalBadge.textContent = turn.totalTokens.toLocaleString() + ' tokens total';
+      labelRow.appendChild(totalBadge);
+    }
+    wrapper.appendChild(labelRow);
     let hasContent = false;
     for (const ev of (turn.events || [])) {
       const el = devMode ? buildDevEventEl(ev) : buildUserEventEl(ev);
@@ -294,6 +318,14 @@ const TOTAL_TURNS = {{ turn_count }};
         .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
       fd.innerHTML = '<strong>Final:</strong> <code>' + safe + '</code>';
       wrapper.appendChild(fd);
+      hasContent = true;
+    }
+    if (turn.evaluatorTokens != null) {
+      const evTokDiv = document.createElement('div');
+      evTokDiv.className = 'text-muted mt-1';
+      evTokDiv.style.fontSize = '0.7rem';
+      evTokDiv.textContent = turn.evaluatorTokens.toLocaleString() + ' evaluator tokens';
+      wrapper.appendChild(evTokDiv);
       hasContent = true;
     }
     return hasContent ? wrapper : null;
@@ -379,6 +411,10 @@ const TOTAL_TURNS = {{ turn_count }};
       msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>';
 
     liveConnectorPane.style.removeProperty('display');
+    while (liveConnectorPane.children.length > 2) {
+      liveConnectorPane.removeChild(liveConnectorPane.lastChild);
+    }
+    liveConnectorContent.className = 'gfm-content p-2 border rounded bg-white';
     liveConnectorContent.innerHTML = '';
     liveEvalPane.style.removeProperty('display');
     liveEvalTurnLabel.textContent = 'Turn ' + liveTurnIndex;
@@ -430,6 +466,14 @@ const TOTAL_TURNS = {{ turn_count }};
 
     es.addEventListener('turn_complete', function () {
       evaluatingIndicator.style.display = 'none';
+      if (!tokenBuffer) {
+        liveConnectorContent.className = 'p-2 border rounded bg-light';
+        liveConnectorContent.innerHTML = '<em class="text-muted small">(no response)</em>';
+        const gap = document.createElement('div');
+        gap.className = 'text-muted small mt-1 fst-italic';
+        gap.textContent = 'Connector returned an empty response.';
+        liveConnectorPane.appendChild(gap);
+      }
       liveTurnIndex++;
       setStreamingState(false);
       es.close();
@@ -449,7 +493,11 @@ const TOTAL_TURNS = {{ turn_count }};
       if (stage.startsWith('evaluator')) {
         liveEvalEventsEl.appendChild(errDiv);
       } else {
-        liveConnectorContent.appendChild(errDiv);
+        if (!tokenBuffer) {
+          liveConnectorContent.className = 'p-2 border rounded bg-light';
+          liveConnectorContent.innerHTML = '<em class="text-muted small">(no response)</em>';
+        }
+        liveConnectorPane.appendChild(errDiv);
       }
       setStreamingState(false);
       es.close();
