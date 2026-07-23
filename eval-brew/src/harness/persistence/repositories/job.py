@@ -277,6 +277,12 @@ class JobRepository:
         self._session.delete(job)  # cascades Utterance + EvaluationResult
         self._session.flush()
 
+    def force_delete(self, job_id: str) -> None:
+        """Delete a job regardless of its current status."""
+        job = self._require(job_id)
+        self._session.delete(job)
+        self._session.flush()
+
     def delete_all_clearable(self) -> int:
         """Delete all failed, cancelled, and completed-with-errors jobs atomically."""
         # Snapshot the qualifying id-set inside the transaction (FR-012 atomicity).

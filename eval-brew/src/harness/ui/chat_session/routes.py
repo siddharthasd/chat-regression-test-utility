@@ -413,6 +413,16 @@ def chat_interface(
         ]
         eval_turns_json = json.dumps(eval_turns)
         turn_count = len(turn_views)
+        session_total_tokens = sum(
+            (tv.get("connector_token_count") or 0) + (tv.get("evaluator_token_count") or 0)
+            for tv in turn_views
+        )
+        session_connector_tokens = sum(
+            tv.get("connector_token_count") or 0 for tv in turn_views
+        )
+        session_evaluator_tokens = sum(
+            tv.get("evaluator_token_count") or 0 for tv in turn_views
+        )
         from harness.persistence.encryption import decrypt_credential
         try:
             test_id = decrypt_credential(chat_session.test_id_enc)
@@ -426,6 +436,9 @@ def chat_interface(
             "turns": turn_views,
             "eval_turns_json": eval_turns_json,
             "turn_count": turn_count,
+            "session_total_tokens": session_total_tokens,
+            "session_connector_tokens": session_connector_tokens,
+            "session_evaluator_tokens": session_evaluator_tokens,
             "test_id": test_id,
             "is_owner": not _is_admin(user) or _owner_oid(user) == chat_session.owner_oid,
             **ctx(request),
@@ -813,6 +826,7 @@ def chat_session_admin_delete(
 ):
     if not _is_admin(user):
         raise HTTPException(status_code=403, detail="Admin role required")
+    stale_turn_id = None
     with get_session() as db:
         repo = ChatSessionRepository(db)
         chat_session = repo.get_session(session_id)
@@ -820,10 +834,8 @@ def chat_session_admin_delete(
             raise HTTPException(status_code=404)
         in_progress = repo.get_in_progress_turn(session_id)
         if in_progress is not None:
-            # Silently skip — do not delete sessions with active turns.
-            # No remove_bus needed: nothing is deleted, so no bus cleanup is required.
-            return RedirectResponse(request.url_for("chat_session_list"), status_code=303)
+            stale_turn_id = in_progress.turn_id
         repo.delete_session(session_id)
-    # No in-progress turn existed (guard above prevents reaching here otherwise),
-    # so no live bus entry to clean up.
+    if stale_turn_id:
+        bus_registry.remove_bus(stale_turn_id)
     return RedirectResponse(request.url_for("chat_session_list"), status_code=303)

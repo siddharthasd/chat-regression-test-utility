@@ -62,8 +62,8 @@
                   <button class="btn btn-outline-danger btn-sm">Delete</button>
                 </form>
               {% else %}
-                <form method="post" action="{{ url_for('chat_session_delete', session_id=s.chat_session_id) }}"
-                      class="d-inline" onsubmit="return confirm('Delete this session?')">
+                <form method="post" action="{{ url_for('chat_session_delete', session_id=s.chat_session_id) }}?confirm=true"
+                      class="d-inline" onsubmit="return confirm('Delete this session? This cannot be undone.')">
                   <button class="btn btn-outline-danger btn-sm">Delete</button>
                 </form>
               {% endif %}

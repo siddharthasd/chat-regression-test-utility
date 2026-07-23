@@ -28,7 +28,13 @@
   <div style="flex-shrink:0" class="mb-2">
     <div class="d-flex justify-content-between align-items-start">
       <div>
-        <h5 class="mb-0">{{ chat_session.session_name }}</h5>
+        <h5 class="mb-0 d-flex align-items-center gap-2">
+          {{ chat_session.session_name }}
+          <span id="sessionTokensPill" class="badge bg-secondary fw-normal"
+                style="font-size:0.75rem{% if (session_total_tokens | default(0)) == 0 %}; display:none{% endif %}">
+            {{ "{:,}".format(session_total_tokens | default(0)) }} tokens total
+          </span>
+        </h5>
         <small class="text-muted">
           Connector: <strong>{{ chat_session.connector_name }}</strong> &nbsp;·&nbsp;
           Evaluator: <strong>{{ chat_session.evaluator_name }}</strong> &nbsp;·&nbsp;
@@ -54,8 +60,12 @@
     <div class="d-flex flex-column" style="flex:3 1 0; min-width:0; min-height:0">
       <div class="card shadow-sm d-flex flex-column flex-grow-1" style="overflow:hidden; min-height:0">
         <div class="card-header d-flex justify-content-between align-items-center py-2" style="flex-shrink:0">
-          <span class="d-flex align-items-center gap-1">
+          <span class="d-flex align-items-center gap-2">
             <span class="fw-semibold small">Chat</span>
+            <span id="chatConnectorTokensPill" class="badge bg-light text-dark border fw-normal"
+                  style="font-size:0.7rem">
+              {{ "{:,}".format(session_connector_tokens | default(0)) }} tokens
+            </span>
             <button type="button"
                     class="btn btn-link btn-sm p-0 text-muted lh-1"
                     data-bs-toggle="popover"
@@ -83,15 +93,18 @@
               <div class="mb-3 connector-response" data-turn="{{ turn.turn_id }}">
                 <div class="text-muted small mb-1">Connector</div>
                 <div class="gfm-content p-2 border rounded bg-white">{{ turn.assembled_response }}</div>
-                {% if turn.connector_token_count is not none %}
-                <div class="text-muted mt-1" style="font-size:0.7rem">{{ "{:,}".format(turn.connector_token_count) }} tokens</div>
-                {% endif %}
+                <div class="mt-1">
+                  <span class="badge bg-light text-dark border fw-normal" style="font-size:0.7rem">{{ "{:,}".format(turn.connector_token_count or 0) }} tokens</span>
+                </div>
               </div>
             {% elif turn.status == 'completed' %}
               <div class="mb-3 connector-response" data-turn="{{ turn.turn_id }}">
                 <div class="text-muted small mb-1">Connector</div>
                 <div class="p-2 border rounded bg-light"><em class="text-muted small">(no response)</em></div>
                 <div class="text-muted small mt-1 fst-italic">Connector returned an empty response.</div>
+                <div class="mt-1">
+                  <span class="badge bg-light text-dark border fw-normal" style="font-size:0.7rem">{{ "{:,}".format(turn.connector_token_count or 0) }} tokens</span>
+                </div>
               </div>
             {% elif turn.status == 'failed' %}
               {% set _sl = {
@@ -115,6 +128,9 @@
           <div id="liveUserMsg" class="d-flex justify-content-end mb-2" style="display:none!important"></div>
           <div id="liveConnectorPane" class="mb-3" style="display:none!important">
             <div class="text-muted small mb-1">Connector</div>
+            <div id="connectorGeneratingIndicator" class="text-muted small mb-2" style="display:none">
+              <span class="spinner-border spinner-border-sm me-1" role="status"></span> Generating response…
+            </div>
             <div id="liveConnectorContent" class="gfm-content p-2 border rounded bg-white"></div>
           </div>
         </div>
@@ -134,7 +150,13 @@
     <div class="d-flex flex-column" style="flex:2 1 0; min-width:0; min-height:0">
       <div class="card shadow-sm d-flex flex-column flex-grow-1" style="overflow:hidden; min-height:0">
         <div class="card-header py-2 d-flex justify-content-between align-items-center" style="flex-shrink:0">
-          <span class="fw-semibold small">Evaluation</span>
+          <span class="d-flex align-items-center gap-2">
+            <span class="fw-semibold small">Evaluation</span>
+            <span id="evalTokensPill" class="badge bg-light text-dark border fw-normal"
+                  style="font-size:0.7rem{% if (session_evaluator_tokens | default(0)) == 0 %}; display:none{% endif %}">
+              {{ "{:,}".format(session_evaluator_tokens | default(0)) }} tokens
+            </span>
+          </span>
           <div class="btn-group btn-group-sm" role="group" aria-label="Evaluation view mode">
             <button type="button" id="evalUserViewBtn" class="btn btn-primary btn-sm">User View</button>
             <button type="button" id="evalDevViewBtn" class="btn btn-outline-secondary btn-sm">Developer View</button>
@@ -166,6 +188,9 @@
 <script>
 const EVAL_TURNS = {{ eval_turns_json | safe }};
 const TOTAL_TURNS = {{ turn_count }};
+let sessionTokensTotal = {{ session_total_tokens | default(0) }};
+let sessionConnectorTokens = {{ session_connector_tokens | default(0) }};
+let sessionEvaluatorTokens = {{ session_evaluator_tokens | default(0) }};
 </script>
 <script>
 (function () {
@@ -290,6 +315,53 @@ const TOTAL_TURNS = {{ turn_count }};
     return outer;
   }
 
+  function extractParametersFromEvents(events) {
+    const seen = new Map();
+    for (const ev of (events || [])) {
+      if (ev.event_type !== 'score_update' && ev.event_type !== 'score') continue;
+      const p = ev.payload || {};
+      const name = p.parameter_name || p.dimension || '';
+      if (!name) continue;
+      seen.set(name, {
+        parameter_name: name,
+        score: p.score != null ? p.score : null,
+        reasoning: p.reasoning || '',
+      });
+    }
+    return Array.from(seen.values());
+  }
+
+  function buildParametersTable(parameters) {
+    if (!parameters || parameters.length === 0) return null;
+    const wrap = document.createElement('div');
+    wrap.className = 'mt-1';
+    const tbl = document.createElement('table');
+    tbl.className = 'table table-sm table-bordered mb-0';
+    tbl.style.fontSize = '0.8rem';
+    const thead = document.createElement('thead');
+    thead.innerHTML = '<tr><th style="white-space:nowrap">Parameter Name</th><th style="white-space:nowrap">Score</th><th>Reason</th></tr>';
+    tbl.appendChild(thead);
+    const tbody = document.createElement('tbody');
+    for (const p of parameters) {
+      const tr = document.createElement('tr');
+      const tdName = document.createElement('td');
+      tdName.style.whiteSpace = 'nowrap';
+      tdName.textContent = (p.parameter_name || '').replace(/_/g, ' ');
+      const tdScore = document.createElement('td');
+      tdScore.style.whiteSpace = 'nowrap';
+      tdScore.textContent = p.score != null ? String(p.score) : '—';
+      const tdReason = document.createElement('td');
+      tdReason.textContent = p.reasoning || '';
+      tr.appendChild(tdName);
+      tr.appendChild(tdScore);
+      tr.appendChild(tdReason);
+      tbody.appendChild(tr);
+    }
+    tbl.appendChild(tbody);
+    wrap.appendChild(tbl);
+    return wrap;
+  }
+
   function buildTurnEl(turn, isLast) {
     const wrapper = document.createElement('div');
     wrapper.className = 'mb-3' + (isLast ? '' : ' border-bottom pb-2');
@@ -307,9 +379,25 @@ const TOTAL_TURNS = {{ turn_count }};
     }
     wrapper.appendChild(labelRow);
     let hasContent = false;
-    for (const ev of (turn.events || [])) {
-      const el = devMode ? buildDevEventEl(ev) : buildUserEventEl(ev);
-      if (el) { wrapper.appendChild(el); hasContent = true; }
+    if (!devMode) {
+      let params = (turn.finalResult && (turn.finalResult.parameters || turn.finalResult.evaluationScores)) || [];
+      if (params.length === 0) {
+        params = extractParametersFromEvents(turn.events);
+      }
+      if (params.length > 0) {
+        const tbl = buildParametersTable(params);
+        if (tbl) { wrapper.appendChild(tbl); hasContent = true; }
+      } else {
+        for (const ev of (turn.events || [])) {
+          const el = buildUserEventEl(ev);
+          if (el) { wrapper.appendChild(el); hasContent = true; }
+        }
+      }
+    } else {
+      for (const ev of (turn.events || [])) {
+        const el = buildDevEventEl(ev);
+        if (el) { wrapper.appendChild(el); hasContent = true; }
+      }
     }
     if (devMode && turn.finalResult) {
       const fd = document.createElement('div');
@@ -346,6 +434,21 @@ const TOTAL_TURNS = {{ turn_count }};
   function renderLiveEvalEvents() {
     const container = document.getElementById('liveEvalEvents');
     container.innerHTML = '';
+    if (!devMode) {
+      const finalEv = liveEvents.find(function (e) { return e.event_type === 'final'; });
+      if (finalEv) {
+        const fp = finalEv.payload || {};
+        let params = fp.parameters || fp.evaluationScores || [];
+        if (params.length === 0) {
+          params = extractParametersFromEvents(liveEvents);
+        }
+        const tbl = buildParametersTable(params);
+        if (tbl) {
+          container.appendChild(tbl);
+          return;
+        }
+      }
+    }
     for (const ev of liveEvents) {
       const el = devMode ? buildDevEventEl(ev) : buildUserEventEl(ev);
       if (el) container.appendChild(el);
@@ -374,8 +477,9 @@ const TOTAL_TURNS = {{ turn_count }};
   const liveEvalPane         = document.getElementById('liveEvalPane');
   const liveEvalEventsEl     = document.getElementById('liveEvalEvents');
   const liveEvalTurnLabel    = document.getElementById('liveEvalTurnLabel');
-  const evaluatingIndicator  = document.getElementById('evaluatingIndicator');
-  const sendingIndicator     = document.getElementById('sendingIndicator');
+  const evaluatingIndicator           = document.getElementById('evaluatingIndicator');
+  const connectorGeneratingIndicator  = document.getElementById('connectorGeneratingIndicator');
+  const sendingIndicator              = document.getElementById('sendingIndicator');
   let liveTurnIndex = TOTAL_TURNS + 1;
 
   const STAGE_LABELS = {
@@ -411,11 +515,12 @@ const TOTAL_TURNS = {{ turn_count }};
       msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>';
 
     liveConnectorPane.style.removeProperty('display');
-    while (liveConnectorPane.children.length > 2) {
+    while (liveConnectorPane.children.length > 3) {
       liveConnectorPane.removeChild(liveConnectorPane.lastChild);
     }
     liveConnectorContent.className = 'gfm-content p-2 border rounded bg-white';
     liveConnectorContent.innerHTML = '';
+    connectorGeneratingIndicator.style.display = '';
     liveEvalPane.style.removeProperty('display');
     liveEvalTurnLabel.textContent = 'Turn ' + liveTurnIndex;
     liveEvalTurnLabel.className = 'text-muted small mb-1' + (liveTurnIndex > 1 ? ' border-top pt-2 mt-1' : '');
@@ -435,6 +540,7 @@ const TOTAL_TURNS = {{ turn_count }};
       }
       turnId = (await resp.json()).turn_id;
     } catch (err) {
+      connectorGeneratingIndicator.style.display = 'none';
       setStreamingState(false);
       liveConnectorContent.innerHTML = '<span class="text-danger">Failed to submit: ' +
         err.message.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</span>';
@@ -446,6 +552,7 @@ const TOTAL_TURNS = {{ turn_count }};
     const es = new EventSource(streamUrl);
 
     es.addEventListener('connector_token', function (e) {
+      connectorGeneratingIndicator.style.display = 'none';
       const data = JSON.parse(e.data);
       tokenBuffer += (data.content || '');
       liveConnectorContent.innerHTML = renderGfm(tokenBuffer);
@@ -453,6 +560,7 @@ const TOTAL_TURNS = {{ turn_count }};
     });
 
     es.addEventListener('evaluating', function () {
+      connectorGeneratingIndicator.style.display = 'none';
       evaluatingIndicator.style.display = '';
       scrollToBottom(evalPane);
     });
@@ -464,7 +572,7 @@ const TOTAL_TURNS = {{ turn_count }};
       scrollToBottom(evalPane);
     });
 
-    es.addEventListener('turn_complete', function () {
+    es.addEventListener('turn_complete', function (e) {
       evaluatingIndicator.style.display = 'none';
       if (!tokenBuffer) {
         liveConnectorContent.className = 'p-2 border rounded bg-light';
@@ -474,6 +582,48 @@ const TOTAL_TURNS = {{ turn_count }};
         gap.textContent = 'Connector returned an empty response.';
         liveConnectorPane.appendChild(gap);
       }
+      try {
+        const td = JSON.parse(e.data || '{}');
+        // Connector-only pill (0 when not reported)
+        const connTok = td.connectorTokens || 0;
+        const connWrapper = document.createElement('div');
+        connWrapper.className = 'mt-1';
+        const connPill = document.createElement('span');
+        connPill.className = 'badge bg-light text-dark border fw-normal';
+        connPill.style.fontSize = '0.7rem';
+        connPill.textContent = connTok.toLocaleString() + ' tokens';
+        connWrapper.appendChild(connPill);
+        liveConnectorPane.appendChild(connWrapper);
+        // Update running totals
+        const evTok = td.evaluatorTokens || 0;
+        sessionConnectorTokens += connTok;
+        sessionEvaluatorTokens += evTok;
+        sessionTokensTotal += connTok + evTok;
+        // Session name pill
+        const sessionPill = document.getElementById('sessionTokensPill');
+        if (sessionPill) {
+          sessionPill.textContent = sessionTokensTotal.toLocaleString() + ' tokens total';
+          sessionPill.style.removeProperty('display');
+        }
+        // Chat panel header pill
+        const chatHeaderPill = document.getElementById('chatConnectorTokensPill');
+        if (chatHeaderPill) {
+          chatHeaderPill.textContent = sessionConnectorTokens.toLocaleString() + ' tokens';
+        }
+        // Eval panel header pill
+        const evalHeaderPill = document.getElementById('evalTokensPill');
+        if (evalHeaderPill && sessionEvaluatorTokens > 0) {
+          evalHeaderPill.textContent = sessionEvaluatorTokens.toLocaleString() + ' tokens';
+          evalHeaderPill.style.removeProperty('display');
+        }
+        if (td.evaluatorTokens != null) {
+          const evTokDiv = document.createElement('div');
+          evTokDiv.className = 'text-muted mt-1';
+          evTokDiv.style.fontSize = '0.7rem';
+          evTokDiv.textContent = td.evaluatorTokens.toLocaleString() + ' evaluator tokens';
+          liveEvalEventsEl.appendChild(evTokDiv);
+        }
+      } catch (_) {}
       liveTurnIndex++;
       setStreamingState(false);
       es.close();
@@ -481,6 +631,7 @@ const TOTAL_TURNS = {{ turn_count }};
 
     es.addEventListener('turn_failed', function (e) {
       const data = JSON.parse(e.data);
+      connectorGeneratingIndicator.style.display = 'none';
       evaluatingIndicator.style.display = 'none';
       liveTurnIndex++;
       const stage = data.error_stage || '';

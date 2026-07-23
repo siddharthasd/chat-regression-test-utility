@@ -18,7 +18,14 @@ _VERDICT_ORDER = {"fail": 0, "warn": 1, "pass": 2}
 def _extract_tokens(data: dict | None) -> int | None:
     if not data:
         return None
-    return (data.get("tokenUsage") or {}).get("totalTokens")
+    usage = data.get("tokenUsage") or {}
+    total = usage.get("totalTokens")
+    if total is None:
+        prompt = usage.get("promptTokens")
+        completion = usage.get("completionTokens")
+        if prompt is not None or completion is not None:
+            total = (prompt or 0) + (completion or 0)
+    return total
 
 
 def _utcnow() -> datetime:
@@ -65,8 +72,10 @@ def turn_view(turn: ChatTurn) -> dict:
     events = turn.evaluation_events or []
     conn_tokens = _extract_tokens(result.normalized_contract if result else None)
     ev_tokens = _extract_tokens(result.final_evaluation_result if result else None)
-    present = [t for t in (conn_tokens, ev_tokens) if t is not None]
-    total_tokens = sum(present) if present else None
+    if conn_tokens is not None or ev_tokens is not None:
+        total_tokens = (conn_tokens or 0) + (ev_tokens or 0)
+    else:
+        total_tokens = None
     return {
         "turn_id": turn.turn_id,
         "status": turn.status,

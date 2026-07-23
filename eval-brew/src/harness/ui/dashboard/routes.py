@@ -156,9 +156,10 @@ def jobs_json(request: Request, user: dict = Depends(require_auth)):
 def delete_job(
     request: Request,
     job_id: str,
+    redirect_to: str = Query(default="job_list"),
     user: dict = Depends(require_auth),
 ):
-    """Delete a single failed/cancelled job (FR-010b), re-checking status at execute time."""
+    """Delete a single job regardless of its current status."""
     is_admin = user.get("role") == "admin" if user else True
     with get_session() as session:
         repo = JobRepository(session)
@@ -167,29 +168,9 @@ def delete_job(
         )
         if job is None:
             raise HTTPException(status_code=404)
-        if job.status not in _DELETABLE:
-            now = datetime.now(UTC)
-            all_rows = [view.row_view(j, now) for j in _list_jobs(session, user)]
-            return templates.TemplateResponse(
-                request,
-                "dashboard/index.html",
-                {
-                    "rows": view.sort_rows(all_rows, "created_at", "desc"),
-                    "total_jobs": len(all_rows),
-                    "facets": view.distinct_facets(all_rows),
-                    "selected": {"status": [], "connector": [], "created_by": []},
-                    "q": "",
-                    "sort": "created_at",
-                    "dir": "desc",
-                    "terminal_clearable": sum(1 for r in all_rows if r["deletable"]),
-                    "error": f"Job is '{job.status}' and cannot be deleted.",
-                    "is_admin": is_admin,
-                    **ctx(request),
-                },
-                status_code=409,
-            )
-        repo.delete(job_id)
-    return RedirectResponse(request.url_for("job_list"), status_code=303)
+        repo.force_delete(job_id)
+    redirect_url = request.url_for("index") if redirect_to == "dashboard" else request.url_for("job_list")
+    return RedirectResponse(redirect_url, status_code=303)
 
 
 @router.post("/dashboard/clear-terminal")

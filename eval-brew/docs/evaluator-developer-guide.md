@@ -483,9 +483,11 @@ agentChain, metadata}`, `conversationContext`, `connectorId`, `timestamp`,
 **SSE mode — `final` event payload:**
 `overallVerdict` (`pass`|`fail`|`warn`), `parameters`
 [`{parameter_name, score, reasoning, verdict?}`], plus optional `evaluatorId`,
-`evaluatorName`, `evaluatorVersion`, `overallScore`. Note: `overallVerdict`/`parameters`
+`evaluatorName`, `evaluatorVersion`, `overallScore`,
+`tokenUsage?`{ `promptTokens?`, `completionTokens?`, `totalTokens?` }. Note: `overallVerdict`/`parameters`
 are **different key names** from the batch-mode `evaluationVerdict`/`evaluationScores`.
 The `parameter_name` key inside each entry is identical in both modes.
+`tokenUsage` uses the same shape as batch mode; include it to surface token counts in the chat UI.
 
 **SSE intermediate event types:** `score_update`, `warning`, `insight`, `diagnostic`.
 Unknown types are forwarded and persisted without error.

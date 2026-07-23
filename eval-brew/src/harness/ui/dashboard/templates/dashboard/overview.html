@@ -113,6 +113,19 @@
               {% if r.can_download %}
               <a href="{{ r.download_url }}" class="btn btn-sm btn-outline-secondary py-0">Download</a>
               {% endif %}
+              {% if r.type == "job" %}
+              <form method="post"
+                    action="{{ url_for('delete_job', job_id=r.id) }}?redirect_to=dashboard"
+                    onsubmit="return confirm('Permanently delete "{{ r.name[:50] }}" ({{ r.status }})? This cannot be undone.')">
+                <button type="submit" class="btn btn-sm btn-outline-danger py-0">Delete</button>
+              </form>
+              {% else %}
+              <form method="post"
+                    action="{{ url_for('chat_session_delete', session_id=r.id) }}?confirm=true"
+                    onsubmit="return confirm('Permanently delete "{{ r.name[:50] }}"? This cannot be undone.')">
+                <button type="submit" class="btn btn-sm btn-outline-danger py-0">Delete</button>
+              </form>
+              {% endif %}
             </div>
           </td>
         </tr>

@@ -180,6 +180,22 @@ async def run_turn(
 
     assembled_response = "".join(assembled_tokens)
 
+    # Compute token counts for the turn_complete event (mirrors view._extract_tokens)
+    def _extract_tokens_local(data: dict | None) -> int | None:
+        if not data:
+            return None
+        usage = data.get("tokenUsage") or {}
+        total = usage.get("totalTokens")
+        if total is None:
+            p = usage.get("promptTokens")
+            c = usage.get("completionTokens")
+            if p is not None or c is not None:
+                total = (p or 0) + (c or 0)
+        return total
+
+    conn_tok = _extract_tokens_local(contract)
+    ev_tok = _extract_tokens_local(final_result)
+
     # --- Persist result ---
     # mark_complete() is in a finally block so the browser SSE stream always
     # terminates even if the DB write itself fails (e.g. disk full, lock timeout).
@@ -218,6 +234,8 @@ async def run_turn(
                         "data": {
                             "turn_id": turn_id,
                             "assembled_response": assembled_response,
+                            "connectorTokens": conn_tok,
+                            "evaluatorTokens": ev_tok,
                         },
                     }
                 )
