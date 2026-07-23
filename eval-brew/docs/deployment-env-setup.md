@@ -49,7 +49,7 @@ All four variables are required when `HARNESS_AUTH_ENABLED=true`.
 |---|---|---|---|
 | `HARNESS_SESSION_SECRET` | Yes* | — | Random string used to sign session cookies. Must be at least 32 characters. Keep it secret. |
 
-\* Required when `HARNESS_AUTH_ENABLED=true`.
+\* Strictly required when `HARNESS_AUTH_ENABLED=true`. When auth is disabled, the server starts without it, but a missing value causes a fresh random key to be generated on every restart — invalidating any in-flight session state. Set a stable value in all persistent deployments regardless of auth mode.
 
 Generate a key:
 
@@ -94,6 +94,14 @@ is made at startup based on which variable is set.
 |---|---|---|---|
 | `HARNESS_MAX_UPLOAD_BYTES` | No | `52428800` (50 MiB) | Maximum accepted size in bytes for CSV uploads. |
 
+### Server & networking
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `HARNESS_PUBLIC_URL` | No* | — | Base URL the server uses when constructing absolute links for external callers, e.g. `https://your-app.azurewebsites.net`. Used in headless API responses (`results_url`). If unset, `results_url` in job results will be `null`. |
+
+\* Required for the headless API `results_url` to be usable by M2M callers. Not needed for browser-only deployments.
+
 ### Mock services (development and testing only)
 
 | Variable | Required | Default | Description |
@@ -133,6 +141,9 @@ DATABASE_URL=postgresql+psycopg2://harness_user:PASSWORD@your-server.postgres.da
 
 # Encryption key — set once, store as a permanent secret (generate with the command above)
 HARNESS_MASTER_KEY=<your-fernet-key>
+
+# Public base URL — required for headless API results_url to be usable by M2M callers
+HARNESS_PUBLIC_URL=https://your-app.azurewebsites.net
 ```
 
 > Do not commit the Azure `.env` to source control. In App Service, set these as
@@ -231,6 +242,12 @@ az postgres flexible-server create \
 
 > `--public-access 0.0.0.0` creates a firewall rule that allows all Azure-internal IPs
 > (including App Service). Restrict this further in production using VNet integration.
+
+> **Connection pool sizing.** The harness opens up to 5 PostgreSQL connections per
+> worker process (pool\_size 2 + max\_overflow 3). The B1ms tier allows 50 connections
+> total, which safely supports up to 10 parallel App Service workers. If you scale out
+> to more workers, move to a Standard\_D2s\_v3 or larger tier to avoid connection
+> exhaustion.
 
 Create the database:
 
@@ -337,6 +354,11 @@ az webapp config storage-account add \
   --mount-path /mnt/harness-data
 ```
 
+> **Container user.** The container process runs as uid 1001 (`harness`). Files written
+> to the Azure Files mount will be owned by uid 1001. If you pre-populate the share with
+> a key file (for the `HARNESS_KEY_FILE` alternative), ensure the file is readable by
+> uid 1001 (mode `0600` or `0640` is sufficient on most Azure Files mounts).
+
 ---
 
 ### Step 7 — Set Application Settings (environment variables)
@@ -357,11 +379,15 @@ az webapp config appsettings set \
     HARNESS_AZURE_CLIENT_SECRET="<your-client-secret>" \
     HARNESS_REDIRECT_URI="https://${APP_NAME}.azurewebsites.net/auth/callback" \
     HARNESS_SESSION_SECRET="<generate-with-python-secrets-token-hex-32>" \
+    HARNESS_PUBLIC_URL="https://${APP_NAME}.azurewebsites.net" \
     WEBSITES_PORT="8000"
 ```
 
 > `WEBSITES_PORT=8000` tells App Service which port the container listens on (uvicorn
 > binds to `0.0.0.0:8000` by default).
+>
+> `HARNESS_PUBLIC_URL` sets the base URL embedded in headless API `results_url` responses.
+> Set it to the public HTTPS address of your App Service.
 
 ---
 
@@ -379,8 +405,11 @@ Look for lines like:
 Running migrations...
 INFO  [alembic.runtime.migration] Running upgrade -> 0001, initial schema
 ...
-INFO  [alembic.runtime.migration] Running upgrade 0005 -> 0006, add utterance intent
+INFO  [alembic.runtime.migration] Running upgrade <prev> -> <latest>, <description>
+Migrations complete.
 ```
+
+The exact revision identifiers will vary with the installed version. If any migration fails, the process exits with a non-zero code and the log will show an `ERROR` line before the exit.
 
 Then register the first admin user via the App Service console or SSH:
 
@@ -442,6 +471,7 @@ database intervention is needed.
 - [ ] `HARNESS_AZURE_TENANT_ID`, `HARNESS_AZURE_CLIENT_ID`, `HARNESS_AZURE_CLIENT_SECRET` set.
 - [ ] `HARNESS_REDIRECT_URI` matches the redirect URI registered in Azure AD exactly.
 - [ ] `HARNESS_SESSION_SECRET` set (minimum 32 characters, random).
+- [ ] `HARNESS_PUBLIC_URL` set to the public HTTPS address (required for headless API `results_url`).
 - [ ] `WEBSITES_PORT=8000` set.
 
 ### First run
@@ -453,6 +483,21 @@ database intervention is needed.
 ---
 
 ## 6. Rotating secrets
+
+### Encryption key — do not rotate without a migration plan
+
+> **Warning: rotating `HARNESS_MASTER_KEY` permanently breaks all stored credentials.**
+> Every connector and evaluator credential in the database is encrypted with the current
+> key. If you replace the key with a new value, those records become permanently
+> unreadable — there is no automatic re-encryption. Before rotating the key, export all
+> connector and evaluator credentials from the UI, then re-enter them after the rotation.
+>
+> The safest strategy is to back up the key securely (Azure Key Vault, a password
+> manager) and never rotate it unless it is compromised. If rotation is unavoidable:
+> 1. Export all credentials from the UI.
+> 2. Generate a new key and update `HARNESS_MASTER_KEY` in Application Settings.
+> 3. Restart the App Service.
+> 4. Re-enter every connector and evaluator credential via the UI.
 
 ### Client secret expired or compromised
 
@@ -478,7 +523,63 @@ user will be redirected to the login page on their next request.
 
 ---
 
-## 7. Local development (no SSO)
+## 7. Headless API (M2M) configuration
+
+The headless API (`/api/v1/jobs`) lets CI/CD pipelines and automated scripts create jobs
+and poll results without the browser UI. Authentication uses Bearer JWTs issued by Azure
+AD for a service-principal (client-credentials flow).
+
+### Required variables
+
+| Variable | Notes |
+|---|---|
+| `HARNESS_AUTH_ENABLED` | Must be `true`. Bearer auth is only enforced when SSO is enabled. |
+| `HARNESS_AZURE_TENANT_ID` | Same tenant as the interactive SSO app registration. |
+| `HARNESS_AZURE_CLIENT_ID` | The app registration the M2M client targets as the resource. |
+| `HARNESS_AZURE_API_AUDIENCE` | Optional. Expected `aud` claim in incoming Bearer tokens. Defaults to `HARNESS_AZURE_CLIENT_ID` when unset — only set this if your M2M clients request a different resource URI. |
+| `HARNESS_PUBLIC_URL` | Required for `results_url` in job-result responses to be absolute and usable outside the server. |
+
+### Setting up a service principal
+
+1. In your Azure AD tenant, create (or reuse) an app registration for the M2M caller.
+2. In the **harness** app registration, add an **Application permission** (not Delegated)
+   or an **App Role** to define what the caller is allowed to do.
+3. Grant admin consent for the new permission.
+4. In the caller app, create a client secret and configure it in your pipeline as
+   `AZURE_CLIENT_SECRET` (or equivalent for your SDK).
+
+The M2M caller acquires a token with scope `api://<HARNESS_AZURE_CLIENT_ID>/.default` and
+passes it as `Authorization: Bearer <token>` on each request.
+
+### Example headless workflow
+
+```bash
+# Acquire a token (using Azure CLI for illustration)
+TOKEN=$(az account get-access-token --resource api://<client-id> --query accessToken -o tsv)
+
+# Create a job
+JOB=$(curl -s -X POST https://your-app.azurewebsites.net/api/v1/jobs \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d @payload.json)
+JOB_ID=$(echo $JOB | jq -r .job_id)
+
+# Poll until complete
+while true; do
+  STATUS=$(curl -s -H "Authorization: Bearer $TOKEN" \
+    https://your-app.azurewebsites.net/api/v1/jobs/$JOB_ID/status | jq -r .status)
+  [ "$STATUS" = "completed" ] || [ "$STATUS" = "failed" ] && break
+  sleep 10
+done
+
+# Fetch results
+curl -s -H "Authorization: Bearer $TOKEN" \
+  https://your-app.azurewebsites.net/api/v1/jobs/$JOB_ID/results
+```
+
+---
+
+## 8. Local development (no SSO)
 
 Set `HARNESS_AUTH_ENABLED=false`. All other auth variables are ignored. A synthetic
 admin identity is used, so all routes and admin features are accessible without a login
