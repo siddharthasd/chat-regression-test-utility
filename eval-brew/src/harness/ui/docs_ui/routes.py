@@ -23,6 +23,45 @@ _GUIDES: dict[str, tuple[str, str]] = {
 
 _RELEASES = [
     {
+        "version": "3.3",
+        "title": "Chat UI Enhancements & Delete Anywhere",
+        "date": "23 July 2026",
+        "badge_style": "background:#A100FF",
+        "summary": "Token visibility across every chat turn, an evaluation parameters table in User View, delete controls on every list page regardless of job or session status, and analytics fixes for evaluators that emit batch-format JSON inside SSE.",
+        "sections": [
+            {
+                "title": "Chat Session UI",
+                "bullets": [
+                    "Token usage pills — session-level total displayed next to the session name; connector-only total in the Chat panel header (always shown, even when zero); evaluator total in the Evaluation panel header (shown once data is available).",
+                    "Per-turn connector token badge below every connector response in the chat pane.",
+                    "Generating spinner in the connector pane appears as soon as an utterance is sent and clears when the first token arrives.",
+                    "Evaluation parameters table — User View now renders a clean Parameter Name / Score / Reason table once the final evaluation event arrives, replacing the raw key-value event display. Works for both standard SSE evaluators (parameters field) and evaluators that emit batch-format JSON inside SSE (evaluationScores field).",
+                    "Live token pill updates — connector and evaluator token counts update in the header pills immediately after each turn completes without a page reload.",
+                ],
+            },
+            {
+                "title": "Delete Anywhere",
+                "bullets": [
+                    "Delete buttons added to the dashboard Recent Activity table for both jobs and chat sessions, regardless of status.",
+                    "All Job Sessions table now shows Delete for jobs in any status, not only terminal ones.",
+                    "Chat Sessions list delete bypasses the in-progress guard with a confirmation prompt; in-progress turns are cleaned up automatically.",
+                    "Deleting a job or session from the dashboard keeps you on the dashboard (previously redirected to the job list).",
+                ],
+            },
+            {
+                "title": "Bug Fixes",
+                "bullets": [
+                    "Chat session analytics (Turn Explorer, verdict distribution, parameter scores) now correctly reads evaluationVerdict and evaluationScores for evaluators that return batch-format payloads via SSE.",
+                    "Intent-breakdown bar chart scaling corrected so narrow bars are proportional at low utterance counts.",
+                    "SSO login now falls back through all verified email addresses when the primary email is not found in the user registry (multi-email enterprise accounts).",
+                    "Chat interface layout fixed; Developer View no longer freezes on rapid navigation.",
+                    "Connector empty-response and timeout states display a clear inline message instead of a blank panel.",
+                    "Token extraction falls back to promptTokens + completionTokens when totalTokens is absent from a tokenUsage block.",
+                ],
+            },
+        ],
+    },
+    {
         "version": "3.2",
         "title": "Headless API & Security Hardening",
         "date": "17 July 2026",
