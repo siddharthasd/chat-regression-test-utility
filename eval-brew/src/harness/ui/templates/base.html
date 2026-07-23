@@ -108,7 +108,7 @@
           <details>
             <summary class="nav-link">Admin</summary>
             <ul class="dropdown-menu">
-              <li><a class="dropdown-item" href="{{ url_for('admin_maintenance') }}">Job maintenance</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('admin_maintenance') }}">Job Maintenance</a></li>
               <li class="dropdown-divider"></li>
               <li><a class="dropdown-item" href="{{ url_for('admin_chat_maintenance') }}">Chat session maintenance</a></li>
               <li class="dropdown-divider"></li>
@@ -146,6 +146,7 @@
 <main>
   <div class="container-fluid">
     {% block content %}{% endblock %}
+    {% include "_logged_in_as.html" %}
   </div>
 </main>
 

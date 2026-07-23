@@ -106,12 +106,15 @@ def process_row(
     contract = conn.contract
     data["normalized_contract"] = contract
     data["raw_chatbot_response"] = (contract.get("chatbotResponse") or {}).get("rawPayload")
+    conn_tokens: int | None = (contract.get("tokenUsage") or {}).get("totalTokens")
+    data["connector_token_count"] = conn_tokens
 
     ev = dispatch_evaluation(_evaluator_snapshot(job), contract, client=eval_client)
     if not ev.ok:
         data["error_status"] = "failed"
         data["error_stage"] = ev.error_stage
         data["error_details"] = ev.error_details
+        data["total_token_count"] = conn_tokens
         return data
 
     body = ev.evaluation_result
@@ -123,4 +126,8 @@ def process_row(
     data["utterance_intent"] = raw_intent[:255] if isinstance(raw_intent, str) else raw_intent
     data["harness_annotations"] = ev.harness_annotations
     data["evaluation_timestamp"] = _parse_timestamp(body.get("evaluationTimestamp"))
+    ev_tokens: int | None = (body.get("tokenUsage") or {}).get("totalTokens")
+    data["evaluator_token_count"] = ev_tokens
+    present = [t for t in (conn_tokens, ev_tokens) if t is not None]
+    data["total_token_count"] = sum(present) if present else None
     return data

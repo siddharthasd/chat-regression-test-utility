@@ -65,7 +65,28 @@
         },
         "metadata": {
           "type": "object",
-          "description": "Free-form, connector-specific metadata (e.g. latency, tokenCount). No keys are standardized. Empty object is valid."
+          "description": "Free-form, connector-specific metadata (e.g. latency). No keys are standardized. Empty object is valid."
+        }
+      }
+    },
+    "tokenUsage": {
+      "type": "object",
+      "description": "Optional LLM token usage for the chatbot call. Omit entirely for non-LLM connectors. All sub-fields are optional.",
+      "properties": {
+        "promptTokens": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Tokens consumed by the prompt / input."
+        },
+        "completionTokens": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Tokens consumed by the completion / output."
+        },
+        "totalTokens": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total tokens consumed. Harness uses this field for per-row and job-level aggregation."
         }
       }
     }

@@ -29,6 +29,9 @@ class EvaluationResultCreateData(TypedDict):
     error_status: NotRequired[str | None]
     error_stage: NotRequired[str | None]
     error_details: NotRequired[str | None]
+    connector_token_count: NotRequired[int | None]
+    evaluator_token_count: NotRequired[int | None]
+    total_token_count: NotRequired[int | None]
 
 
 class ConnectorRegistrationCreateData(TypedDict):

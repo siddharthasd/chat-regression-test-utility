@@ -69,7 +69,9 @@ Return HTTP **`200`** with a JSON body matching the contract below. The schema i
 JSON Schema draft 2020-12; **additional properties are allowed at every level**, so you
 may include extra fields, but the required ones must be present and well-typed.
 
-### Top-level fields (all required)
+### Top-level fields
+
+Required unless noted.
 
 | Field | Type | Notes |
 |---|---|---|
@@ -81,6 +83,7 @@ may include extra fields, but the required ones must be present and well-typed.
 | `connectorId` | string | A stable identifier for your connector service (any non-empty string). |
 | `timestamp` | string | RFC 3339 / ISO-8601 datetime, e.g. `2026-06-05T14:32:00Z`. |
 | `chatbotResponse` | object | The chatbot's answer; see below. |
+| `tokenUsage` | object \| omitted | **Optional.** LLM token counts for this chatbot call; see below. Omit entirely for non-LLM connectors. |
 
 ### `chatbotResponse` object (all four sub-fields required)
 
@@ -89,7 +92,23 @@ may include extra fields, but the required ones must be present and well-typed.
 | `rawPayload` | any | The raw chatbot response exactly as you received it. Shape is unconstrained (object, array, string, …). Preserved for diagnosis. |
 | `normalizedText` | string | Your best plain-text rendering of what the chatbot said. **Empty string is allowed** (e.g. if the bot returned only structured data). |
 | `agentChain` | array of strings | Ordered agent identifiers invoked, if your bot is agentic. **`[]` is valid** for non-agentic bots. |
-| `metadata` | object | Free-form connector-specific metadata (latency, token counts, model name, …). No keys are standardized. **`{}` is valid.** |
+| `metadata` | object | Free-form connector-specific metadata (latency, model name, …). No keys are standardized. **`{}` is valid.** For LLM token counts, use the top-level `tokenUsage` field instead. |
+
+### `tokenUsage` object (optional)
+
+Report LLM token consumption for the chatbot call. Omit the key entirely for non-LLM
+connectors — `null` and an empty object are treated the same as omission. All three
+sub-fields are themselves optional; include whichever your LLM SDK exposes.
+
+| Field | Type | Notes |
+|---|---|---|
+| `promptTokens` | integer ≥ 0 | Tokens consumed by the prompt / input. |
+| `completionTokens` | integer ≥ 0 | Tokens consumed by the completion / output. |
+| `totalTokens` | integer ≥ 0 | Total tokens consumed. **The harness uses this value for per-row and job-level token aggregation.** |
+
+The harness adds `totalTokens` from the connector and evaluator responses to produce a
+**row total**, then sums row totals to produce a **job-level token count** included in
+every export.
 
 > **Do not put the per-row `password` anywhere in the response** — not in `rawPayload`,
 > `metadata`, or any other field. The harness asserts connectors don't echo credentials.
@@ -110,7 +129,8 @@ may include extra fields, but the required ones must be present and well-typed.
     "normalizedText": "We're open 9 to 5, Monday through Friday.",
     "agentChain": ["intent-classifier", "kb-retriever"],
     "metadata": { "latencyMs": 412, "model": "acme-llm-v3" }
-  }
+  },
+  "tokenUsage": { "promptTokens": 412, "completionTokens": 78, "totalTokens": 490 }
 }
 ```
 
@@ -442,7 +462,8 @@ registration fields (auth mode, timeout, credentials) work identically to the ba
 **Connector → harness (Standard Evaluation Contract):**
 `contractVersion`(="1"), `utteranceId`, `utteranceText`, `testId`,
 `conversationContext`(=null), `connectorId`, `timestamp`,
-`chatbotResponse`{ `rawPayload`, `normalizedText`, `agentChain`, `metadata` }
+`chatbotResponse`{ `rawPayload`, `normalizedText`, `agentChain`, `metadata` },
+`tokenUsage?`{ `promptTokens?`, `completionTokens?`, `totalTokens?` }
 
 **Connector error stages:** `connector_transport`, `connector_response`,
 `connector_normalization`, `connector_auth`

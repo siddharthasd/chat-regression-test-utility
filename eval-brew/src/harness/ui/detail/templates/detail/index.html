@@ -143,6 +143,48 @@
         </div>
       </div>
 
+      <!-- Token usage cards -->
+      {% if token_totals %}
+      <div class="row g-2 mb-2">
+        <div class="col-12 col-sm-4">
+          <div class="overview-tile">
+            <div class="tile-label">
+              Connector Tokens
+              <span class="info-icon" data-bs-toggle="tooltip"
+                    data-bs-title="{{ tooltip_copy['Connector Tokens'] }}">ⓘ</span>
+            </div>
+            <div class="tile-value">
+              {{ "{:,}".format(token_totals.connector) if token_totals.connector is not none else '—' }}
+            </div>
+          </div>
+        </div>
+        <div class="col-12 col-sm-4">
+          <div class="overview-tile">
+            <div class="tile-label">
+              Evaluator Tokens
+              <span class="info-icon" data-bs-toggle="tooltip"
+                    data-bs-title="{{ tooltip_copy['Evaluator Tokens'] }}">ⓘ</span>
+            </div>
+            <div class="tile-value">
+              {{ "{:,}".format(token_totals.evaluator) if token_totals.evaluator is not none else '—' }}
+            </div>
+          </div>
+        </div>
+        <div class="col-12 col-sm-4">
+          <div class="overview-tile">
+            <div class="tile-label">
+              Total Tokens
+              <span class="info-icon" data-bs-toggle="tooltip"
+                    data-bs-title="{{ tooltip_copy['Total Tokens'] }}">ⓘ</span>
+            </div>
+            <div class="tile-value">
+              {{ "{:,}".format(token_totals.total) if token_totals.total is not none else '—' }}
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
       <!-- Analytics overview tiles -->
       {% if analytics %}
       <div class="row g-2">

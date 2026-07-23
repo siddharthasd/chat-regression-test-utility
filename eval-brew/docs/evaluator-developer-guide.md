@@ -57,6 +57,7 @@ The body is the full contract. The fields you'll typically read:
 | `chatbotResponse.rawPayload` | The raw chatbot response, if you need structure beyond the text. |
 | `chatbotResponse.agentChain` / `.metadata` | Optional signal (agents invoked, latency, etc.). |
 | `conversationContext` | `null` in v1; don't depend on its shape. |
+| `tokenUsage` | LLM token counts from the connector call, if reported. Present only when the connector included it; absent for non-LLM connectors. Read this if your evaluator logic accounts for token costs. |
 
 The full contract schema (every field + types) is documented in the **connector developer
 guide** — the connector produces it, you consume it. Treat unknown fields leniently; the
@@ -78,7 +79,8 @@ shape is validated programmatically by the harness, not by the contract schema �
 | `evaluationVerdict` | string | **Exactly one of `pass` / `fail` / `warn`.** Any other value fails the row. |
 | `evaluationScores` | array | Zero or more score entries; see below. `[]` is allowed. |
 | `utteranceIntent` | string \| omitted | **Optional.** An intent category or label your evaluator assigns to this utterance (e.g. `"account inquiry"`, `"complaint"`). When present, the harness stores it (truncated to 255 chars) and surfaces it in the Intent Breakdown panel of the analytics dashboard. Omit the key entirely when you do not classify intents — `null` and `""` are treated the same as omission. |
-| `metadata` | object | Free-form evaluator metadata (model, prompt id, token usage…). No keys standardized. **`{}` is valid.** |
+| `tokenUsage` | object \| omitted | **Optional.** LLM token counts for this evaluation call; see below. Omit for non-LLM evaluators. |
+| `metadata` | object | Free-form evaluator metadata (model, prompt id, …). No keys standardized. **`{}` is valid.** |
 
 ### Each `evaluationScores` entry
 
@@ -101,6 +103,22 @@ Two shapes are accepted. Both are valid and the harness stores them transparentl
 | `verdict` | string \| omitted | **Optional.** A per-parameter verdict (e.g. `"pass"`, `"fail"`, `"warn"`). When present across entries, the analytics dashboard shows a per-parameter verdict distribution tile. When absent, that tile shows a "not available" placeholder — omitting `verdict` is not an error. You may emit it for some parameters and not others. |
 | `reasoning` | string | Why this score. Empty string is allowed, but prefer a real explanation — it surfaces in the detail view and exports. |
 
+### `tokenUsage` object (optional)
+
+Report LLM token consumption for the evaluation call itself. Omit the key entirely for
+non-LLM evaluators. All three sub-fields are optional; include whichever your LLM SDK
+exposes.
+
+| Field | Type | Notes |
+|---|---|---|
+| `promptTokens` | integer ≥ 0 | Tokens consumed by the prompt / input. |
+| `completionTokens` | integer ≥ 0 | Tokens consumed by the completion / output. |
+| `totalTokens` | integer ≥ 0 | Total tokens consumed. **The harness uses this value for per-row and job-level token aggregation.** |
+
+The harness adds `totalTokens` from the connector and evaluator responses to produce a
+**row total**, then sums row totals to produce a **job-level token count** included in
+every export. A row where neither side reports `totalTokens` shows `null` rather than `0`.
+
 ### Complete example response
 
 ```json
@@ -115,7 +133,8 @@ Two shapes are accepted. Both are valid and the harness stores them transparentl
     { "parameter_name": "tone",         "score": "appropriate", "reasoning": "Polite and concise." },
     { "parameter_name": "groundedness", "score": 0.80, "verdict": "pass", "reasoning": "Matches the knowledge base." }
   ],
-  "metadata": { "model": "acme-judge-v2", "promptTokens": 318 }
+  "tokenUsage": { "promptTokens": 318, "completionTokens": 47, "totalTokens": 365 },
+  "metadata": { "model": "acme-judge-v2" }
 }
 ```
 
@@ -294,7 +313,7 @@ Your evaluator is ready to register when it:
 - [ ] Returns an EvaluationResult (§3): `utteranceId` (echoed from the request),
       `evaluationAgentId`, `evaluationTimestamp` (ISO-8601), `evaluationVerdict`
       (`pass`/`fail`/`warn`), `evaluationScores` (array of `{parameter_name, score,
-      reasoning}`), `metadata` (object).
+      reasoning}`), `metadata` (object), and optionally `tokenUsage` (§3).
 - [ ] Uses a number or string `score` (never a boolean) in each score entry.
 - [ ] Emits `parameter_name`s aligned with its declared dimensions (extras are warned, not
       failed).
@@ -458,7 +477,8 @@ agentChain, metadata}`, `conversationContext`, `connectorId`, `timestamp`,
 `utteranceId` (echoed), `evaluationAgentId`, `evaluationTimestamp` (ISO-8601),
 `evaluationVerdict` (`pass`|`fail`|`warn`), `evaluationScores`
 [`{parameter_name, score, reasoning, verdict?}`], `utteranceIntent?` (optional intent label,
-≤ 255 chars), `metadata`.
+≤ 255 chars), `tokenUsage?`{ `promptTokens?`, `completionTokens?`, `totalTokens?` },
+`metadata`.
 
 **SSE mode — `final` event payload:**
 `overallVerdict` (`pass`|`fail`|`warn`), `parameters`

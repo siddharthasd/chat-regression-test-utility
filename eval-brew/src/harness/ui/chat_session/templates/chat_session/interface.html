@@ -50,8 +50,8 @@
   <!-- Split-pane: plain flex row so children stretch to fill height -->
   <div class="d-flex gap-3 flex-grow-1" style="min-height:0">
 
-    <!-- LEFT PANE: connector chat -->
-    <div class="d-flex flex-column flex-grow-1" style="min-width:0; min-height:0">
+    <!-- LEFT PANE: connector chat (60%) -->
+    <div class="d-flex flex-column" style="flex:3 1 0; min-width:0; min-height:0">
       <div class="card shadow-sm d-flex flex-column flex-grow-1" style="overflow:hidden; min-height:0">
         <div class="card-header d-flex justify-content-between align-items-center py-2" style="flex-shrink:0">
           <span class="d-flex align-items-center gap-1">
@@ -85,8 +85,16 @@
                 <div class="gfm-content p-2 border rounded bg-white">{{ turn.assembled_response }}</div>
               </div>
             {% elif turn.status == 'failed' %}
+              {% set _sl = {
+                'connector_auth': 'Connector (authentication)',
+                'connector_stream': 'Connector',
+                'connector_normalization': 'Connector (response validation)',
+                'evaluator_auth': 'Evaluator (authentication)',
+                'evaluator_stream': 'Evaluator',
+              } %}
               <div class="mb-3 text-danger small">
-                Turn failed ({{ turn.error_stage }}): {{ turn.error_details }}
+                <strong>{{ _sl.get(turn.error_stage, turn.error_stage) }} failed:</strong>
+                {{ turn.error_details }}
               </div>
             {% endif %}
           {% endfor %}
@@ -109,8 +117,8 @@
       </div>
     </div>
 
-    <!-- RIGHT PANE: evaluation -->
-    <div class="d-flex flex-column flex-grow-1" style="min-width:0; min-height:0">
+    <!-- RIGHT PANE: evaluation (40%) -->
+    <div class="d-flex flex-column" style="flex:2 1 0; min-width:0; min-height:0">
       <div class="card shadow-sm d-flex flex-column flex-grow-1" style="overflow:hidden; min-height:0">
         <div class="card-header py-2 d-flex justify-content-between align-items-center" style="flex-shrink:0">
           <span class="fw-semibold small">Evaluation</span>
@@ -164,9 +172,9 @@ const TOTAL_TURNS = {{ turn_count }};
     el.scrollTop = el.scrollHeight;
   }
 
-  // Initialise Bootstrap popovers
+  // Initialise Bootstrap popovers (guard: Bootstrap JS not always loaded)
   document.querySelectorAll('[data-bs-toggle="popover"]').forEach(function (el) {
-    new bootstrap.Popover(el);
+    if (typeof bootstrap !== 'undefined') bootstrap.Popover.getOrCreateInstance(el);
   });
 
   // ── Eval view mode ────────────────────────────────────────────────────────
@@ -237,7 +245,8 @@ const TOTAL_TURNS = {{ turn_count }};
 
     const lbl = document.createElement('div');
     lbl.className = 'text-muted small fw-semibold mb-1';
-    lbl.textContent = et.charAt(0).toUpperCase() + et.slice(1).replace(/_/g, ' ');
+    lbl.textContent = et === 'error' ? 'Evaluator Error'
+        : et.charAt(0).toUpperCase() + et.slice(1).replace(/_/g, ' ');
     outer.appendChild(lbl);
 
     if (kvEntries.length > 0) {
@@ -337,6 +346,14 @@ const TOTAL_TURNS = {{ turn_count }};
   const sendingIndicator     = document.getElementById('sendingIndicator');
   let liveTurnIndex = TOTAL_TURNS + 1;
 
+  const STAGE_LABELS = {
+    connector_auth:            'Connector (authentication)',
+    connector_stream:          'Connector',
+    connector_normalization:   'Connector (response validation)',
+    evaluator_auth:            'Evaluator (authentication)',
+    evaluator_stream:          'Evaluator',
+  };
+
   let streaming = false;
   let tokenBuffer = '';
 
@@ -422,10 +439,18 @@ const TOTAL_TURNS = {{ turn_count }};
       const data = JSON.parse(e.data);
       evaluatingIndicator.style.display = 'none';
       liveTurnIndex++;
+      const stage = data.error_stage || '';
+      const componentLabel = STAGE_LABELS[stage] || stage;
+      const detail = (data.error_details || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
       const errDiv = document.createElement('div');
       errDiv.className = 'text-danger small mt-1';
-      errDiv.textContent = 'Turn failed (' + (data.error_stage || '') + '): ' + (data.error_details || '');
-      liveConnectorContent.appendChild(errDiv);
+      errDiv.innerHTML = '<strong>' + componentLabel + ' failed:</strong> ' + detail;
+      // Route evaluator errors to the eval pane; connector errors to the chat pane
+      if (stage.startsWith('evaluator')) {
+        liveEvalEventsEl.appendChild(errDiv);
+      } else {
+        liveConnectorContent.appendChild(errDiv);
+      }
       setStreamingState(false);
       es.close();
     });

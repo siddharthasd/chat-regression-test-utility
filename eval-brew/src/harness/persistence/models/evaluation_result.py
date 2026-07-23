@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import JSON, DateTime, ForeignKey, String
+from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from harness.persistence.base import Base
@@ -45,5 +45,8 @@ class EvaluationResult(Base):
     error_stage: Mapped[str | None] = mapped_column(String(30), nullable=True)
     error_details: Mapped[str | None] = mapped_column(String, nullable=True)
     evaluation_timestamp: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    connector_token_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    evaluator_token_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total_token_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     utterance: Mapped[Utterance] = relationship(back_populates="evaluation_result")

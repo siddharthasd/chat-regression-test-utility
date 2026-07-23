@@ -34,6 +34,9 @@ class EvaluationResultRepository:
             error_stage=result.get("error_stage"),
             error_details=result.get("error_details"),
             evaluation_timestamp=result["evaluation_timestamp"],
+            connector_token_count=result.get("connector_token_count"),
+            evaluator_token_count=result.get("evaluator_token_count"),
+            total_token_count=result.get("total_token_count"),
         )
         self._session.add(row)
         self._session.flush()

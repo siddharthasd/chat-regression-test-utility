@@ -72,7 +72,52 @@ TOOLTIP_COPY = {
         "How the evaluator classified each response overall — for example, how many Passed, "
         "how many triggered a Warning, how many Failed. A quick summary of the run's quality at a glance."
     ),
+    "Connector Tokens": (
+        "Total LLM tokens consumed by all connector calls in this run — the sum of totalTokens "
+        "reported by the connector for each row. Rows where the connector did not report token "
+        "usage are excluded. Only shown when at least one row reported token counts."
+    ),
+    "Evaluator Tokens": (
+        "Total LLM tokens consumed by all evaluator calls in this run — the sum of totalTokens "
+        "reported by the evaluator for each row. Rows where the evaluator did not report token "
+        "usage are excluded. Only shown when at least one row reported token counts."
+    ),
+    "Total Tokens": (
+        "Combined connector + evaluator token consumption for this run. "
+        "Computed as the sum of each row's connector and evaluator totalTokens. "
+        "Only rows that reported token counts contribute to this total."
+    ),
 }
+
+
+def _token_totals(utterances: list) -> dict | None:
+    """Sum connector/evaluator/total token counts across all utterances.
+
+    Returns None when no row reported any token usage (so the template can skip
+    the cards entirely rather than showing three '—' tiles).
+    """
+    conn_sum = ev_sum = total_sum = 0
+    conn_any = ev_any = total_any = False
+    for u in utterances:
+        r = getattr(u, "evaluation_result", None)
+        if r is None:
+            continue
+        if r.connector_token_count is not None:
+            conn_sum += r.connector_token_count
+            conn_any = True
+        if r.evaluator_token_count is not None:
+            ev_sum += r.evaluator_token_count
+            ev_any = True
+        if r.total_token_count is not None:
+            total_sum += r.total_token_count
+            total_any = True
+    if not (conn_any or ev_any or total_any):
+        return None
+    return {
+        "connector": conn_sum if conn_any else None,
+        "evaluator": ev_sum if ev_any else None,
+        "total": total_sum if total_any else None,
+    }
 
 
 def _can_delete(job) -> bool:
@@ -133,6 +178,7 @@ def job_detail(
         utterances = UtteranceRepository(session).get_by_job_ordered(job_id)
         all_rows = [view.row_view(u, dims) for u in utterances]
         analytics_ctx = _analytics_context(utterances, dims, job.total_utterance_count)
+        token_totals = _token_totals(utterances)
         is_terminal = job.status in _TERMINAL
         can_cancel = job.status in _CANCELLABLE
         can_delete = _can_delete(job)
@@ -164,6 +210,7 @@ def job_detail(
             "can_delete": can_delete,
             "is_terminal": is_terminal,
             "tooltip_copy": TOOLTIP_COPY,
+            "token_totals": token_totals,
             "error": None,
             **analytics_ctx,
             **ctx(request),
@@ -289,6 +336,7 @@ def _rerender_error(request: Request, job_id: str, message: str, status_code: in
         utterances = UtteranceRepository(session).get_by_job_ordered(job_id)
         rows = [view.row_view(u, dims) for u in utterances]
         analytics_ctx = _analytics_context(utterances, dims)
+        token_totals = _token_totals(utterances)
     return templates.TemplateResponse(
         request,
         "detail/index.html",
@@ -309,6 +357,7 @@ def _rerender_error(request: Request, job_id: str, message: str, status_code: in
             "can_delete": _can_delete(job),
             "is_terminal": meta["status"] in _TERMINAL,
             "tooltip_copy": TOOLTIP_COPY,
+            "token_totals": token_totals,
             "error": message,
             **analytics_ctx,
             **ctx(request),

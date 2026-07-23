@@ -65,6 +65,9 @@ def _result(scores=None, **over):
         error_stage=None,
         error_details=None,
         evaluation_timestamp=datetime(2026, 6, 1, 12, 3, tzinfo=UTC),
+        connector_token_count=None,
+        evaluator_token_count=None,
+        total_token_count=None,
     )
     base.update(over)
     return SimpleNamespace(**base)
@@ -161,3 +164,44 @@ def test_csv_header_only_when_no_rows() -> None:
     # defensive: builder must not crash on zero rows
     body = build_csv(job_metadata(_job(), datetime.now(UTC)), [])
     assert b"utteranceId" in body
+
+
+def test_token_counts_in_row_record() -> None:
+    r = _result(connector_token_count=100, evaluator_token_count=50, total_token_count=150)
+    rec = row_record(_utt(result=r), ["relevance"])
+    assert rec["connectorTokenCount"] == 100
+    assert rec["evaluatorTokenCount"] == 50
+    assert rec["rowTokenCount"] == 150
+
+
+def test_token_count_null_when_not_reported() -> None:
+    rec = row_record(_utt(result=_result()), ["relevance"])
+    assert rec["connectorTokenCount"] is None
+    assert rec["evaluatorTokenCount"] is None
+    assert rec["rowTokenCount"] is None
+
+
+def test_token_count_job_total_summed() -> None:
+    r1 = _result(connector_token_count=100, evaluator_token_count=50, total_token_count=150)
+    r2 = _result(connector_token_count=200, evaluator_token_count=75, total_token_count=275)
+    utt1 = SimpleNamespace(utterance_id="u1", row_index=1, utterance_text="a", test_id="t1", evaluation_result=r1)
+    utt2 = SimpleNamespace(utterance_id="u2", row_index=2, utterance_text="b", test_id="t2", evaluation_result=r2)
+    _, _, body = build_export(_job(), [utt1, utt2], "json")
+    data = json.loads(body)
+    assert data["job"]["totalTokenCount"] == 425
+
+
+def test_token_count_job_total_null_when_none_reported() -> None:
+    _, _, body = build_export(_job(), [_utt(result=_result())], "json")
+    data = json.loads(body)
+    assert data["job"]["totalTokenCount"] is None
+
+
+def test_token_count_job_total_partial_null_rows_skipped() -> None:
+    r1 = _result(total_token_count=300)
+    r2 = _result()  # no token counts
+    utt1 = SimpleNamespace(utterance_id="u1", row_index=1, utterance_text="a", test_id="t1", evaluation_result=r1)
+    utt2 = SimpleNamespace(utterance_id="u2", row_index=2, utterance_text="b", test_id="t2", evaluation_result=r2)
+    _, _, body = build_export(_job(), [utt1, utt2], "json")
+    data = json.loads(body)
+    assert data["job"]["totalTokenCount"] == 300

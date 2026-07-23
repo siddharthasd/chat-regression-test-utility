@@ -106,6 +106,9 @@ def row_record(utterance: Utterance, declared_dims: list[str]) -> dict:
         "errorStage": r.error_stage if r else None,
         "errorDetails": r.error_details if r else None,
         "evaluationTimestamp": _iso(r.evaluation_timestamp) if r else "",
+        "connectorTokenCount": r.connector_token_count if r else None,
+        "evaluatorTokenCount": r.evaluator_token_count if r else None,
+        "rowTokenCount": r.total_token_count if r else None,
     }
 
 
@@ -114,6 +117,8 @@ def _records(job: Job, utterances: list[Utterance]) -> tuple[dict, list[dict]]:
     meta = job_metadata(job, exported_at)
     dims = job.evaluator_declared_scoring_dimensions or []
     rows = [row_record(u, dims) for u in utterances]
+    token_counts = [r["rowTokenCount"] for r in rows if r["rowTokenCount"] is not None]
+    meta["totalTokenCount"] = sum(token_counts) if token_counts else None
     return meta, rows
 
 
@@ -144,6 +149,7 @@ def row_record_keys() -> tuple[str, ...]:
         "normalizedContract", "evaluationVerdict", "evaluationScores", "metadata",
         "harnessAnnotations", "evaluationAgentId", "errorStatus", "errorStage",
         "errorDetails", "evaluationTimestamp",
+        "connectorTokenCount", "evaluatorTokenCount", "rowTokenCount",
     )
 
 

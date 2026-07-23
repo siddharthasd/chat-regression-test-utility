@@ -160,3 +160,54 @@ def test_evaluator_response_failure() -> None:
         eval_client=_client(lambda r: httpx.Response(503, text="down")),
     )
     assert data["error_stage"] == "evaluator_response"
+
+
+# ---------------------------------------------------------------------- tokens
+def test_token_counts_both_present() -> None:
+    def conn_with_tokens(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        contract = conn_mock.build_contract(body["testId"], body["utteranceText"])
+        contract["tokenUsage"] = {"promptTokens": 100, "completionTokens": 50, "totalTokens": 150}
+        return httpx.Response(200, json=contract)
+
+    def ev_with_tokens(request: httpx.Request) -> httpx.Response:
+        contract = json.loads(request.content)
+        result = ev_mock.build_result(contract["utteranceId"], DIMS)
+        result["tokenUsage"] = {"promptTokens": 200, "completionTokens": 75, "totalTokens": 275}
+        return httpx.Response(200, json=result)
+
+    data = process_row(
+        _job(), _utterance(),
+        conn_client=_client(conn_with_tokens), eval_client=_client(ev_with_tokens),
+    )
+    assert data["connector_token_count"] == 150
+    assert data["evaluator_token_count"] == 275
+    assert data["total_token_count"] == 425
+
+
+def test_token_counts_absent() -> None:
+    data = process_row(
+        _job(), _utterance(),
+        conn_client=_client(_ok_connector), eval_client=_client(_ok_evaluator),
+    )
+    assert data["connector_token_count"] is None
+    assert data["evaluator_token_count"] is None
+    assert data["total_token_count"] is None
+
+
+def test_token_counts_connector_only_when_evaluator_fails() -> None:
+    def conn_with_tokens(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        contract = conn_mock.build_contract(body["testId"], body["utteranceText"])
+        contract["tokenUsage"] = {"totalTokens": 120}
+        return httpx.Response(200, json=contract)
+
+    data = process_row(
+        _job(), _utterance(),
+        conn_client=_client(conn_with_tokens),
+        eval_client=_client(lambda r: httpx.Response(503, text="down")),
+    )
+    assert data["error_stage"] == "evaluator_response"
+    assert data["connector_token_count"] == 120
+    assert data.get("evaluator_token_count") is None
+    assert data["total_token_count"] == 120
