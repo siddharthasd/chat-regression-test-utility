@@ -15,6 +15,16 @@ _TRUNCATE = 200
 _VERDICT_ORDER = {"fail": 0, "warn": 1, "pass": 2}
 
 
+def _get_verdict(final: dict) -> str | None:
+    """Accept both SSE format (overallVerdict) and batch-in-SSE (evaluationVerdict)."""
+    return final.get("overallVerdict") or final.get("evaluationVerdict")
+
+
+def _get_parameters(final: dict) -> list:
+    """Accept both SSE format (parameters) and batch-in-SSE (evaluationScores)."""
+    return final.get("parameters") or final.get("evaluationScores") or []
+
+
 def _extract_tokens(data: dict | None) -> int | None:
     if not data:
         return None
@@ -114,10 +124,10 @@ def score_entries_from_turns(turns: list) -> list:
         # Per FR-023: only completed turns with a non-null evaluationResult contribute to scores.
         is_error = turn.status == "failed" or not (result and result.final_evaluation_result)
         final = result.final_evaluation_result if (result and not is_error) else None
-        overall_verdict = (final or {}).get("overallVerdict") if not is_error else None
+        overall_verdict = _get_verdict(final or {}) if not is_error else None
         if overall_verdict:
             overall_verdict = overall_verdict.lower()
-        params = ((final or {}).get("parameters") or []) if not is_error else []
+        params = _get_parameters(final or {}) if not is_error else []
 
         for p in params:
             if not isinstance(p, dict):
@@ -153,7 +163,7 @@ def score_entries_from_turns(turns: list) -> list:
 def _turn_score_cells(final_result: dict | None, declared_dims: list[str]) -> list[dict]:
     if final_result is None:
         return [{"name": d, "score": None, "reasoning": "", "verdict": None} for d in declared_dims]
-    params = final_result.get("parameters") or []
+    params = _get_parameters(final_result)
     by_name = {
         p["parameter_name"]: p
         for p in params
@@ -192,7 +202,7 @@ def turn_explorer_view(turn: ChatTurn, turn_index: int, declared_dims: list[str]
     result = turn.result
     is_error = turn.status == "failed" or not (result and result.final_evaluation_result)
     final = result.final_evaluation_result if (result and not is_error) else None
-    overall_verdict = (final or {}).get("overallVerdict") if final else None
+    overall_verdict = _get_verdict(final or {}) if final else None
     if overall_verdict:
         overall_verdict = overall_verdict.lower()
     assembled = result.assembled_response if result else None
@@ -241,9 +251,9 @@ def results_csv_builder(session: ChatSession, turns: list) -> tuple[str, str]:
         if is_error:
             overall_verdict = (result.error_stage or "failed") if result else "failed"
         else:
-            overall_verdict = ((final or {}).get("overallVerdict") or "").lower()
+            overall_verdict = (_get_verdict(final or {}) or "").lower()
         assembled = result.assembled_response if result else ""
-        params = (final or {}).get("parameters") or []
+        params = _get_parameters(final or {})
         if not params:
             writer.writerow(
                 [i, turn.user_message, assembled or "", overall_verdict, "", "", "", ""]
@@ -280,7 +290,7 @@ def results_json_builder(session: ChatSession, turns: list) -> tuple[str, str]:
         final = result.final_evaluation_result if (result and not is_error) else None
         params = []
         if final:
-            for p in (final.get("parameters") or []):
+            for p in _get_parameters(final):
                 if not isinstance(p, dict):
                     continue
                 entry: dict = {
@@ -292,7 +302,7 @@ def results_json_builder(session: ChatSession, turns: list) -> tuple[str, str]:
                     entry["verdict"] = p["verdict"]
                 params.append(entry)
 
-        raw_verdict = (final or {}).get("overallVerdict") if not is_error else None
+        raw_verdict = _get_verdict(final or {}) if not is_error else None
         result_array.append(
             {
                 "turnIndex": i,
