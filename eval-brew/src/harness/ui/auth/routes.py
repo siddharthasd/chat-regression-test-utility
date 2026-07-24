@@ -54,16 +54,6 @@ def auth_callback(request: Request):
             status_code=400,
         )
 
-    # Temporary: log all identity claims so you can see exactly what
-    # Accenture ESO sends and decide the correct NameID → email mapping.
-    # Remove this block once the stable identifier claim is confirmed.
-    import logging as _logging
-    _logging.getLogger("harness.auth").info(
-        "sso_claims_debug oid=%r sub=%r preferred_username=%r email=%r upn=%r unique_name=%r name=%r",
-        claims.get("oid"), claims.get("sub"), claims.get("preferred_username"),
-        claims.get("email"), claims.get("upn"), claims.get("unique_name"), claims.get("name"),
-    )
-
     oid = claims.get("oid") or claims.get("sub")
     display_name = claims.get("name") or ""
 

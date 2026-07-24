@@ -182,11 +182,15 @@
 
 {% block scripts %}
 <!-- marked.js v14 for GFM rendering -->
-<script src="https://cdn.jsdelivr.net/npm/marked@14/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@14/marked.min.js"
+        integrity="sha384-lqPzN0kmFw9t2syAMwVPM4VbAyqsz/lPyYWbb2Xt6nSPM0WPNrpSWCUBgdcAdgnC"
+        crossorigin="anonymous"></script>
 <!-- DOMPurify v3 for sanitization -->
-<script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"
+        integrity="sha384-piCcpDdJ7qVeK4Tv8Z6Hpcr3ZBIgP16TxQTPVfsLFdZ5uDgwc3Y8Ho7oUnqf12qu"
+        crossorigin="anonymous"></script>
 <script>
-const EVAL_TURNS = {{ eval_turns_json | safe }};
+const EVAL_TURNS = {{ eval_turns | tojson }};
 const TOTAL_TURNS = {{ turn_count }};
 let sessionTokensTotal = {{ session_total_tokens | default(0) }};
 let sessionConnectorTokens = {{ session_connector_tokens | default(0) }};

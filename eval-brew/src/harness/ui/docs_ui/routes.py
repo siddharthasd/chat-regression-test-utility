@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
+
+from harness.auth.middleware import require_auth
 
 from harness.ui._context import ctx
 from harness.ui._templates import templates
@@ -18,7 +20,6 @@ _GUIDES: dict[str, tuple[str, str]] = {
     "csv-upload": ("csv-upload-guide.md", "CSV Upload Guide"),
     "connector-developer-guide": ("connector-developer-guide.md", "Connector Developer Guide"),
     "evaluator-developer-guide": ("evaluator-developer-guide.md", "Evaluator Developer Guide"),
-    "solution-architecture": ("solution-architecture.md", "Solution Architecture"),
 }
 
 _RELEASES = [
@@ -213,7 +214,17 @@ _RELEASES = [
 
 
 @router.get("/docs/{guide}", name="docs_guide")
-def docs_guide(request: Request, guide: str):
+def docs_guide(request: Request, guide: str, user: dict = Depends(require_auth)):
+    if guide == "solution-architecture":
+        try:
+            content = (_DOCS_DIR / "solution-architecture.md").read_text(encoding="utf-8")
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="Guide file not found")
+        return templates.TemplateResponse(
+            request,
+            "docs/solution-architecture.html",
+            {"title": "Solution Architecture", "markdown_content": content, **ctx(request)},
+        )
     entry = _GUIDES.get(guide)
     if entry is None:
         raise HTTPException(status_code=404, detail="Guide not found")
@@ -230,7 +241,7 @@ def docs_guide(request: Request, guide: str):
 
 
 @router.get("/release-notes", name="release_notes")
-def release_notes(request: Request):
+def release_notes(request: Request, user: dict = Depends(require_auth)):
     return templates.TemplateResponse(
         request,
         "docs/release_notes.html",

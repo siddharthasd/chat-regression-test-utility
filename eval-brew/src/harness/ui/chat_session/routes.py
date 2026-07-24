@@ -232,9 +232,11 @@ def wizard_step3_post(
             {"errors": errors, "form": {"test_id": form["test_id"]}, **ctx(request)},
             status_code=400,
         )
+    from harness.persistence.encryption import encrypt_credential
     wizard = request.session.get("chat_wizard", {})
     wizard["test_id"] = (test_id or "").strip()
-    wizard["password"] = password or ""
+    raw = password or ""
+    wizard["password"] = encrypt_credential(raw) if raw else ""
     request.session["chat_wizard"] = wizard
     return RedirectResponse(request.url_for("wizard_step4"), status_code=303)
 
@@ -327,14 +329,17 @@ def wizard_step5_post(request: Request, user: dict = Depends(require_auth)):
             {"errors": errors, "wizard": wizard, **ctx(request)},
             status_code=400,
         )
+    from harness.persistence.encryption import decrypt_credential
     oid = _owner_oid(user) or "anonymous"
+    enc_pw = wizard.get("password", "")
+    plaintext_password = decrypt_credential(enc_pw) if enc_pw else ""
     with get_session() as db:
         service = ChatSessionService(db)
         chat_session = service.create_session(
             name=wizard["session_name"],
             connector_id=wizard["connector_id"],
             test_id=wizard["test_id"],
-            password=wizard["password"],
+            password=plaintext_password,
             evaluator_id=wizard["evaluator_id"],
             owner_oid=oid,
         )
@@ -411,7 +416,6 @@ def chat_interface(
             for idx, tv in enumerate(turn_views, start=1)
             if tv["evaluation_events"] or tv["final_evaluation_result"]
         ]
-        eval_turns_json = json.dumps(eval_turns)
         turn_count = len(turn_views)
         session_total_tokens = sum(
             (tv.get("connector_token_count") or 0) + (tv.get("evaluator_token_count") or 0)
@@ -434,7 +438,7 @@ def chat_interface(
         {
             "chat_session": chat_session,
             "turns": turn_views,
-            "eval_turns_json": eval_turns_json,
+            "eval_turns": eval_turns,
             "turn_count": turn_count,
             "session_total_tokens": session_total_tokens,
             "session_connector_tokens": session_connector_tokens,

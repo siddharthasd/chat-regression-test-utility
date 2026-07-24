@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
 
-from harness.auth.middleware import require_auth
+from harness.auth.middleware import require_auth, require_role
 from harness.evaluator_registry import (
     EvaluatorRegistryService,
     RegistrationInUseError,
@@ -177,7 +177,7 @@ def test_connection_evaluator(
     dimensions: str = Form(None),
     supports_sse: str = Form(None),
     evaluation_agent_id: str = Form(None),
-    user: dict = Depends(require_auth),
+    user: dict = Depends(require_role("admin")),
 ):
     form = {k: v for k, v in {
         "endpoint_url": endpoint_url, "auth_mode": auth_mode, "token": token,

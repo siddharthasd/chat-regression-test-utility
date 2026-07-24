@@ -37,6 +37,10 @@ Thumbs.db
 *.swp
 *.swo
 
+# Local dev environment overrides — never commit real values
+.env
+.env.local
+
 # Runtime / harness data
 ~/.harness/
 flask_session/

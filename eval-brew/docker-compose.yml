@@ -2,7 +2,7 @@ services:
   app:
     build: .
     environment:
-      - HARNESS_AUTH_ENABLED=false
+      - HARNESS_AUTH_ENABLED=${HARNESS_AUTH_ENABLED:-true}
       - HARNESS_DB_PATH=/data/harness.db
       - HARNESS_KEY_FILE=/data/master.key
       - LOG_LEVEL=debug

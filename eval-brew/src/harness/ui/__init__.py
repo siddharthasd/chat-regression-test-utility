@@ -6,7 +6,27 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
+
+
+class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        # 'unsafe-inline' retained for compatibility with Jinja2 inline <script> blocks;
+        # upgrade to nonce-based CSP once templates are nonce-annotated.
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data:; "
+            "connect-src 'self'; "
+            "object-src 'none'"
+        )
+        return response
 
 from harness.bootstrap import initialize_harness
 
@@ -50,7 +70,8 @@ def create_app() -> FastAPI:
 
     app = FastAPI(lifespan=_lifespan, title="AI Regression Test Harness")
 
-    app.add_middleware(SessionMiddleware, secret_key=secret_key)
+    app.add_middleware(SessionMiddleware, secret_key=secret_key, https_only=True, same_site="lax")
+    app.add_middleware(_SecurityHeadersMiddleware)
 
     # Static files
     _static_dir = Path(__file__).parent / "static"
