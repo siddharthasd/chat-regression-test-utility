@@ -70,7 +70,10 @@ def create_app() -> FastAPI:
 
     app = FastAPI(lifespan=_lifespan, title="AI Regression Test Harness")
 
-    app.add_middleware(SessionMiddleware, secret_key=secret_key, https_only=True, same_site="lax")
+    # https_only defaults to True (production-safe); set HARNESS_SESSION_HTTPS_ONLY=false
+    # in test environments where TestClient speaks plain HTTP.
+    https_only = os.environ.get("HARNESS_SESSION_HTTPS_ONLY", "true").lower() != "false"
+    app.add_middleware(SessionMiddleware, secret_key=secret_key, https_only=https_only, same_site="lax")
     app.add_middleware(_SecurityHeadersMiddleware)
 
     # Static files
