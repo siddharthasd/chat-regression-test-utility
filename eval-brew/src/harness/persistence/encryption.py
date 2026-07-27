@@ -89,3 +89,37 @@ def _reset_key_cache_for_tests() -> None:
     global _CACHED_KEY
     with _KEY_LOCK:
         _CACHED_KEY = None
+
+
+# ---------------------------------------------------------------------------
+# Descriptor-level helpers — operate on the three secret subfields of an
+# authDescriptor dict. Consumed by the repository layer (_auth_descriptor.py)
+# and by the remote auth layer (remote/auth.py). Centralised here so the
+# canonical list of secret fields is never duplicated.
+# ---------------------------------------------------------------------------
+
+_SECRET_SUBFIELDS: tuple[str, ...] = ("credential", "password", "clientSecret")
+
+
+def encrypt_descriptor(descriptor: dict) -> dict:
+    """Return a copy of *descriptor* with each secret subfield Fernet-encrypted."""
+    result = dict(descriptor)
+    for key in _SECRET_SUBFIELDS:
+        value = result.get(key)
+        if value is not None:
+            result[key] = encrypt_credential(str(value))
+    return result
+
+
+def decrypt_descriptor(descriptor: dict) -> dict:
+    """Return a copy of *descriptor* with each secret subfield decrypted.
+
+    Raises HarnessKeyMismatchError (via decrypt_credential) if any ciphertext
+    cannot be decrypted with the current machine-local key.
+    """
+    result = dict(descriptor)
+    for key in _SECRET_SUBFIELDS:
+        value = result.get(key)
+        if value is not None:
+            result[key] = decrypt_credential(value)
+    return result

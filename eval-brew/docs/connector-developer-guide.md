@@ -92,7 +92,7 @@ Required unless noted.
 | `rawPayload` | any | The raw chatbot response exactly as you received it. Shape is unconstrained (object, array, string, …). Preserved for diagnosis. |
 | `normalizedText` | string | Your best plain-text rendering of what the chatbot said. **Empty string is allowed** (e.g. if the bot returned only structured data). |
 | `agentChain` | array of strings | Ordered agent identifiers invoked, if your bot is agentic. **`[]` is valid** for non-agentic bots. |
-| `metadata` | object | Free-form connector-specific metadata (latency, model name, …). No keys are standardized. **`{}` is valid.** For LLM token counts, use the top-level `tokenUsage` field instead. |
+| `metadata` | object | Connector-supplied metadata about how the response was generated — model name, latency, retrieval sources, tool calls, etc. All keys are optional; **`{}` is valid.** See [§3 metadata keys](#chatbotresponsemetadata--well-known-keys) for recommended shapes. For LLM token counts use the top-level `tokenUsage` field instead. |
 
 ### `tokenUsage` object (optional)
 
@@ -113,6 +113,126 @@ every export.
 > **Do not put the per-row `password` anywhere in the response** — not in `rawPayload`,
 > `metadata`, or any other field. The harness asserts connectors don't echo credentials.
 
+### `chatbotResponse.metadata` — well-known keys
+
+`metadata` is stored as-is by the harness and forwarded verbatim to the evaluator in the
+Standard Evaluation Contract it receives. Its shape is unconstrained — any valid JSON object
+is accepted. The keys below are **recommended conventions**: using them consistently makes
+your connector interoperable with evaluators that understand them, and surfaces structured
+information in future harness tooling. All keys are optional; include whichever your
+system produces.
+
+| Key | Type | Purpose |
+|---|---|---|
+| `latencyMs` | integer ≥ 0 | End-to-end time in milliseconds your connector spent waiting for the chatbot. Useful for latency-aware evaluators. |
+| `model` | string | Model identifier or version that generated the response (e.g. `"gpt-4o"`, `"claude-sonnet-5"`, `"llama-3.1-70b-instruct"`). |
+| `sources` | array of source objects | **Retrieval provenance.** Documents, chunks, or pages the chatbot used to produce its answer. Evaluators can use this to verify grounding. See shape below. |
+| `toolCalls` | array of tool-call objects | Tool or function calls the chatbot made during generation. Use this alongside `agentChain` when you need the full input/output detail of each invocation. See shape below. |
+
+#### `sources` item shape
+
+Each entry represents one piece of retrieved content. All sub-fields are optional; include
+whichever your retrieval system exposes.
+
+```json
+{
+  "url":        "https://docs.example.com/pricing",
+  "title":      "Pricing — Example Corp Help Centre",
+  "chunk":      "The Standard plan costs $49 per month and includes up to 10 seats.",
+  "score":      0.93,
+  "documentId": "doc-pricing-v4"
+}
+```
+
+| Sub-field | Type | Notes |
+|---|---|---|
+| `url` | string | Public link to the source document or page. |
+| `title` | string | Human-readable label for the source. |
+| `chunk` | string | The retrieved text snippet used in the prompt context. |
+| `score` | number 0–1 | Similarity or relevance score from your retrieval system. |
+| `documentId` | string | Internal document identifier in your knowledge base. |
+
+#### `toolCalls` item shape
+
+```json
+{
+  "name":   "search_kb",
+  "input":  { "query": "opening hours" },
+  "output": { "hits": 3, "topResult": "Mon–Fri 09:00–17:00" }
+}
+```
+
+| Sub-field | Type | Notes |
+|---|---|---|
+| `name` | string | Tool or function name. |
+| `input` | object | Arguments passed to the tool. |
+| `output` | object | Tool's return value. |
+
+#### Examples
+
+**Minimal — operational metadata only:**
+
+```json
+"metadata": {
+  "latencyMs": 412,
+  "model": "acme-llm-v3"
+}
+```
+
+**RAG connector with retrieval provenance:**
+
+```json
+"metadata": {
+  "latencyMs": 610,
+  "model": "gpt-4o",
+  "sources": [
+    {
+      "url":        "https://docs.acme.com/store-hours",
+      "title":      "Store Hours — Acme Help Centre",
+      "chunk":      "Our retail locations are open Monday through Friday, 9 am to 5 pm.",
+      "score":      0.95,
+      "documentId": "doc-store-hours-v2"
+    },
+    {
+      "url":        "https://docs.acme.com/holidays",
+      "title":      "Holiday Closures",
+      "chunk":      "We are closed on all UK public holidays. Check the calendar below.",
+      "score":      0.78
+    }
+  ]
+}
+```
+
+The evaluator receives `sources` in the contract it scores. An evaluator built for RAG
+quality can walk the chunks, compare them against `normalizedText`, and produce a grounding
+score. Testers can also follow `url` links directly from the harness UI to verify
+attribution.
+
+**Agentic connector with tool calls:**
+
+```json
+"metadata": {
+  "latencyMs": 1840,
+  "model": "claude-sonnet-5",
+  "toolCalls": [
+    {
+      "name":   "search_kb",
+      "input":  { "query": "opening hours" },
+      "output": { "hits": 3, "topResult": "Mon–Fri 09:00–17:00" }
+    },
+    {
+      "name":   "format_hours",
+      "input":  { "raw": "Mon–Fri 09:00–17:00" },
+      "output": { "text": "Monday to Friday, 9 am to 5 pm" }
+    }
+  ]
+}
+```
+
+> For agentic bots, `agentChain` at the top level captures the ordered list of agent
+> *names* (e.g. `["intent-classifier", "kb-retriever"]`). Use `toolCalls` inside
+> `metadata` for the full input/output detail of each invocation.
+
 ### Complete example response
 
 ```json
@@ -128,7 +248,19 @@ every export.
     "rawPayload": { "answer": "We're open 9–5, Mon–Fri.", "intent": "store_hours", "confidence": 0.97 },
     "normalizedText": "We're open 9 to 5, Monday through Friday.",
     "agentChain": ["intent-classifier", "kb-retriever"],
-    "metadata": { "latencyMs": 412, "model": "acme-llm-v3" }
+    "metadata": {
+      "latencyMs": 412,
+      "model": "acme-llm-v3",
+      "sources": [
+        {
+          "url":        "https://docs.acme.com/store-hours",
+          "title":      "Store Hours — Acme Help Centre",
+          "chunk":      "Our retail locations are open Monday through Friday, 9 am to 5 pm.",
+          "score":      0.95,
+          "documentId": "doc-store-hours-v2"
+        }
+      ]
+    }
   },
   "tokenUsage": { "promptTokens": 412, "completionTokens": 78, "totalTokens": 490 }
 }
@@ -177,7 +309,18 @@ def connect():
             "rawPayload": raw,
             "normalizedText": extract_text(raw),
             "agentChain": [],
-            "metadata": {},
+            # Populate metadata with whatever your system exposes.
+            # sources, model, and latencyMs are well-known keys (see §3 metadata keys).
+            "metadata": {
+                "latencyMs": getattr(raw, "latency_ms", None),
+                "model":     getattr(raw, "model", None),
+                # If your chatbot performs RAG, include the retrieved chunks here so
+                # evaluators can assess grounding quality.
+                "sources": [
+                    {"url": s.url, "title": s.title, "chunk": s.text, "score": s.score}
+                    for s in getattr(raw, "sources", [])
+                ] or None,
+            },
         },
         # Omit tokenUsage entirely for non-LLM connectors.
         **({"tokenUsage": {
@@ -446,10 +589,18 @@ async def sse_connect(body: dict):
             "connectorId": "acme-support-bot",
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "chatbotResponse": {
-                "rawPayload": {"text": reply},
-                "normalizedText": reply,
+                "rawPayload": {"text": reply.text, "sources": reply.sources},
+                "normalizedText": reply.text,
                 "agentChain": [],
-                "metadata": {},
+                # Include whatever your system exposes. sources is the key field
+                # for RAG connectors — evaluators use it to assess grounding.
+                "metadata": {
+                    "model":   reply.model,
+                    "sources": [
+                        {"url": s.url, "title": s.title, "chunk": s.text, "score": s.score}
+                        for s in reply.sources
+                    ],
+                },
             },
             # Include tokenUsage when your chatbot is an LLM; omit for non-LLM connectors.
             "tokenUsage": {"promptTokens": 210, "completionTokens": 38, "totalTokens": 248},
@@ -472,7 +623,8 @@ registration fields (auth mode, timeout, credentials) work identically to the ba
 **Connector → harness (Standard Evaluation Contract):**
 `contractVersion`(="1"), `utteranceId`, `utteranceText`, `testId`,
 `conversationContext`(=null), `connectorId`, `timestamp`,
-`chatbotResponse`{ `rawPayload`, `normalizedText`, `agentChain`, `metadata` },
+`chatbotResponse`{ `rawPayload`, `normalizedText`, `agentChain`,
+`metadata`{ `latencyMs?`, `model?`, `sources?`[{ `url?`, `title?`, `chunk?`, `score?`, `documentId?` }], `toolCalls?`[{ `name`, `input`, `output` }] } },
 `tokenUsage?`{ `promptTokens?`, `completionTokens?`, `totalTokens?` }
 
 **Connector error stages:** `connector_transport`, `connector_response`,

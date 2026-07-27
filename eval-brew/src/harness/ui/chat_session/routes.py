@@ -11,6 +11,11 @@ from fastapi.responses import RedirectResponse, Response, StreamingResponse
 
 from harness.auth.middleware import require_auth
 from harness.chat import event_bus as bus_registry
+from harness.connector_registry import ConnectorRegistryService as _ConnRegService
+from harness.connector_registry import run_test_connection as _run_conn_test
+from harness.evaluator_registry import EvaluatorRegistryService as _EvalRegService
+from harness.evaluator_registry import run_test_connection as _run_eval_test
+from harness.persistence.exceptions import HarnessKeyMismatchError
 from harness.chat.session_service import ChatSessionService
 from harness.chat.stream_orchestrator import run_turn
 from harness.chat.turn_service import TurnService
@@ -163,6 +168,7 @@ def wizard_step2(request: Request, user: dict = Depends(require_auth)):
             "errors": {},
             "form": {"connector_id": wizard.get("connector_id", "")},
             "connectors": connectors,
+            "test_result": None,
             **ctx(request),
         },
     )
@@ -194,10 +200,45 @@ def wizard_step2_post(
             return templates.TemplateResponse(
                 request,
                 "chat_session/wizard_step2.html",
-                {"errors": errors, "form": form, "connectors": connectors, **ctx(request)},
+                {"errors": errors, "form": form, "connectors": connectors, "test_result": None, **ctx(request)},
                 status_code=400,
             )
         connector_name = connector.display_name
+        endpoint = connector.endpoint_url
+        timeout = connector.timeout_seconds
+        expects = connector.expects_per_row_password
+        sse = connector.supports_sse
+        try:
+            descriptor = _ConnRegService(db).get_auth_descriptor_decrypted(cid)
+        except HarnessKeyMismatchError:
+            return templates.TemplateResponse(
+                request,
+                "chat_session/wizard_step2.html",
+                {
+                    "errors": {"connector_id": "Could not decrypt connector credentials. Contact your administrator."},
+                    "form": form,
+                    "connectors": connectors,
+                    "test_result": None,
+                    **ctx(request),
+                },
+                status_code=400,
+            )
+
+    test_result = _run_conn_test(endpoint, descriptor, timeout, expects, sse)
+    if not test_result.ok:
+        return templates.TemplateResponse(
+            request,
+            "chat_session/wizard_step2.html",
+            {
+                "errors": {"connector_id": f"Connection test failed: {test_result.detail}"},
+                "form": form,
+                "connectors": connectors,
+                "test_result": test_result,
+                **ctx(request),
+            },
+            status_code=400,
+        )
+
     wizard = request.session.get("chat_wizard", {})
     wizard["connector_id"] = cid
     wizard["connector_name"] = connector_name
@@ -261,6 +302,7 @@ def wizard_step4(request: Request, user: dict = Depends(require_auth)):
             "errors": {},
             "form": {"evaluator_id": wizard.get("evaluator_id", "")},
             "evaluators": evaluators,
+            "test_result": None,
             **ctx(request),
         },
     )
@@ -292,10 +334,45 @@ def wizard_step4_post(
             return templates.TemplateResponse(
                 request,
                 "chat_session/wizard_step4.html",
-                {"errors": errors, "form": form, "evaluators": evaluators, **ctx(request)},
+                {"errors": errors, "form": form, "evaluators": evaluators, "test_result": None, **ctx(request)},
                 status_code=400,
             )
         evaluator_name = evaluator.display_name
+        endpoint = evaluator.endpoint_url
+        timeout = evaluator.timeout_seconds
+        dims = list(evaluator.declared_scoring_dimensions or [])
+        sse = evaluator.supports_sse
+        try:
+            descriptor = _EvalRegService(db).get_auth_descriptor_decrypted(eid)
+        except HarnessKeyMismatchError:
+            return templates.TemplateResponse(
+                request,
+                "chat_session/wizard_step4.html",
+                {
+                    "errors": {"evaluator_id": "Could not decrypt evaluator credentials. Contact your administrator."},
+                    "form": form,
+                    "evaluators": evaluators,
+                    "test_result": None,
+                    **ctx(request),
+                },
+                status_code=400,
+            )
+
+    test_result = _run_eval_test(endpoint, descriptor, timeout, dims, sse)
+    if not test_result.ok:
+        return templates.TemplateResponse(
+            request,
+            "chat_session/wizard_step4.html",
+            {
+                "errors": {"evaluator_id": f"Evaluator test failed: {test_result.detail}"},
+                "form": form,
+                "evaluators": evaluators,
+                "test_result": test_result,
+                **ctx(request),
+            },
+            status_code=400,
+        )
+
     wizard = request.session.get("chat_wizard", {})
     wizard["evaluator_id"] = eid
     wizard["evaluator_name"] = evaluator_name

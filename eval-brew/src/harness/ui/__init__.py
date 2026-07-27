@@ -50,7 +50,13 @@ async def _lifespan(app: FastAPI):
             h.setLevel(logging.INFO)
             h.propagate = False
 
+    from harness.ui.admin.log_store import install as _install_log_store, record_audit as _record_audit
+
+    _install_log_store()
+
     initialize_harness()
+
+    _record_audit("system", "server.startup", "harness process initialised")
     yield
 
 

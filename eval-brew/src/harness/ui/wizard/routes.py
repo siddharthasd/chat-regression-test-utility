@@ -16,12 +16,17 @@ from fastapi.responses import RedirectResponse
 
 from harness.auth.middleware import require_auth
 from harness.connector.registry import ConnectorRegistryReader
+from harness.connector_registry import ConnectorRegistryService
+from harness.connector_registry import run_test_connection as run_connector_test
 from harness.csv_upload import process_upload
 from harness.evaluator.registry import EvaluatorRegistryReader
+from harness.evaluator_registry import EvaluatorRegistryService
+from harness.evaluator_registry import run_test_connection as run_evaluator_test
 from harness.identity.context import IdentityContext
 from harness.orchestrator import enqueue_job  # module global — patchable in tests
 from harness.persistence import get_session
 from harness.persistence.exceptions import (
+    HarnessKeyMismatchError,
     InactiveRegistrationError,
     InvalidTransitionError,
     MissingSnapshotFieldError,
@@ -276,7 +281,7 @@ def step3(
     return templates.TemplateResponse(
         request,
         "wizard/step3.html",
-        {"job_id": job_id, "entries": entries, "selected": selected, "error": None, **ctx(request)},
+        {"job_id": job_id, "entries": entries, "selected": selected, "error": None, "test_result": None, **ctx(request)},
     )
 
 
@@ -292,21 +297,60 @@ def step3_save(
         _require_draft_job(session, job_id)
         reader = ConnectorRegistryReader(session)
         reg = reader.get(cid) if cid else None
+        entries = reader.list_active()
         if reg is None or reg.archived:
             return templates.TemplateResponse(
                 request,
                 "wizard/step3.html",
                 {
                     "job_id": job_id,
-                    "entries": reader.list_active(),
+                    "entries": entries,
                     "selected": None,
                     "error": "Select an active connector to continue.",
+                    "test_result": None,
                     **ctx(request),
                 },
                 status_code=400,
             )
         JobRepository(session).set_connector_snapshot(job_id, reg)
         expects = reg.expects_per_row_password
+        endpoint = reg.endpoint_url
+        timeout = reg.timeout_seconds
+        sse = reg.supports_sse
+        try:
+            descriptor = ConnectorRegistryService(session).get_auth_descriptor_decrypted(cid)
+        except HarnessKeyMismatchError:
+            return templates.TemplateResponse(
+                request,
+                "wizard/step3.html",
+                {
+                    "job_id": job_id,
+                    "entries": entries,
+                    "selected": cid,
+                    "error": "Could not decrypt connector credentials. Contact your administrator.",
+                    "test_result": None,
+                    **ctx(request),
+                },
+                status_code=400,
+            )
+
+    test_result = run_connector_test(endpoint, descriptor, timeout, expects, sse)
+    if not test_result.ok:
+        with get_session() as session:
+            entries = ConnectorRegistryReader(session).list_active()
+        return templates.TemplateResponse(
+            request,
+            "wizard/step3.html",
+            {
+                "job_id": job_id,
+                "entries": entries,
+                "selected": cid,
+                "error": f"Connection test failed: {test_result.detail}",
+                "test_result": test_result,
+                **ctx(request),
+            },
+            status_code=400,
+        )
 
     if expects and not steps.password_store.job_has_entries(job_id):
         notice_msg = (
@@ -332,7 +376,7 @@ def step4(
     return templates.TemplateResponse(
         request,
         "wizard/step4.html",
-        {"job_id": job_id, "entries": entries, "selected": selected, "error": None, **ctx(request)},
+        {"job_id": job_id, "entries": entries, "selected": selected, "error": None, "test_result": None, **ctx(request)},
     )
 
 
@@ -348,20 +392,61 @@ def step4_save(
         _require_draft_job(session, job_id)
         reader = EvaluatorRegistryReader(session)
         reg = reader.get(agent_id) if agent_id else None
+        entries = reader.list_active()
         if reg is None or reg.archived:
             return templates.TemplateResponse(
                 request,
                 "wizard/step4.html",
                 {
                     "job_id": job_id,
-                    "entries": reader.list_active(),
+                    "entries": entries,
                     "selected": None,
                     "error": "Select an active evaluator to continue.",
+                    "test_result": None,
                     **ctx(request),
                 },
                 status_code=400,
             )
         JobRepository(session).set_evaluator_snapshot(job_id, reg)
+        endpoint = reg.endpoint_url
+        timeout = reg.timeout_seconds
+        dims = list(reg.declared_scoring_dimensions or [])
+        sse = reg.supports_sse
+        try:
+            descriptor = EvaluatorRegistryService(session).get_auth_descriptor_decrypted(agent_id)
+        except HarnessKeyMismatchError:
+            return templates.TemplateResponse(
+                request,
+                "wizard/step4.html",
+                {
+                    "job_id": job_id,
+                    "entries": entries,
+                    "selected": agent_id,
+                    "error": "Could not decrypt evaluator credentials. Contact your administrator.",
+                    "test_result": None,
+                    **ctx(request),
+                },
+                status_code=400,
+            )
+
+    test_result = run_evaluator_test(endpoint, descriptor, timeout, dims, sse)
+    if not test_result.ok:
+        with get_session() as session:
+            entries = EvaluatorRegistryReader(session).list_active()
+        return templates.TemplateResponse(
+            request,
+            "wizard/step4.html",
+            {
+                "job_id": job_id,
+                "entries": entries,
+                "selected": agent_id,
+                "error": f"Evaluator test failed: {test_result.detail}",
+                "test_result": test_result,
+                **ctx(request),
+            },
+            status_code=400,
+        )
+
     return RedirectResponse(request.url_for("step5", job_id=job_id), status_code=303)
 
 

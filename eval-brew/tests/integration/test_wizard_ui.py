@@ -24,8 +24,13 @@ def client(tmp_path, monkeypatch):
     encryption._reset_key_cache_for_tests()
     engine.init_db(tmp_path / "ui.db")
     password_store._reset_for_tests()
-    from harness.ui import create_app
 
+    from unittest.mock import MagicMock
+    _ok = MagicMock(ok=True)
+    monkeypatch.setattr("harness.ui.wizard.routes.run_connector_test", lambda *a, **kw: _ok)
+    monkeypatch.setattr("harness.ui.wizard.routes.run_evaluator_test", lambda *a, **kw: _ok)
+
+    from harness.ui import create_app
     from starlette.testclient import TestClient
 
     yield TestClient(create_app(), raise_server_exceptions=True, follow_redirects=False)

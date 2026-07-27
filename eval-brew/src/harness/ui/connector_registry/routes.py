@@ -16,6 +16,7 @@ from harness.connector_registry.test_connection import TestConnectionResult
 from harness.persistence import get_session
 from harness.persistence.exceptions import HarnessKeyMismatchError
 from harness.ui._context import ctx
+from harness.ui._registry_forms import descriptor_from_form as _descriptor_from_form
 from harness.ui._templates import templates
 
 router = APIRouter()
@@ -210,6 +211,40 @@ def test_connection_connector(
     )
 
 
+@router.post("/connectors/{connector_id}/test", name="test_connector_by_id")
+def test_connector_by_id(
+    request: Request,
+    connector_id: str,
+    user: dict = Depends(require_auth),
+):
+    """Test a registered connector by ID, using its stored (decrypted) credentials."""
+    with get_session() as session:
+        service = ConnectorRegistryService(session)
+        reg = service.get(connector_id)
+        if reg is None:
+            result = TestConnectionResult(False, "not_found", None, "Connector not found.")
+            return templates.TemplateResponse(
+                request, "connector_registry/_test_result.html", {"result": result}
+            )
+        try:
+            descriptor = service.get_auth_descriptor_decrypted(connector_id)
+        except HarnessKeyMismatchError:
+            result = TestConnectionResult(
+                False, "auth_decrypt_failed", None, "machine-local key missing or wrong"
+            )
+            return templates.TemplateResponse(
+                request, "connector_registry/_test_result.html", {"result": result}
+            )
+        endpoint = reg.endpoint_url
+        timeout = reg.timeout_seconds
+        expects = reg.expects_per_row_password
+        sse = reg.supports_sse
+    result = run_test_connection(endpoint, descriptor, timeout, expects, sse)
+    return templates.TemplateResponse(
+        request, "connector_registry/_test_result.html", {"result": result}
+    )
+
+
 @router.get("/connectors/{connector_id}/edit")
 def edit_connector(
     request: Request,
@@ -348,39 +383,3 @@ def delete_connector(
     return RedirectResponse(request.url_for("list_connectors"), status_code=303)
 
 
-def _descriptor_from_form(form, mode: str) -> tuple[dict, bool]:
-    """Build a (decrypted) descriptor from form values. Returns (descriptor, needs_stored)
-    where needs_stored signals an edit whose secret wasn't re-entered (decrypt the stored one)."""
-    if mode == "bearer":
-        token = (form.get("token") or "").strip()
-        return {"mode": "bearer", "credential": token}, not token
-    if mode == "api-key-header":
-        value = (form.get("header_value") or "").strip()
-        return {
-            "mode": "api-key-header",
-            "headerName": (form.get("header_name") or "").strip(),
-            "credential": value,
-        }, not value
-    if mode == "basic":
-        password = (form.get("password") or "").strip()
-        return {
-            "mode": "basic",
-            "username": (form.get("username") or "").strip(),
-            "password": password,
-        }, not password
-    if mode == "client-credentials":
-        secret = (form.get("client_secret") or "").strip()
-        descriptor = {
-            "mode": "client-credentials",
-            "tokenUrl": (form.get("token_url") or "").strip(),
-            "clientId": (form.get("client_id") or "").strip(),
-            "clientSecret": secret,
-        }
-        scope = (form.get("scope") or "").strip()
-        audience = (form.get("audience") or "").strip()
-        if scope:
-            descriptor["scope"] = scope
-        if audience:
-            descriptor["audience"] = audience
-        return descriptor, not secret
-    return {"mode": "none"}, False

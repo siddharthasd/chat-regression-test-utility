@@ -25,10 +25,10 @@ _GUIDES: dict[str, tuple[str, str]] = {
 _RELEASES = [
     {
         "version": "3.3",
-        "title": "Chat UI Enhancements & Delete Anywhere",
-        "date": "23 July 2026",
+        "title": "Chat UI Enhancements, Admin Logs & Auth Hardening",
+        "date": "27 July 2026",
         "badge_style": "background:#A100FF",
-        "summary": "Token visibility across every chat turn, an evaluation parameters table in User View, delete controls on every list page regardless of job or session status, and analytics fixes for evaluators that emit batch-format JSON inside SSE.",
+        "summary": "Token visibility across every chat turn, an evaluation parameters table in User View, delete controls on every list page regardless of job or session status, a new Admin Logs screen for in-process error and audit trails, and auth flow security hardening.",
         "sections": [
             {
                 "title": "Chat Session UI",
@@ -47,6 +47,23 @@ _RELEASES = [
                     "All Job Sessions table now shows Delete for jobs in any status, not only terminal ones.",
                     "Chat Sessions list delete bypasses the in-progress guard with a confirmation prompt; in-progress turns are cleaned up automatically.",
                     "Deleting a job or session from the dashboard keeps you on the dashboard (previously redirected to the job list).",
+                ],
+            },
+            {
+                "title": "Admin",
+                "bullets": [
+                    "Logs screen — Admin menu now includes a Logs screen showing the latest 10 error log entries and 10 audit log entries captured in-process; entries reset on server restart.",
+                    "Audit trail — admin actions (user create, role change, remove, and maintenance runs) are automatically recorded with actor identity, action type, and timestamp.",
+                ],
+            },
+            {
+                "title": "Security & Auth",
+                "bullets": [
+                    "Loading indicator on wizard Next buttons — the Next button in connector and evaluator selection steps (job wizard steps 3 & 4, chat session wizard steps 2 & 4) shows a spinner and disables itself while the server-side connection test runs.",
+                    "RFC 7617 compliance — Basic auth username fields now reject values containing ':' at registration time for both connectors and evaluators.",
+                    "Auth descriptor encryption consolidated — encrypt_descriptor / decrypt_descriptor are now the single canonical implementation in persistence.encryption; all registry and remote modules import from one place, eliminating silent drift.",
+                    "SSE connector test now correctly sends a sample password when expects_per_row_password is set, fixing a silent test failure for password-per-row connectors.",
+                    "Auth error categories corrected — test-connection results distinguish auth_config_error (unsupported mode) from auth_decrypt_failed (key mismatch at DB read); visual styling covers all auth failure categories including auth_token_failed.",
                 ],
             },
             {

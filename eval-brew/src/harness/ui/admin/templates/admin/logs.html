@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Logs{% endblock %}
+
+{% block page_banner %}
+<div class="page-banner">
+  <div class="page-banner-title-row">
+    <span class="page-banner-chevron">&gt;</span>
+    <div class="page-banner-text">
+      <h1>Logs</h1>
+      <p class="page-banner-subtitle">Recent error and audit log entries (in-memory, resets on restart)</p>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+
+<div class="row g-4">
+
+  <!-- Error Logs -->
+  <div class="col-12">
+    <div class="harness-card">
+      <div class="card-header py-3 d-flex align-items-center justify-content-between">
+        <h5 class="mb-0 fw-bold">Error Log <span class="badge bg-danger ms-2">ERROR+</span></h5>
+        <span class="text-muted small">Latest 10</span>
+      </div>
+      <div class="card-body p-0">
+        {% if error_entries %}
+        <div class="table-responsive">
+          <table class="table table-sm mb-0" style="font-size:0.825rem;">
+            <thead>
+              <tr>
+                <th class="ps-3" style="width:13rem;">Timestamp</th>
+                <th style="width:5rem;">Level</th>
+                <th style="width:14rem;">Logger</th>
+                <th>Message</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for e in error_entries %}
+              <tr>
+                <td class="ps-3 text-muted text-nowrap">{{ e.timestamp }}</td>
+                <td>
+                  <span class="badge {% if e.level == 'CRITICAL' %}bg-danger{% else %}bg-warning text-dark{% endif %}">
+                    {{ e.level }}
+                  </span>
+                </td>
+                <td class="text-muted" style="font-size:0.78rem;font-family:monospace;">{{ e.logger }}</td>
+                <td style="word-break:break-word;">{{ e.message }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="p-4 text-center text-muted small">
+          No errors recorded since the server started.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Audit Logs -->
+  <div class="col-12">
+    <div class="harness-card">
+      <div class="card-header py-3 d-flex align-items-center justify-content-between">
+        <h5 class="mb-0 fw-bold">Audit Log <span class="badge bg-secondary ms-2">Admin actions</span></h5>
+        <span class="text-muted small">Latest 10</span>
+      </div>
+      <div class="card-body p-0">
+        {% if audit_entries %}
+        <div class="table-responsive">
+          <table class="table table-sm mb-0" style="font-size:0.825rem;">
+            <thead>
+              <tr>
+                <th class="ps-3" style="width:13rem;">Timestamp</th>
+                <th style="width:10rem;">Actor</th>
+                <th style="width:12rem;">Action</th>
+                <th>Detail</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for a in audit_entries %}
+              <tr>
+                <td class="ps-3 text-muted text-nowrap">{{ a.timestamp }}</td>
+                <td style="font-size:0.78rem;font-family:monospace;">{{ a.actor }}</td>
+                <td><span class="badge bg-secondary">{{ a.action }}</span></td>
+                <td style="word-break:break-word;">{{ a.detail }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="p-4 text-center text-muted small">
+          No admin actions recorded since the server started.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

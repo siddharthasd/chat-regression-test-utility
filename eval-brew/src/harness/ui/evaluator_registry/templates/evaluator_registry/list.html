@@ -1,13 +1,22 @@
 {% extends "base.html" %}
 {% block title %}Evaluator Registry{% endblock %}
 
-{% block content %}
-<div class="page-section-hdr">
-  <div>
-    <h1 class="section-title">Evaluator Registry</h1>
+{% block page_banner %}
+<div class="page-banner">
+  <div class="page-banner-title-row">
+    <span class="page-banner-chevron">&gt;</span>
+    <div class="page-banner-text">
+      <h1>Evaluator Registry</h1>
+      <p class="page-banner-subtitle">Manage evaluation scripts</p>
+    </div>
   </div>
-  <a href="{{ url_for('new_evaluator') }}" class="btn btn-primary btn-sm">+ Register Evaluator</a>
+  <div class="page-banner-actions">
+    <a href="{{ url_for('new_evaluator') }}" class="btn btn-primary btn-sm">+ Register Evaluator</a>
+  </div>
 </div>
+{% endblock %}
+
+{% block content %}
 
 {% if error %}
 <div class="alert alert-danger alert-harness-error" role="alert">{{ error }}</div>

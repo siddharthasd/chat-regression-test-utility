@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 
 AUTH_MODES = ("none", "bearer", "api-key-header", "basic", "client-credentials")
 TIMEOUT_MIN, TIMEOUT_MAX = 1, 600
+_TRUTHY = {"1", "true", "on", "yes"}
 
 
 def _valid_url(value: str) -> bool:
@@ -74,7 +75,7 @@ def parse_evaluator_form(
         errors["timeout_seconds"] = "Timeout must be an integer."
 
     dimensions = parse_dimensions(form.get("dimensions"))
-    supports_sse = (form.get("supports_sse") or "").strip().lower() in {"1", "true", "on", "yes"}
+    supports_sse = (form.get("supports_sse") or "").strip().lower() in _TRUTHY
 
     descriptor = None
     if mode in AUTH_MODES:
@@ -118,6 +119,8 @@ def _build_descriptor(
     password = (form.get("password") or "").strip()
     if not username:
         errors["username"] = "Username is required."
+    elif ":" in username:
+        errors["username"] = "Username must not contain ':' (RFC 7617)."
     if require_credential and not password:
         errors["password"] = "Password is required."
     return {"mode": "basic", "username": username, "password": password}

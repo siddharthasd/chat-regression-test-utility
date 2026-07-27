@@ -101,6 +101,8 @@ def _build_descriptor(
     password = (form.get("password") or "").strip()
     if not username:
         errors["username"] = "Username is required."
+    elif ":" in username:
+        errors["username"] = "Username must not contain ':' (RFC 7617)."
     if require_credential and not password:
         errors["password"] = "Password is required."
     return {"mode": "basic", "username": username, "password": password}

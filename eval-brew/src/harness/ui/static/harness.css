@@ -188,6 +188,8 @@ small, .small { font-size: .8125rem; }
   line-height: 1.7;
 }
 .nav-link:hover { color: #ffffff; background: rgba(255,255,255,.08); text-decoration: none; }
+.harness-navbar .nav-link.active { color: #ffffff; background: rgba(161,0,255,.18); }
+.nav-item.dropdown summary.nav-link.active { color: #ffffff; background: rgba(161,0,255,.18); }
 
 /* Nav end (user area) */
 .nav-end {
@@ -534,6 +536,14 @@ footer small { color: rgba(255,255,255,.35); font-size: .78rem; }
 .badge-type-job  { background: #6200CC; font-size: .65rem; }
 .badge-type-chat { background: #0057B8; font-size: .65rem; }
 
+/* Pulse animation for live-state badges */
+@keyframes badge-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: .6; }
+}
+.badge-running { animation: badge-pulse 1.8s ease-in-out infinite; }
+.badge-queued  { animation: badge-pulse 2.4s ease-in-out infinite; }
+
 /* bg-* badge variants */
 .bg-primary.badge  { background: var(--color-primary) !important; }
 .bg-secondary.badge{ background: var(--color-gray) !important; }
@@ -843,7 +853,7 @@ table, .table {
 .test-result-ok           { border-color: var(--color-green); background: var(--color-green-bg); }
 .test-result-error        { border-color: var(--color-red);   background: var(--color-red-bg); }
 .test-result-timeout      { border-color: var(--color-amber); background: var(--color-amber-bg); }
-.test-result-auth_fail, .test-result-auth_decrypt_failed { border-color: var(--color-cancelling); background: var(--color-amber-bg); }
+.test-result-auth_fail, .test-result-auth_decrypt_failed, .test-result-auth_config_error, .test-result-auth_token_failed { border-color: var(--color-cancelling); background: var(--color-amber-bg); }
 
 /* Credential subsection card */
 .credential-card { background: var(--color-card); border: 1px solid var(--color-border); border-radius: .4rem; padding: 1rem; margin-top: .5rem; }
@@ -927,4 +937,51 @@ table, .table {
   .histogram-bar { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .sigma-band { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .harness-navbar, footer { display: none !important; }
+}
+
+/* ── 29. Page banner ─────────────────────────────────────────────────────── */
+.page-banner {
+  background: var(--color-white);
+  border-bottom: 3px solid var(--color-primary);
+  padding: .65rem var(--space-lg);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.page-banner-title-row {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+.page-banner-chevron {
+  color: var(--color-primary);
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.page-banner h1 {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  margin: 0;
+  color: var(--color-text);
+  line-height: 1.2;
+}
+.page-banner-subtitle {
+  font-size: .75rem;
+  color: var(--color-muted);
+  margin: .1rem 0 0;
+}
+.page-banner-actions {
+  display: flex;
+  gap: .5rem;
+  align-items: center;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+@media (max-width: 576px) {
+  .page-banner { padding: .65rem var(--space-sm); }
+  .page-banner-actions { width: 100%; }
 }

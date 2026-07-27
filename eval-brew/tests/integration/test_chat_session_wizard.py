@@ -19,6 +19,12 @@ def client(tmp_path, monkeypatch):
 
     encryption._reset_key_cache_for_tests()
     engine.init_db(tmp_path / "wiz.db")
+
+    from unittest.mock import MagicMock
+    _ok = MagicMock(ok=True)
+    monkeypatch.setattr("harness.ui.chat_session.routes._run_conn_test", lambda *a, **kw: _ok)
+    monkeypatch.setattr("harness.ui.chat_session.routes._run_eval_test", lambda *a, **kw: _ok)
+
     from harness.ui import create_app
 
     return TestClient(create_app(), raise_server_exceptions=True, follow_redirects=False)

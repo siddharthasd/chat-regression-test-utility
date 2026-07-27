@@ -24,7 +24,7 @@ _TEST_UTTERANCE_ID = "test-utt"
 @dataclass(frozen=True)
 class TestConnectionResult:
     ok: bool
-    # valid|invalid_result|http_error|unreachable|timeout|auth_decrypt_failed|auth_token_failed
+    # valid|invalid_result|http_error|unreachable|timeout|auth_config_error|auth_token_failed
     category: str
     status_code: int | None = None
     detail: str = ""
@@ -65,7 +65,7 @@ def run_test_connection(
         try:
             headers = {"Content-Type": "application/json", **build_auth_headers(descriptor)}
         except ValueError as exc:
-            return TestConnectionResult(False, "auth_decrypt_failed", detail=str(exc))
+            return TestConnectionResult(False, "auth_config_error", detail=str(exc))
 
         try:
             response = client.post(endpoint_url, json=contract, headers=headers)
@@ -146,7 +146,7 @@ def _run_test_connection_sse(
         try:
             headers = {"Content-Type": "application/json", **build_auth_headers(descriptor)}
         except ValueError as exc:
-            return TestConnectionResult(False, "auth_decrypt_failed", detail=str(exc))
+            return TestConnectionResult(False, "auth_config_error", detail=str(exc))
 
         try:
             with client.stream("POST", endpoint_url, json=contract, headers=headers) as resp:

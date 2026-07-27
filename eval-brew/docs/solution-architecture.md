@@ -7,8 +7,8 @@ to understand its internals, deploy it, extend it, or integrate with it.
 
 ## Overview
 
-The harness is a **Python web application** built on FastAPI and served via Gunicorn with
-Uvicorn workers, typically fronted by Nginx. Its purpose is to orchestrate regression test
+The harness is a **Python web application** built on FastAPI and served via Uvicorn,
+typically fronted by Nginx. Its purpose is to orchestrate regression test
 runs against AI chatbots: it calls a user-supplied **connector** (which proxies the chatbot),
 then calls a user-supplied **evaluator** (which scores the response), and persists the full
 trace for reporting and export.
@@ -36,7 +36,7 @@ The harness exposes two distinct interaction surfaces:
   qual-brew ──M2M Bearer──────────▶ │  Nginx (reverse proxy / TLS offload)  │
                                     │     │                                 │
   Browser                           │     ▼                                 │
-  ─────────────────────────         │  Gunicorn (UvicornWorker)             │
+  ─────────────────────────         │  Uvicorn                              │
   User / Admin ──HTTPS / SSO──────▶ │     │                                 │
                                     │     ▼                                 │
                                     │  FastAPI application                  │
@@ -46,7 +46,7 @@ The harness exposes two distinct interaction surfaces:
                                     │   └─ Orchestrator engine             │
                                     │          │               │           │
                                     │          ▼               ▼           │
-                                    │  SQLite / PostgreSQL   httpx         │
+                                    │  PostgreSQL (PaaS)     httpx         │
                                     └───────────────────────────┼──────────┘
                                                                 │
                               ┌─────────────────────────────────┴──────────────────────┐
@@ -68,13 +68,12 @@ The harness exposes two distinct interaction surfaces:
 | Layer | Technology |
 |---|---|
 | Web framework | [FastAPI](https://fastapi.tiangolo.com/) 0.115+ |
-| ASGI server | [Uvicorn](https://www.uvicorn.org/) (via Gunicorn `UvicornWorker`) |
-| Process manager | [Gunicorn](https://gunicorn.org/) 22+ |
+| ASGI server | [Uvicorn](https://www.uvicorn.org/) 0.30+ (standalone; `--factory` mode) |
 | Reverse proxy | Nginx (recommended; optional for development) |
 | Templating | Jinja2 (via FastAPI's `Jinja2Templates`) |
 | Frontend | Bootstrap 5.3.3 (CDN); plain HTML/JS — no build step |
 | ORM / migrations | [SQLAlchemy](https://www.sqlalchemy.org/) 2.0 + [Alembic](https://alembic.sqlalchemy.org/) |
-| Database | SQLite (dev / single-server) or PostgreSQL (cloud / Azure) |
+| Database | PostgreSQL (production / PaaS) via [psycopg2](https://www.psycopg.org/) 2.9+; SQLite (local development and tests only) |
 | HTTP client | [httpx](https://www.python-httpx.org/) (sync) |
 | Browser auth | [MSAL](https://github.com/AzureAD/microsoft-authentication-library-for-python) (Azure AD OAuth2 Authorization Code flow) |
 | API auth | [PyJWT](https://pyjwt.readthedocs.io/) `[crypto]` ≥ 2.8 (Azure AD M2M Bearer token validation) |
@@ -83,7 +82,7 @@ The harness exposes two distinct interaction surfaces:
 | Contract validation | [jsonschema](https://python-jsonschema.readthedocs.io/) (JSON Schema draft 2020-12) |
 | Structured logging | [structlog](https://www.structlog.org/) |
 | CLI | [Click](https://click.palletsprojects.com/) |
-| Python | 3.11+ |
+| Python | 3.11+ (Docker runtime: 3.13) |
 
 ---
 
@@ -255,12 +254,13 @@ Key fields:
 
 ### Database
 
-Two engines are supported, selected by 12-factor config at startup:
+PostgreSQL is the production and PaaS target. SQLite is retained for local development
+and the test suite only. The engine is selected by 12-factor config at startup:
 
 | Config | Engine | Use case |
 |---|---|---|
-| `DATABASE_URL` set | PostgreSQL (via `psycopg2`) | Cloud / Azure Container deployments |
-| `DATABASE_URL` unset | SQLite at `HARNESS_DB_PATH` | Single-server / local development |
+| `DATABASE_URL` set | PostgreSQL (via `psycopg2`) | Production / Azure PaaS deployments |
+| `DATABASE_URL` unset | SQLite at `HARNESS_DB_PATH` | Local development and automated tests |
 
 Schema is managed by Alembic migrations, applied automatically at startup via
 `initialize_harness()`. The current migration head is **`0007`**.
@@ -311,15 +311,20 @@ as optional display metadata. The dashboard renders an **API** badge for these j
 
 Connector and evaluator service credentials (bearer tokens, API keys, OAuth2 client secrets,
 Basic passwords) are encrypted at rest using **Fernet symmetric encryption**
-(`cryptography` library). The key is stored at a path configured by `HARNESS_KEY_FILE`
-(default: `~/.harness/master.key`). Credentials are decrypted in memory only when building
-a request; they are never logged, exported, or surfaced in the UI.
+(`cryptography` library). The key is resolved in priority order:
+
+1. **`HARNESS_MASTER_KEY`** env var — key bytes supplied inline (preferred for PaaS / container deployments; no file required).
+2. File at **`HARNESS_KEY_FILE`** (default: `~/.harness/master.key`) — auto-created on first use with mode `0600`.
+
+Credentials are decrypted in memory only when building a request; they are never logged,
+exported, or surfaced in the UI. The same key must be present across redeployments — if the
+key changes, all stored credentials become unreadable.
 
 ---
 
 ## Orchestrator
 
-`harness/orchestrator/engine.py` — job execution is synchronous and runs in the same Gunicorn
+`harness/orchestrator/engine.py` — job execution is synchronous and runs in the same Uvicorn
 worker process that accepted the "Start Job" request. The engine processes rows sequentially
 (one at a time, in row-index order). This is a deliberate design choice: it simplifies
 deployment (no worker queue infrastructure) and is sufficient for typical regression batch
@@ -444,28 +449,38 @@ Follow the established pattern:
 ### Recommended production configuration
 
 ```
-Nginx  ──proxy_pass──▶  Gunicorn (UvicornWorker)  ──▶  FastAPI app
+Nginx  ──proxy_pass──▶  Uvicorn  ──▶  FastAPI app
 ```
 
 Start command:
 
 ```bash
-gunicorn harness.ui:create_app \
-  --worker-class uvicorn.workers.UvicornWorker \
-  --workers 2 \
-  --bind 127.0.0.1:8000
+uvicorn harness.ui:create_app \
+  --factory \
+  --host 0.0.0.0 \
+  --port 8000
 ```
 
-Nginx proxies HTTPS externally and forwards to Gunicorn on localhost. Static files can be
+Or via Docker (as defined in `Dockerfile`):
+
+```bash
+docker run -p 8000:8000 \
+  -e DATABASE_URL=postgresql://user:pass@host/db \
+  -e HARNESS_MASTER_KEY=<fernet-key> \
+  eval-brew
+```
+
+Nginx proxies HTTPS externally and forwards to Uvicorn on localhost. Static files can be
 served directly by Nginx for efficiency.
 
 ### Environment variables
 
 | Variable | Purpose | Default |
 |---|---|---|
-| `DATABASE_URL` | Full SQLAlchemy URL for PostgreSQL. When set, `HARNESS_DB_PATH` is ignored. | — (use SQLite) |
-| `HARNESS_DB_PATH` | SQLite database file path | `~/.harness/data.db` |
-| `HARNESS_KEY_FILE` | Path to the Fernet master encryption key file | `~/.harness/master.key` |
+| `DATABASE_URL` | Full SQLAlchemy URL for PostgreSQL (e.g. `postgresql://user:pass@host/db`). Required for production / PaaS. When set, `HARNESS_DB_PATH` is ignored. | — (falls back to SQLite) |
+| `HARNESS_DB_PATH` | SQLite database file path. Local development and tests only; ignored when `DATABASE_URL` is set. | `~/.harness/data.db` |
+| `HARNESS_MASTER_KEY` | Fernet encryption key bytes supplied inline (URL-safe base64). **Preferred for PaaS / container deployments** — no key file needed. Takes priority over `HARNESS_KEY_FILE`. | — |
+| `HARNESS_KEY_FILE` | Path to the Fernet master encryption key file. Auto-created on first use with mode `0600`. Used when `HARNESS_MASTER_KEY` is not set. | `~/.harness/master.key` |
 | `HARNESS_SESSION_SECRET` | Session signing key (≥ 32 chars) | — (required when auth enabled) |
 | `HARNESS_AUTH_ENABLED` | Enable Azure AD auth (`true`/`false`) | `false` |
 | `HARNESS_AZURE_TENANT_ID` | Azure AD tenant GUID | — |

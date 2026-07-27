@@ -27,7 +27,7 @@ _TRUNCATE = 500
 @dataclass(frozen=True)
 class TestConnectionResult:
     ok: bool
-    # valid|invalid_contract|http_error|unreachable|timeout|auth_decrypt_failed|auth_token_failed
+    # valid|invalid_contract|http_error|unreachable|timeout|auth_config_error|auth_token_failed
     category: str
     status_code: int | None = None
     detail: str = ""
@@ -45,7 +45,8 @@ def run_test_connection(
     """Send the fixed sample request; return a categorized, non-persisted result."""
     if supports_sse:
         return _run_test_connection_sse(
-            endpoint_url, decrypted_descriptor, timeout_seconds, client=client
+            endpoint_url, decrypted_descriptor, timeout_seconds,
+            expects_per_row_password=expects_per_row_password, client=client,
         )
 
     body = dict(_SAMPLE_BODY)
@@ -67,7 +68,7 @@ def run_test_connection(
         try:
             headers = {"Content-Type": "application/json", **build_auth_headers(descriptor)}
         except ValueError as exc:
-            return TestConnectionResult(False, "auth_decrypt_failed", detail=str(exc))
+            return TestConnectionResult(False, "auth_config_error", detail=str(exc))
 
         try:
             response = client.post(endpoint_url, json=body, headers=headers)
@@ -121,9 +122,15 @@ def _run_test_connection_sse(
     decrypted_descriptor: dict,
     timeout_seconds: int,
     *,
+    expects_per_row_password: bool = False,
     client: httpx.Client | None = None,
 ) -> TestConnectionResult:
     """SSE-mode test: stream the response and validate the 'contract' event payload."""
+    body = dict(_SSE_SAMPLE_BODY)
+    body["auth"] = dict(body["auth"])
+    if expects_per_row_password:
+        body["auth"]["password"] = "test"
+
     owns_client = client is None
     if owns_client:
         client = httpx.Client(timeout=httpx.Timeout(timeout_seconds))
@@ -137,10 +144,10 @@ def _run_test_connection_sse(
         try:
             headers = {"Content-Type": "application/json", **build_auth_headers(descriptor)}
         except ValueError as exc:
-            return TestConnectionResult(False, "auth_decrypt_failed", detail=str(exc))
+            return TestConnectionResult(False, "auth_config_error", detail=str(exc))
 
         try:
-            with client.stream("POST", endpoint_url, json=_SSE_SAMPLE_BODY, headers=headers) as resp:
+            with client.stream("POST", endpoint_url, json=body, headers=headers) as resp:
                 if not 200 <= resp.status_code < 300:
                     body_snippet = resp.read().decode(errors="replace")[:_TRUNCATE]
                     return TestConnectionResult(

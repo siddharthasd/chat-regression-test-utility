@@ -17,6 +17,7 @@ from harness.evaluator_registry.test_connection import TestConnectionResult
 from harness.persistence import get_session
 from harness.persistence.exceptions import HarnessKeyMismatchError
 from harness.ui._context import ctx
+from harness.ui._registry_forms import descriptor_from_form as _descriptor_from_form
 from harness.ui._templates import templates
 
 router = APIRouter()
@@ -217,6 +218,40 @@ def test_connection_evaluator(
     )
 
 
+@router.post("/evaluators/{evaluation_agent_id}/test", name="test_evaluator_by_id")
+def test_evaluator_by_id(
+    request: Request,
+    evaluation_agent_id: str,
+    user: dict = Depends(require_auth),
+):
+    """Test a registered evaluator by ID, using its stored (decrypted) credentials."""
+    with get_session() as session:
+        service = EvaluatorRegistryService(session)
+        reg = service.get(evaluation_agent_id)
+        if reg is None:
+            result = TestConnectionResult(False, "not_found", None, "Evaluator not found.")
+            return templates.TemplateResponse(
+                request, "evaluator_registry/_test_result.html", {"result": result}
+            )
+        try:
+            descriptor = service.get_auth_descriptor_decrypted(evaluation_agent_id)
+        except HarnessKeyMismatchError:
+            result = TestConnectionResult(
+                False, "auth_decrypt_failed", None, "machine-local key missing or wrong"
+            )
+            return templates.TemplateResponse(
+                request, "evaluator_registry/_test_result.html", {"result": result}
+            )
+        endpoint = reg.endpoint_url
+        timeout = reg.timeout_seconds
+        dims = list(reg.declared_scoring_dimensions or [])
+        sse = reg.supports_sse
+    result = run_test_connection(endpoint, descriptor, timeout, dims, sse)
+    return templates.TemplateResponse(
+        request, "evaluator_registry/_test_result.html", {"result": result}
+    )
+
+
 @router.get("/evaluators/{evaluation_agent_id}/edit")
 def edit_evaluator(
     request: Request,
@@ -354,37 +389,3 @@ def delete_evaluator(
     return RedirectResponse(request.url_for("list_evaluators"), status_code=303)
 
 
-def _descriptor_from_form(form, mode: str) -> tuple[dict, bool]:
-    if mode == "bearer":
-        token = (form.get("token") or "").strip()
-        return {"mode": "bearer", "credential": token}, not token
-    if mode == "api-key-header":
-        value = (form.get("header_value") or "").strip()
-        return {
-            "mode": "api-key-header",
-            "headerName": (form.get("header_name") or "").strip(),
-            "credential": value,
-        }, not value
-    if mode == "basic":
-        password = (form.get("password") or "").strip()
-        return {
-            "mode": "basic",
-            "username": (form.get("username") or "").strip(),
-            "password": password,
-        }, not password
-    if mode == "client-credentials":
-        secret = (form.get("client_secret") or "").strip()
-        descriptor = {
-            "mode": "client-credentials",
-            "tokenUrl": (form.get("token_url") or "").strip(),
-            "clientId": (form.get("client_id") or "").strip(),
-            "clientSecret": secret,
-        }
-        scope = (form.get("scope") or "").strip()
-        audience = (form.get("audience") or "").strip()
-        if scope:
-            descriptor["scope"] = scope
-        if audience:
-            descriptor["audience"] = audience
-        return descriptor, not secret
-    return {"mode": "none"}, False

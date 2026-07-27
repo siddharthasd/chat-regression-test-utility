@@ -1,10 +1,19 @@
 {% extends "base.html" %}
 {% block title %}Job Maintenance{% endblock %}
 
-{% block content %}
-<div class="page-section-hdr">
-  <h1 class="section-title">Job Maintenance</h1>
+{% block page_banner %}
+<div class="page-banner">
+  <div class="page-banner-title-row">
+    <span class="page-banner-chevron">&gt;</span>
+    <div class="page-banner-text">
+      <h1>Job Maintenance</h1>
+      <p class="page-banner-subtitle">Administrative job management</p>
+    </div>
+  </div>
 </div>
+{% endblock %}
+
+{% block content %}
 
 {% for category, message in flashes %}
 <div class="alert alert-{{ 'success' if category == 'success' else 'warning' }} alert-dismissible fade show" role="alert">

@@ -1,9 +1,15 @@
 {% extends "base.html" %}
 {% block title %}Chat Sessions{% endblock %}
-{% block content %}
-<div class="page-section-hdr">
-  <h1 class="section-title">Chat Sessions</h1>
-  <div class="d-flex gap-2">
+{% block page_banner %}
+<div class="page-banner">
+  <div class="page-banner-title-row">
+    <span class="page-banner-chevron">&gt;</span>
+    <div class="page-banner-text">
+      <h1>Chat Sessions</h1>
+      <p class="page-banner-subtitle">Manage evaluation sessions</p>
+    </div>
+  </div>
+  <div class="page-banner-actions">
     <form method="post" action="{{ url_for('chat_clear_errors') }}"
           onsubmit="return confirm('Delete all chat sessions with failed turns?')">
       <button class="btn btn-outline-warning btn-sm">Clear Errors</button>
@@ -15,6 +21,9 @@
     <a href="{{ url_for('wizard_step1') }}" class="btn btn-primary btn-sm">+ New Chat Session</a>
   </div>
 </div>
+{% endblock %}
+
+{% block content %}
 
 {% if request.query_params.get('warn_in_progress') %}
   <div class="alert alert-warning alert-dismissible fade show">

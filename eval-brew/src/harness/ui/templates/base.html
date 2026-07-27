@@ -113,6 +113,8 @@
               <li><a class="dropdown-item" href="{{ url_for('admin_chat_maintenance') }}">Chat session maintenance</a></li>
               <li class="dropdown-divider"></li>
               <li><a class="dropdown-item" href="{{ url_for('admin_users') }}">Users</a></li>
+              <li class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="{{ url_for('admin_logs') }}">Logs</a></li>
             </ul>
           </details>
         </li>
@@ -143,6 +145,8 @@
   </div>
 </nav>
 
+{% block page_banner %}{% endblock %}
+
 <main>
   <div class="container-fluid">
     {% block content %}{% endblock %}
@@ -164,6 +168,28 @@ document.addEventListener('click', function(e) {
     if (!d.contains(e.target)) d.removeAttribute('open');
   });
 });
+
+/* Active nav highlighting */
+(function() {
+  var path = window.location.pathname;
+  document.querySelectorAll('.nav-item:not(.dropdown) .nav-link').forEach(function(a) {
+    var href = (a.getAttribute('href') || '').split('?')[0];
+    if (href === '/' ? path === '/' : href && (path === href || path.startsWith(href + '/'))) {
+      a.classList.add('active');
+    }
+  });
+  document.querySelectorAll('.nav-item.dropdown details').forEach(function(details) {
+    var matched = false;
+    details.querySelectorAll('.dropdown-item').forEach(function(item) {
+      var href = (item.getAttribute('href') || '').split('?')[0];
+      if (href && href !== '/' && (path === href || path.startsWith(href + '/'))) matched = true;
+    });
+    if (matched) {
+      var s = details.querySelector('summary.nav-link');
+      if (s) s.classList.add('active');
+    }
+  });
+})();
 </script>
 </body>
 </html>

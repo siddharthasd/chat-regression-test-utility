@@ -19,8 +19,13 @@ from harness.persistence.repositories.job import JobRepository
 from harness.persistence.repositories.user_registration import UserRegistrationRepository
 from harness.ui._context import ctx
 from harness.ui._templates import templates
+from harness.ui.admin import log_store
 
 router = APIRouter()
+
+
+def _actor(user: dict) -> str:
+    return user.get("email") or user.get("display_name") or user.get("name") or "system"
 
 
 def _db_size_mb() -> float | str:
@@ -92,6 +97,7 @@ def admin_create_user(
             return RedirectResponse(request.url_for("admin_users"), status_code=303)
         repo.create(email=email, role=role, display_name=display_name or None)
 
+    log_store.record_audit(_actor(user), "user.create", f"{email} registered as {role}")
     _flash(request, f"Registered {email} as {role}.", "success")
     return RedirectResponse(request.url_for("admin_users"), status_code=303)
 
@@ -111,8 +117,10 @@ def admin_change_role(
         reg = repo.get(reg_id)
         if reg is None:
             raise HTTPException(status_code=404)
+        target_email = reg.email
         repo.update_role(reg, role)
 
+    log_store.record_audit(_actor(user), "user.role_change", f"{target_email} → {role}")
     _flash(request, f"Role updated to {role}.", "success")
     return RedirectResponse(request.url_for("admin_users"), status_code=303)
 
@@ -134,6 +142,7 @@ def admin_remove_user(
         email = reg.email
         repo.delete(reg)
 
+    log_store.record_audit(_actor(user), "user.remove", email)
     _flash(request, f"Removed {email}.", "success")
     return RedirectResponse(request.url_for("admin_users"), status_code=303)
 
@@ -170,6 +179,11 @@ def admin_maintenance_run(
         deleted = JobRepository(db).delete_all_clearable()
     _vacuum_db()
     size_after = _db_size_mb()
+    log_store.record_audit(
+        _actor(user),
+        "maintenance.job_clear",
+        f"deleted {deleted} job(s); DB {size_before} MB → {size_after} MB",
+    )
     _flash(
         request,
         f"Deleted {deleted} job(s). Database size: {size_before} MB → {size_after} MB.",
@@ -243,5 +257,27 @@ def admin_chat_maintenance_delete(
         cutoff = datetime.now(UTC) - timedelta(days=days)
         deleted = repo.delete_sessions_inactive_since(cutoff)
     label = _INACTIVITY_PRESETS[days]
+    log_store.record_audit(
+        _actor(user),
+        "maintenance.chat_clear",
+        f"deleted {deleted} session(s) inactive >{label}",
+    )
     _flash(request, f"Deleted {deleted} chat session(s) inactive for more than {label}.", "success")
     return RedirectResponse(request.url_for("admin_chat_maintenance"), status_code=303)
+
+
+# ----------------------------------------------------------------------- logs
+@router.get("/admin/logs", name="admin_logs")
+def admin_logs(
+    request: Request,
+    user: dict = Depends(require_role("admin")),
+):
+    return templates.TemplateResponse(
+        request,
+        "admin/logs.html",
+        {
+            "error_entries": log_store.recent_errors(10),
+            "audit_entries": log_store.recent_audits(10),
+            **ctx(request),
+        },
+    )
