@@ -1,4 +1,4 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 {% block title %}Create Job — Step 4{% endblock %}
 
 {% block content %}
@@ -32,6 +32,12 @@
 
         {% if error %}
         <div class="alert alert-danger alert-harness-error" role="alert">{{ error }}</div>
+        {% endif %}
+
+        {% if test_result %}
+        <div class="mb-3">
+          {% with result=test_result %}{% include "evaluator_registry/_test_result.html" %}{% endwith %}
+        </div>
         {% endif %}
 
         {% if not entries %}
@@ -70,8 +76,10 @@
             </ul>
           </details>
 
-          <div class="d-flex justify-content-end">
-            <button type="submit" class="btn btn-primary px-4">Next →</button>
+          <div id="test-eval-result" class="mb-3"></div>
+          <div class="d-flex justify-content-between align-items-center">
+            <button type="button" id="test-evaluator-btn" class="btn btn-sm btn-outline-secondary">Test Evaluator</button>
+            <button type="submit" id="next-btn" class="btn btn-primary px-4">Next →</button>
           </div>
         </form>
         {% endif %}
@@ -79,4 +87,36 @@
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var _teBtn = document.getElementById('test-evaluator-btn');
+if (_teBtn) _teBtn.addEventListener('click', function() {
+  var eid = document.getElementById('evaluation_agent_id').value;
+  var res = document.getElementById('test-eval-result');
+  if (!eid) {
+    res.innerHTML = '<div class="alert alert-warning p-2 small mb-0">Select an evaluator first.</div>';
+    return;
+  }
+  var btn = this;
+  btn.disabled = true;
+  btn.textContent = 'Testing…';
+  res.innerHTML = '';
+  fetch('/evaluators/' + encodeURIComponent(eid) + '/test', { method: 'POST' })
+    .then(function(r) { return r.text(); })
+    .then(function(html) { res.innerHTML = html; })
+    .catch(function() { res.innerHTML = '<div class="alert alert-danger p-2 small mb-0">Request failed.</div>'; })
+    .finally(function() { btn.disabled = false; btn.textContent = 'Test Evaluator'; });
+});
+
+var _form4 = document.querySelector('form[action*="step4"]');
+if (_form4) _form4.addEventListener('submit', function() {
+  var btn = document.getElementById('next-btn');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Testing…';
+  }
+});
+</script>
 {% endblock %}
