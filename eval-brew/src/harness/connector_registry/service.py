@@ -10,6 +10,7 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from harness.persistence.encryption import decrypt_descriptor
 from harness.persistence.models import ConnectorRegistration
 from harness.persistence.repositories import (
     ConnectorRegistrationRepository,
@@ -83,12 +84,23 @@ class ConnectorRegistryService:
         }
         if replace_credential or mode_changed:
             update_data["auth_descriptor"] = payload["auth_descriptor"]
-            # Drop any token cached under the old/new client-credentials key so a
-            # rotated secret takes effect immediately (the cache key omits the
-            # secret). No-ops for non-client-credentials descriptors. Key subfields
-            # (tokenUrl/clientId/scope/audience) are plaintext in both forms.
-            invalidate_token(existing.auth_descriptor or {})
-            invalidate_token(payload["auth_descriptor"])
+        else:
+            # Non-secret fields (tokenUrl, clientId, scope, audience) may have
+            # changed. Decrypt the stored secret, merge it with the new payload so
+            # the repo re-encrypts a complete descriptor without losing the secret.
+            stored = decrypt_descriptor(existing.auth_descriptor or {})
+            merged = dict(payload["auth_descriptor"])
+            for key in ("clientSecret", "credential", "password"):
+                val = stored.get(key)
+                if val:
+                    merged[key] = val
+                else:
+                    merged.pop(key, None)
+            update_data["auth_descriptor"] = merged
+        # Invalidate OAuth token cache whenever auth_descriptor changes — the cache
+        # key covers tokenUrl/clientId/scope/audience, not just the secret.
+        invalidate_token(existing.auth_descriptor or {})
+        invalidate_token(update_data["auth_descriptor"])
         return self._repo.update(connector_id, update_data)
 
     def archive(self, connector_id: str) -> None:
