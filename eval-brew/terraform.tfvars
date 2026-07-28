@@ -26,15 +26,18 @@ replicas         = 2
 # ------------------------------------
 # PostgreSQL Flexible Server (PaaS)
 # ------------------------------------
-# The Terraform module assembles DATABASE_URL from these values:
-#   postgresql+psycopg2://<pg_admin_username>:<pg_admin_password>@<pg_server_name>.postgres.database.azure.com:5432/<pg_database_name>?sslmode=require
-pg_server_name    = "evalbrew-pg"
-pg_database_name  = "evalbrew"
-pg_admin_username = "evalbrew_admin"
-pg_admin_password = "CHANGEME"   # inject via Azure Key Vault
-pg_sku_name       = "B_Standard_B1ms"
-pg_storage_mb     = 32768
-pg_version        = "16"
+# pg_admin_password is used by Terraform to provision the server only.
+# The app authenticates at runtime via Azure AD managed identity — no password in DATABASE_URL.
+# DATABASE_URL assembled by the module (no password):
+#   postgresql+psycopg2://<pg_admin_username>@<pg_server_name>.postgres.database.azure.com:5432/<pg_database_name>?sslmode=require
+pg_server_name                = "evalbrew-pg"
+pg_database_name              = "evalbrew"
+pg_admin_username             = "evalbrew_admin"
+pg_admin_password             = "CHANGEME"   # provisioning only — inject via Azure Key Vault
+pg_sku_name                   = "B_Standard_B1ms"
+pg_storage_mb                 = 32768
+pg_version                    = "16"
+harness_pg_use_managed_identity = "true"
 
 # ------------------------------------
 # App Environment — Authentication

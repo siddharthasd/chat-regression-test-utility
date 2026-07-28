@@ -125,10 +125,29 @@ Trusted hostname allowlist enforced by `TrustedHostMiddleware`. Requests with a 
 | | |
 |---|---|
 | **Default** | *(none — required; no fallback)* |
-| **Accepted values** | Any SQLAlchemy connection URL for PostgreSQL |
-| **Sample** | `DATABASE_URL=postgresql+psycopg2://user:pass@db-host:5432/harness` |
+| **Accepted values** | PostgreSQL SQLAlchemy URL (with or without a password) |
+| **Sample (password auth)** | `DATABASE_URL=postgresql+psycopg2://user:pass@db-host:5432/harness` |
+| **Sample (managed identity)** | `DATABASE_URL=postgresql+psycopg2://evalbrew_admin@evalbrew-pg.postgres.database.azure.com:5432/evalbrew?sslmode=require` |
 
 Full SQLAlchemy database connection URL. PostgreSQL is the only supported backend. A connection pool (`pool_size=2, max_overflow=3`) is used. Required for all deployments.
+
+When `HARNESS_PG_USE_MANAGED_IDENTITY=true`, the password component of this URL is ignored — the app acquires an Azure AD access token at connection time and uses it as the password. In that mode, omit the password from the URL entirely.
+
+---
+
+### `HARNESS_PG_USE_MANAGED_IDENTITY`
+
+| | |
+|---|---|
+| **Default** | `false` |
+| **Accepted values** | `1`, `true`, `yes` (enabled) — any other value uses password auth |
+| **Sample** | `HARNESS_PG_USE_MANAGED_IDENTITY=true` |
+
+When enabled, the database engine acquires an Azure AD access token (via `DefaultAzureCredential`) and passes it as the PostgreSQL password on every new connection. This is the required mode for AKS deployments that authenticate to Azure PostgreSQL Flexible Server via workload identity — no static `pg_admin_password` is needed or used by the app at runtime.
+
+`DefaultAzureCredential` tries credential sources in this order: AKS Workload Identity → node-level Managed Identity → Azure CLI (useful for local testing against a cloud database). Token caching is handled internally; the token is refreshed automatically before expiry. `pool_pre_ping=true` ensures any connection whose token has expired is detected and replaced transparently on the next pool checkout.
+
+> **Prerequisites (AKS):** The pod's workload identity must be assigned the PostgreSQL AAD Authentication role on the Flexible Server, and the server must be configured with an AAD admin. Leave this `false` for local development where `DATABASE_URL` carries a static password.
 
 ---
 
@@ -234,6 +253,7 @@ The evaluation dimension names exposed by the mock evaluator server. Only used w
 | `HARNESS_SESSION_HTTPS_ONLY` | `true` | No | Security |
 | `HARNESS_ALLOWED_HOSTS` | `*` | No (set in production) | Security |
 | `DATABASE_URL` | — | Yes | Database |
+| `HARNESS_PG_USE_MANAGED_IDENTITY` | `false` | No (required on AKS) | Database |
 | `HARNESS_MASTER_KEY` | — | No (recommended for containers) | Encryption |
 | `HARNESS_KEY_FILE` | platform default | No | Encryption |
 | `HARNESS_PUBLIC_URL` | `""` | No | API |

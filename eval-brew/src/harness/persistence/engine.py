@@ -6,6 +6,12 @@ harness), and binds the shared ``SessionLocal`` factory.
 
 ``DATABASE_URL`` must be set to a valid PostgreSQL SQLAlchemy URL. The harness
 does not support any other backend.
+
+When ``HARNESS_PG_USE_MANAGED_IDENTITY=true``, the engine uses an Azure AD
+token (via ``DefaultAzureCredential``) as the PostgreSQL password instead of a
+static credential. ``DATABASE_URL`` still supplies the host/port/dbname/user but
+its password component is ignored. This is the required mode for AKS deployments
+that authenticate to Azure PostgreSQL Flexible Server via workload identity.
 """
 
 from __future__ import annotations
@@ -23,6 +29,42 @@ from sqlalchemy.orm import Session, sessionmaker
 from harness.persistence.exceptions import HarnessDatabaseTooNewError
 
 log = structlog.get_logger(__name__)
+
+_PG_AAD_SCOPE = "https://ossrdbms-aad.database.windows.net/.default"
+
+
+def _make_pg_token_creator(database_url: str):
+    """Return a psycopg2 creator that injects a fresh Azure AD token as the password.
+
+    ``DefaultAzureCredential`` covers AKS Workload Identity, node-level Managed
+    Identity, and Azure CLI (for local testing). ``get_token()`` caches the token
+    internally and only refreshes it when it nears expiry, so calling it on every
+    new connection is safe and cheap.
+    """
+    from urllib.parse import parse_qs, urlparse
+
+    parsed = urlparse(database_url)
+    host = parsed.hostname or ""
+    port = parsed.port or 5432
+    dbname = (parsed.path or "").lstrip("/")
+    user = parsed.username or ""
+    sslmode = parse_qs(parsed.query).get("sslmode", ["require"])[0]
+
+    from azure.identity import DefaultAzureCredential
+
+    credential = DefaultAzureCredential()
+
+    def creator():
+        import psycopg2
+
+        token = credential.get_token(_PG_AAD_SCOPE)
+        return psycopg2.connect(
+            host=host, port=port, dbname=dbname, user=user,
+            password=token.token, sslmode=sslmode,
+        )
+
+    return creator
+
 
 #: Shared session factory. Bound to a concrete engine by ``init_db()``.
 SessionLocal = sessionmaker(expire_on_commit=False)
@@ -98,16 +140,40 @@ def init_db() -> Engine:
     if not database_url:
         raise RuntimeError(
             "DATABASE_URL is not set. A PostgreSQL connection string is required. "
-            "Example: postgresql+psycopg2://user:pass@host:5432/dbname"
+            "Example: postgresql+psycopg2://user:pass@host:5432/dbname\n"
+            "For AKS managed-identity deployments omit the password and set "
+            "HARNESS_PG_USE_MANAGED_IDENTITY=true."
         )
     if _engine is not None:
         _engine.dispose()
+
+    use_managed_identity = os.environ.get("HARNESS_PG_USE_MANAGED_IDENTITY", "").lower() in {
+        "1", "true", "yes"
+    }
     # pool_pre_ping reconnects silently after firewall/server-side idle timeouts.
     # pool_size=2 / max_overflow=3 caps each worker at 5 connections; with the
     # default workers=cpu*2+1 formula, a 2-vCPU host (5 workers) uses 25 connections
     # — well within Azure Flexible Server B1ms's max_connections=50.
-    engine = create_engine(database_url, pool_pre_ping=True, pool_size=2, max_overflow=3)
-    log.info("db.backend", backend="postgresql", url=engine.url.render_as_string(hide_password=True))
+    if use_managed_identity:
+        # creator= bypasses the URL's credential fields; SQLAlchemy uses the URL
+        # only for dialect detection. pool_pre_ping ensures a stale connection
+        # (expired token) is detected and replaced with a fresh one on next checkout.
+        engine = create_engine(
+            database_url,
+            creator=_make_pg_token_creator(database_url),
+            pool_pre_ping=True,
+            pool_size=2,
+            max_overflow=3,
+        )
+        log.info(
+            "db.backend",
+            backend="postgresql",
+            auth="managed-identity",
+            url=engine.url.render_as_string(hide_password=True),
+        )
+    else:
+        engine = create_engine(database_url, pool_pre_ping=True, pool_size=2, max_overflow=3)
+        log.info("db.backend", backend="postgresql", url=engine.url.render_as_string(hide_password=True))
     run_migrations(engine)
     SessionLocal.configure(bind=engine)
     _engine = engine

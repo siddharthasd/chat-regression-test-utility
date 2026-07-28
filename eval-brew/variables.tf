@@ -74,7 +74,7 @@ variable "pg_admin_username" {
 }
 
 variable "pg_admin_password" {
-  description = "PostgreSQL administrator password. Inject via Azure Key Vault — never commit a real value."
+  description = "PostgreSQL administrator password used by Terraform to provision the server. Not used by the app at runtime when managed identity is enabled. Inject via Azure Key Vault — never commit a real value."
   type        = string
   sensitive   = true
 }
@@ -95,6 +95,12 @@ variable "pg_version" {
   description = "PostgreSQL major version."
   type        = string
   default     = "16"
+}
+
+variable "harness_pg_use_managed_identity" {
+  description = "When 'true', the app authenticates to PostgreSQL using an Azure AD token via DefaultAzureCredential (AKS workload identity) instead of a static password. DATABASE_URL must omit the password. Required for AKS deployments."
+  type        = string
+  default     = "false"
 }
 
 # ------------------------------------
