@@ -44,6 +44,7 @@ async def run_turn(
     error_msg: str | None = None
     contract: dict | None = None
     final_result: dict | None = None
+    new_conversation_id: str | None = None
 
     # Fetch session snapshot from DB using orchestrator's own session so that
     # no detached-instance dependency exists on the caller's request session.
@@ -64,6 +65,7 @@ async def run_turn(
         evaluator_timeout = chat_session.evaluator_timeout_seconds or 60
         connector_auth_descriptor = chat_session.connector_auth_descriptor
         evaluator_auth_descriptor = chat_session.evaluator_auth_descriptor
+        active_conversation_id = chat_session.active_conversation_id
 
     try:
         connector_headers = await _build_auth_headers(
@@ -75,6 +77,8 @@ async def run_turn(
             "auth": {"test_id": test_id, "password": password},
             "message": user_message,
         }
+        if active_conversation_id is not None:
+            connector_body["conversationId"] = active_conversation_id
         async with httpx.AsyncClient(timeout=None) as client:
             try:
                 async with client.stream(
@@ -121,6 +125,14 @@ async def run_turn(
             _validate_contract(contract)
         except ValueError as exc:
             raise _StageError("connector_normalization", str(exc)) from exc
+
+        # Extract conversationId returned by the connector (may be None)
+        _cb = contract.get("chatbotResponse")
+        new_conversation_id = (
+            ((_cb.get("metadata") or {}).get("conversationId") or None)
+            if isinstance(_cb, dict)
+            else None
+        )
 
         # Signal browser that connector phase is done
         await bus.publish({"event": "evaluating", "data": {}})
@@ -227,6 +239,7 @@ async def run_turn(
                     normalized_contract=contract,
                     final_evaluation_result=final_result,
                     evaluation_events=evaluation_events,
+                    conversation_id=new_conversation_id,
                 )
                 await bus.publish(
                     {

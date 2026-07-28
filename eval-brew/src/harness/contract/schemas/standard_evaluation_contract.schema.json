@@ -65,7 +65,7 @@
         },
         "metadata": {
           "type": "object",
-          "description": "Free-form, connector-specific metadata (e.g. latency). No keys are standardized. Empty object is valid."
+          "description": "Free-form, connector-specific metadata. Well-known keys: latencyMs (integer), model (string), sources (array), toolCalls (array), conversationId (string — returned by SSE connectors to persist a conversation handle across chat turns). Empty object is valid."
         }
       }
     },

@@ -128,6 +128,7 @@ system produces.
 | `model` | string | Model identifier or version that generated the response (e.g. `"gpt-4o"`, `"claude-sonnet-5"`, `"llama-3.1-70b-instruct"`). |
 | `sources` | array of source objects | **Retrieval provenance.** Documents, chunks, or pages the chatbot used to produce its answer. Evaluators can use this to verify grounding. See shape below. |
 | `toolCalls` | array of tool-call objects | Tool or function calls the chatbot made during generation. Use this alongside `agentChain` when you need the full input/output detail of each invocation. See shape below. |
+| `conversationId` | string | **SSE / live-chat only.** An opaque handle your chatbot assigned to this conversation. When present, the harness caches it on the session and forwards it back to your connector in every subsequent turn as `conversationId` in the request body. Use this to let your chatbot resume an existing conversation rather than starting a new one each turn. Omit if your chatbot is stateless or manages continuity another way. |
 
 #### `sources` item shape
 
@@ -508,7 +509,8 @@ The harness sends the **same HTTP `POST`** to your `endpointUrl`, but:
     "test_id": "hours-001",
     "password": "hunter2"
   },
-  "message": "What are your opening hours?"
+  "message": "What are your opening hours?",
+  "conversationId": "conv-abc123"
 }
 ```
 
@@ -517,6 +519,7 @@ The harness sends the **same HTTP `POST`** to your `endpointUrl`, but:
 | `auth.test_id` | The test ID configured at chat session creation. |
 | `auth.password` | The password configured at session creation (empty string if not set). |
 | `message` | The user's chat message for this turn. |
+| `conversationId` | **Optional.** Present only when a previous turn's `chatbotResponse.metadata.conversationId` was cached by the harness. Use this to resume the existing conversation in your chatbot. Absent on the first turn or if no `conversationId` has been established yet. |
 
 ### Response you must return (SSE stream)
 
@@ -618,13 +621,15 @@ registration fields (auth mode, timeout, credentials) work identically to the ba
 
 ## Appendix — field quick reference
 
-**Request → connector:** `testId`, `utteranceText`, `password?`
+**Request → connector (batch mode):** `testId`, `utteranceText`, `password?`
+
+**Request → connector (SSE / live-chat mode):** `auth`{ `test_id`, `password` }, `message`, `conversationId?`
 
 **Connector → harness (Standard Evaluation Contract):**
 `contractVersion`(="1"), `utteranceId`, `utteranceText`, `testId`,
 `conversationContext`(=null), `connectorId`, `timestamp`,
 `chatbotResponse`{ `rawPayload`, `normalizedText`, `agentChain`,
-`metadata`{ `latencyMs?`, `model?`, `sources?`[{ `url?`, `title?`, `chunk?`, `score?`, `documentId?` }], `toolCalls?`[{ `name`, `input`, `output` }] } },
+`metadata`{ `latencyMs?`, `model?`, `sources?`[{ `url?`, `title?`, `chunk?`, `score?`, `documentId?` }], `toolCalls?`[{ `name`, `input`, `output` }], `conversationId?` } },
 `tokenUsage?`{ `promptTokens?`, `completionTokens?`, `totalTokens?` }
 
 **Connector error stages:** `connector_transport`, `connector_response`,

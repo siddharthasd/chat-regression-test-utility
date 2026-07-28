@@ -203,8 +203,13 @@ class ChatSessionRepository:
         normalized_contract: dict | None,
         final_evaluation_result: dict | None,
         evaluation_events: list[dict],
+        conversation_id: str | None = None,
     ) -> None:
-        """Batch write: mark turn completed, write result, write evaluation events."""
+        """Batch write: mark turn completed, write result, write evaluation events.
+
+        If conversation_id is provided, it is cached on the parent ChatSession so
+        subsequent turns can forward it to the connector for conversation continuity.
+        """
         turn = self._session.get(ChatTurn, turn_id)
         if turn is None:
             return
@@ -234,6 +239,12 @@ class ChatSessionRepository:
                     created_at=now,
                 )
             )
+
+        if conversation_id is not None:
+            session = self._session.get(ChatSession, turn.session_id)
+            if session is not None:
+                session.active_conversation_id = conversation_id
+
         self._session.flush()
 
     def fail_turn(

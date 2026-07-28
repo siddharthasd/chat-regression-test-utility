@@ -20,6 +20,7 @@ _GUIDES: dict[str, tuple[str, str]] = {
     "csv-upload": ("csv-upload-guide.md", "CSV Upload Guide"),
     "connector-developer-guide": ("connector-developer-guide.md", "Connector Developer Guide"),
     "evaluator-developer-guide": ("evaluator-developer-guide.md", "Evaluator Developer Guide"),
+    "configuration-setup": ("configuration-setup.md", "Configuration Setup"),
 }
 
 _RELEASES = [

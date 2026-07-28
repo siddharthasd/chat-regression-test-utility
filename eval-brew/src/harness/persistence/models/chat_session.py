@@ -1,6 +1,8 @@
 """ChatSession ORM model — one named live testing session (017 FR-LC-001).
 
-All fields are immutable after creation except the ``turns`` relationship.
+Mutable after creation: ``turns`` (relationship) and ``active_conversation_id``
+(updated from the connector's chatbotResponse.metadata.conversationId on each
+successful turn to enable multi-turn conversation continuity).
 Credentials (test_id_enc, test_password_enc) are Fernet ciphertext at rest.
 Connector and evaluator snapshots mirror the Job snapshotting convention.
 """
@@ -47,6 +49,9 @@ class ChatSession(Base):
     evaluator_auth_descriptor: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     evaluator_timeout_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
     evaluator_declared_scoring_dimensions: Mapped[list | None] = mapped_column(JSON, nullable=True)
+
+    # Mutable — updated after each successful turn from chatbotResponse.metadata.conversationId
+    active_conversation_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     turns: Mapped[list[ChatTurn]] = relationship(
         back_populates="session",

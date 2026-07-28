@@ -6,7 +6,7 @@ import os
 
 def is_auth_enabled() -> bool:
     """Return True when HARNESS_AUTH_ENABLED env var is set to a truthy value."""
-    return os.environ.get("HARNESS_AUTH_ENABLED", "").lower() in {"1", "true", "yes"}
+    return os.environ.get("HARNESS_AUTH_ENABLED", "true").lower() in {"1", "true", "yes"}
 
 
 def get_auth_config() -> dict:

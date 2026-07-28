@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 
 class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -81,6 +82,11 @@ def create_app() -> FastAPI:
     https_only = os.environ.get("HARNESS_SESSION_HTTPS_ONLY", "true").lower() != "false"
     app.add_middleware(SessionMiddleware, secret_key=secret_key, https_only=https_only, same_site="lax")
     app.add_middleware(_SecurityHeadersMiddleware)
+    # Prevent Host-header injection / open-redirect via spoofed Host.
+    # Set HARNESS_ALLOWED_HOSTS to a comma-separated list of valid hostnames in production.
+    _raw = os.environ.get("HARNESS_ALLOWED_HOSTS", "*")
+    _allowed_hosts = [h.strip() for h in _raw.split(",")]
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=_allowed_hosts)
 
     # Static files
     _static_dir = Path(__file__).parent / "static"
