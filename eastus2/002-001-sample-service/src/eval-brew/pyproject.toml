@@ -22,6 +22,8 @@ dependencies = [
     "PyJWT[crypto]>=2.8",
     "python-dotenv>=1.0",
     "azure-identity>=1.15",
+    "asyncpg>=0.29",
+    "sqlalchemy[asyncio]>=2.0",    
 ]
 
 [project.optional-dependencies]
