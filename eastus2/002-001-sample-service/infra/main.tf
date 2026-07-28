@@ -70,6 +70,7 @@ module "kubernetes" {
     HARNESS_PG_DB               = var.HARNESS_PG_DB
     AZURE_CLIENT_ID             = var.AZURE_CLIENT_ID
     HARNESS_DB_USE_MANAGED_IDENTITY = var.HARNESS_DB_USE_MANAGED_IDENTITY
+    harness_master_key          = var.harness_master_key
   }
 }
   ingress = {
