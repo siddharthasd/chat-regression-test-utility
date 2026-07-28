@@ -1,7 +1,7 @@
 variables:
   # Common
   VMIMAGE: 'ubuntu-latest'
-  DOCKERFILE_PATH: '$(Build.SourcesDirectory)/eastus2/002-001-sample-service/src/eval-brew-release-3.2/eval-brew/Dockerfile'
+  DOCKERFILE_PATH: '$(Build.SourcesDirectory)/eastus2/002-001-sample-service/src/eval-brew/Dockerfile'
   DOCKER_IMG_NAME: 'evalbrewrelease' #FIXME
   DOCKER_IMG_TAG_NAME: '$(Build.BuildId)'
   IMG_POST_BUILD_ACTION: 'pushToRegistry' #buildOnly, saveToTarAsPipelieArtifact, pushToRegistry
