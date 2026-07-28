@@ -64,7 +64,7 @@ def resolve_tester_identity() -> TesterIdentity:
         `resolution_source` indicating which step succeeded.
 
     Side effects:
-        Emits at most one diagnostic log line (info-level for fallback to
+        Emits at most one diagnostic log line (debug-level for fallback to
         getpass.getuser; warning-level for the unknown-user default).
     """
     # Narrow exception types: `os.getlogin()` raises `OSError` (most platforms);
@@ -87,7 +87,7 @@ def resolve_tester_identity() -> TesterIdentity:
     except (KeyError, ImportError, OSError):
         candidate = ""
     if candidate and candidate.strip():
-        _logger.info(
+        _logger.debug(
             "identity resolution: os.getlogin failed; using getpass.getuser=%s",
             candidate.strip(),
         )

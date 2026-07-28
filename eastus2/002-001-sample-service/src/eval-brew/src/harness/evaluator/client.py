@@ -8,12 +8,15 @@ caches (FR-018). Consumed by the orchestrator (012).
 from __future__ import annotations
 
 import httpx
+import structlog
 
 from harness.evaluator.result import EvaluatorResult, EvaluatorSnapshot
 from harness.evaluator.validation import compute_harness_annotations, validate_evaluation_result
 from harness.persistence.exceptions import HarnessKeyMismatchError
 from harness.remote.auth import build_auth_headers, decrypt_descriptor
 from harness.remote.oauth import TokenFetchError, resolve_auth_descriptor
+
+log = structlog.get_logger(__name__)
 
 _BODY_TRUNCATE = 2000
 
@@ -29,9 +32,11 @@ def dispatch_evaluation(
     No caching/dedup — every call issues a fresh request (FR-018). `client` is
     injectable for MockTransport tests.
     """
+    log.debug("evaluator.dispatch.start", endpoint_url=snapshot.endpoint_url)
     try:
         descriptor = decrypt_descriptor(snapshot.auth_descriptor)
     except HarnessKeyMismatchError:
+        log.debug("evaluator.dispatch.key_mismatch", endpoint_url=snapshot.endpoint_url)
         return EvaluatorResult(
             ok=False,
             error_stage="evaluator_auth",
@@ -51,6 +56,7 @@ def dispatch_evaluation(
                 descriptor, client=client, timeout=snapshot.timeout_seconds
             )
         except TokenFetchError as exc:
+            log.debug("evaluator.dispatch.auth_failed", endpoint_url=snapshot.endpoint_url, error=str(exc))
             return EvaluatorResult(
                 ok=False,
                 error_stage="evaluator_auth",
@@ -61,18 +67,21 @@ def dispatch_evaluation(
         try:
             response = client.post(snapshot.endpoint_url, json=contract, headers=headers)
         except httpx.TimeoutException:
+            log.debug("evaluator.dispatch.timeout", endpoint_url=snapshot.endpoint_url, timeout_seconds=snapshot.timeout_seconds)
             return EvaluatorResult(
                 ok=False,
                 error_stage="evaluator_transport",
                 error_details=f"timeout exceeded ({snapshot.timeout_seconds}s)",
             )
         except httpx.HTTPError as exc:
+            log.debug("evaluator.dispatch.transport_error", endpoint_url=snapshot.endpoint_url, error=str(exc))
             return EvaluatorResult(
                 ok=False,
                 error_stage="evaluator_transport",
                 error_details=f"transport error: {exc}",
             )
 
+        log.debug("evaluator.dispatch.response", endpoint_url=snapshot.endpoint_url, status_code=response.status_code)
         if not 200 <= response.status_code < 300:
             return EvaluatorResult(
                 ok=False,
@@ -93,6 +102,7 @@ def dispatch_evaluation(
 
         problems = validate_evaluation_result(body, expected_utterance_id=expected_uid)
         if problems:
+            log.debug("evaluator.dispatch.invalid_result", endpoint_url=snapshot.endpoint_url, problems="; ".join(problems[:3]))
             return EvaluatorResult(
                 ok=False,
                 error_stage="evaluator_result",
@@ -103,6 +113,7 @@ def dispatch_evaluation(
         annotations = compute_harness_annotations(
             body.get("evaluationScores", []), snapshot.declared_scoring_dimensions
         )
+        log.debug("evaluator.dispatch.ok", endpoint_url=snapshot.endpoint_url, status_code=response.status_code)
         return EvaluatorResult(
             ok=True,
             evaluation_result=body,

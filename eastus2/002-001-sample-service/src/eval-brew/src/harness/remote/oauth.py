@@ -18,6 +18,9 @@ import threading
 import time
 
 import httpx
+import structlog
+
+log = structlog.get_logger(__name__)
 
 _DEFAULT_TIMEOUT = 30
 # Refresh a cached token this many seconds before its stated expiry, so we never
@@ -52,7 +55,13 @@ def invalidate_token(descriptor: dict) -> None:
     if descriptor.get("mode") != "client-credentials":
         return
     with _cache_lock:
-        _cache.pop(_cache_key(descriptor), None)
+        removed = _cache.pop(_cache_key(descriptor), None)
+    if removed is not None:
+        log.debug(
+            "oauth.token_cache.invalidated",
+            token_url=descriptor.get("tokenUrl", ""),
+            client_id=descriptor.get("clientId", ""),
+        )
 
 
 def _cache_key(descriptor: dict) -> _CacheKey:
@@ -83,32 +92,40 @@ def fetch_client_credentials_token(
     if descriptor.get("audience"):
         data["audience"] = descriptor["audience"]
 
+    token_url = descriptor["tokenUrl"]
+    client_id = descriptor.get("clientId", "")
+    log.debug("oauth.token_fetch.start", token_url=token_url, client_id=client_id)
     try:
         response = client.post(
-            descriptor["tokenUrl"],
+            token_url,
             data=data,
             headers={"Content-Type": "application/x-www-form-urlencoded"},
             timeout=httpx.Timeout(timeout),
         )
     except httpx.HTTPError as exc:  # connect / DNS / TLS / timeout / protocol
+        log.debug("oauth.token_fetch.unreachable", token_url=token_url, error=str(exc))
         raise TokenFetchError(f"token endpoint unreachable: {exc}") from exc
 
     if not 200 <= response.status_code < 300:
+        log.debug("oauth.token_fetch.http_error", token_url=token_url, status_code=response.status_code)
         raise TokenFetchError(
             f"token endpoint returned HTTP {response.status_code}: {response.text[:200]}"
         )
     try:
         body = response.json()
     except ValueError as exc:
+        log.debug("oauth.token_fetch.invalid_json", token_url=token_url)
         raise TokenFetchError("token endpoint response is not valid JSON") from exc
 
     token = body.get("access_token")
     if not isinstance(token, str) or not token:
+        log.debug("oauth.token_fetch.missing_token", token_url=token_url)
         raise TokenFetchError("token endpoint response missing 'access_token'")
 
     expires_in = body.get("expires_in")
     if not isinstance(expires_in, int) or expires_in <= 0:
         expires_in = _DEFAULT_EXPIRES_IN
+    log.debug("oauth.token_fetch.ok", token_url=token_url, expires_in=expires_in)
     return token, expires_in
 
 
@@ -126,9 +143,12 @@ def _fetch(descriptor: dict, *, client: httpx.Client | None, timeout: int) -> tu
 
 def _get_cached_token(descriptor: dict, *, client: httpx.Client | None, timeout: int) -> str:
     key = _cache_key(descriptor)
+    token_url = descriptor.get("tokenUrl", "")
+    client_id = descriptor.get("clientId", "")
 
     cached = _cache.get(key)
     if cached and cached[1] - _REFRESH_SKEW_SECONDS > time.monotonic():
+        log.debug("oauth.token_cache.hit", token_url=token_url, client_id=client_id)
         return cached[0]
 
     # Serialize concurrent first-fetches (the orchestrator dispatches rows in
@@ -136,9 +156,12 @@ def _get_cached_token(descriptor: dict, *, client: httpx.Client | None, timeout:
     with _cache_lock:
         cached = _cache.get(key)
         if cached and cached[1] - _REFRESH_SKEW_SECONDS > time.monotonic():
+            log.debug("oauth.token_cache.hit", token_url=token_url, client_id=client_id)
             return cached[0]
+        log.debug("oauth.token_cache.miss", token_url=token_url, client_id=client_id)
         token, expires_in = _fetch(descriptor, client=client, timeout=timeout)
         _cache[key] = (token, time.monotonic() + expires_in)
+        log.debug("oauth.token_cache.stored", token_url=token_url, expires_in=expires_in)
         return token
 
 
@@ -159,10 +182,18 @@ def resolve_auth_descriptor(
     the shared cache — used by "Test connection" so it always exercises the
     credential the registrant actually entered.
     """
-    if descriptor.get("mode") != "client-credentials":
+    mode = descriptor.get("mode")
+    if mode != "client-credentials":
+        log.debug("oauth.resolve.passthrough", mode=mode)
         return descriptor
+    log.debug(
+        "oauth.resolve.client_credentials",
+        token_url=descriptor.get("tokenUrl", ""),
+        use_cache=use_cache,
+    )
     if use_cache:
         token = _get_cached_token(descriptor, client=client, timeout=timeout)
     else:
         token, _ = _fetch(descriptor, client=client, timeout=timeout)
+    log.debug("oauth.resolve.bearer_ready")
     return {"mode": "bearer", "credential": token}

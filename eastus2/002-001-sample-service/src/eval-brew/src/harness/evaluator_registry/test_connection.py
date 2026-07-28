@@ -11,11 +11,14 @@ import json
 from dataclasses import dataclass
 
 import httpx
+import structlog
 
 from harness.connector.mock import build_contract
 from harness.evaluator import compute_harness_annotations, validate_evaluation_result
 from harness.remote.auth import build_auth_headers
 from harness.remote.oauth import TokenFetchError, resolve_auth_descriptor
+
+log = structlog.get_logger(__name__)
 
 _TRUNCATE = 500
 _TEST_UTTERANCE_ID = "test-utt"
@@ -41,14 +44,25 @@ def run_test_connection(
     client: httpx.Client | None = None,
 ) -> TestConnectionResult:
     """Send a sample contract; validate the response as an EvaluationResult (non-persisted)."""
+    auth_mode = decrypted_descriptor.get("mode", "none")
+    log.debug(
+        "evaluator.test_connection.start",
+        endpoint_url=endpoint_url, auth_mode=auth_mode, sse=supports_sse,
+    )
     contract = build_contract("test-connection", "ping")
     contract["utteranceId"] = _TEST_UTTERANCE_ID  # FR-027: fixed sample
 
     if supports_sse:
-        return _run_test_connection_sse(
+        result = _run_test_connection_sse(
             endpoint_url, decrypted_descriptor, timeout_seconds, declared_dimensions,
             contract, client=client,
         )
+        log.debug(
+            "evaluator.test_connection.done",
+            endpoint_url=endpoint_url, ok=result.ok, category=result.category,
+            status_code=result.status_code,
+        )
+        return result
 
     owns_client = client is None
     if owns_client:
@@ -61,21 +75,27 @@ def run_test_connection(
                 decrypted_descriptor, client=client, timeout=timeout_seconds, use_cache=False
             )
         except TokenFetchError as exc:
+            log.debug("evaluator.test_connection.auth_token_failed", endpoint_url=endpoint_url, error=str(exc))
             return TestConnectionResult(False, "auth_token_failed", detail=str(exc))
         try:
             headers = {"Content-Type": "application/json", **build_auth_headers(descriptor)}
         except ValueError as exc:
+            log.debug("evaluator.test_connection.auth_config_error", endpoint_url=endpoint_url, error=str(exc))
             return TestConnectionResult(False, "auth_config_error", detail=str(exc))
 
+        log.debug("evaluator.test_connection.posting", endpoint_url=endpoint_url)
         try:
             response = client.post(endpoint_url, json=contract, headers=headers)
         except httpx.TimeoutException:
+            log.debug("evaluator.test_connection.timeout", endpoint_url=endpoint_url, timeout_seconds=timeout_seconds)
             return TestConnectionResult(
                 False, "timeout", detail=f"timeout exceeded ({timeout_seconds}s)"
             )
         except httpx.HTTPError as exc:
+            log.debug("evaluator.test_connection.unreachable", endpoint_url=endpoint_url, error=str(exc))
             return TestConnectionResult(False, "unreachable", detail=f"endpoint unreachable: {exc}")
 
+        log.debug("evaluator.test_connection.response", endpoint_url=endpoint_url, status_code=response.status_code)
         if not 200 <= response.status_code < 300:
             return TestConnectionResult(
                 False,
@@ -111,13 +131,19 @@ def run_test_connection(
             warning = "endpoint emitted dimensions not in your declared list: " + ", ".join(
                 annotations["unexpected_score_dimensions"]
             )
-        return TestConnectionResult(
+        outcome = TestConnectionResult(
             True,
             "valid",
             status_code=response.status_code,
             detail="Endpoint returned a valid EvaluationResult.",
             warning=warning,
         )
+        log.debug(
+            "evaluator.test_connection.done",
+            endpoint_url=endpoint_url, ok=outcome.ok, category=outcome.category,
+            status_code=outcome.status_code, warning=warning,
+        )
+        return outcome
     finally:
         if owns_client:
             client.close()
@@ -142,25 +168,31 @@ def _run_test_connection_sse(
                 decrypted_descriptor, client=client, timeout=timeout_seconds, use_cache=False
             )
         except TokenFetchError as exc:
+            log.debug("evaluator.test_connection.auth_token_failed", endpoint_url=endpoint_url, error=str(exc))
             return TestConnectionResult(False, "auth_token_failed", detail=str(exc))
         try:
             headers = {"Content-Type": "application/json", **build_auth_headers(descriptor)}
         except ValueError as exc:
+            log.debug("evaluator.test_connection.auth_config_error", endpoint_url=endpoint_url, error=str(exc))
             return TestConnectionResult(False, "auth_config_error", detail=str(exc))
 
+        log.debug("evaluator.test_connection.streaming", endpoint_url=endpoint_url)
         try:
             with client.stream("POST", endpoint_url, json=contract, headers=headers) as resp:
                 if not 200 <= resp.status_code < 300:
                     body_snippet = resp.read().decode(errors="replace")[:_TRUNCATE]
+                    log.debug("evaluator.test_connection.response", endpoint_url=endpoint_url, status_code=resp.status_code)
                     return TestConnectionResult(
                         False, "http_error", status_code=resp.status_code, detail=body_snippet
                     )
                 final_payload = _extract_final_from_sse(resp)
         except httpx.TimeoutException:
+            log.debug("evaluator.test_connection.timeout", endpoint_url=endpoint_url, timeout_seconds=timeout_seconds)
             return TestConnectionResult(
                 False, "timeout", detail=f"timeout exceeded ({timeout_seconds}s)"
             )
         except httpx.HTTPError as exc:
+            log.debug("evaluator.test_connection.unreachable", endpoint_url=endpoint_url, error=str(exc))
             return TestConnectionResult(False, "unreachable", detail=f"endpoint unreachable: {exc}")
 
         if final_payload is None:

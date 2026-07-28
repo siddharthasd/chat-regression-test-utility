@@ -14,8 +14,11 @@ from __future__ import annotations
 import os
 from functools import lru_cache
 
+import structlog
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
+log = structlog.get_logger(__name__)
 
 _bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -58,9 +61,11 @@ def require_api_auth(
     from harness.auth.config import is_auth_enabled
 
     if not is_auth_enabled():
+        log.debug("api.auth.disabled", identity="local-dev")
         return {"oid": "local-dev", "name": "Local Dev"}
 
     if credentials is None:
+        log.debug("api.auth.missing_bearer")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing Authorization header.",
@@ -79,15 +84,16 @@ def require_api_auth(
             audience=_api_audience(),
         )
     except Exception as exc:  # noqa: BLE001
-        import logging
-        logging.getLogger("harness.api.auth").debug("Bearer token validation failed: %s", exc)
+        log.debug("api.auth.token_invalid", error=str(exc)[:200])
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token validation failed.",
             headers={"WWW-Authenticate": "Bearer"},
         ) from exc
 
-    return {
+    identity = {
         "oid": payload.get("oid") or payload.get("sub", ""),
         "name": payload.get("app_displayname") or payload.get("appid", ""),
     }
+    log.debug("api.auth.token_validated", oid=identity["oid"], name=identity["name"])
+    return identity

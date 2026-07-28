@@ -53,11 +53,16 @@ def _make_pg_token_creator(database_url: str):
     from azure.identity import DefaultAzureCredential
 
     credential = DefaultAzureCredential()
+    log.debug("db.managed_identity.credential_chain_built", host=host, user=user, db=dbname)
 
     def creator():
         import psycopg2
 
         token = credential.get_token(_PG_AAD_SCOPE)
+        log.debug(
+            "db.managed_identity.token_acquired",
+            host=host, user=user, expires_on=token.expires_on,
+        )
         return psycopg2.connect(
             host=host, port=port, dbname=dbname, user=user,
             password=token.token, sslmode=sslmode,
@@ -128,22 +133,33 @@ def run_migrations(engine: Engine) -> None:
     log.info("db.migrations.done", revision=head, applied=pending)
 
 
+def _build_database_url() -> str:
+    """Assemble the PostgreSQL URL from discrete HARNESS_PG_* vars or fall back to DATABASE_URL."""
+    host = os.environ.get("HARNESS_PG_HOST")
+    user = os.environ.get("HARNESS_PG_USER")
+    db = os.environ.get("HARNESS_PG_DB")
+    if host and user and db:
+        log.debug("db.url_assembled", source="HARNESS_PG_*", host=host, user=user, db=db)
+        return f"postgresql+psycopg2://{user}@{host}:5432/{db}?sslmode=require"
+    url = os.environ.get("DATABASE_URL")
+    if url:
+        log.debug("db.url_assembled", source="DATABASE_URL")
+        return url
+    raise RuntimeError(
+        "Database not configured. Set HARNESS_PG_HOST, HARNESS_PG_USER, and HARNESS_PG_DB "
+        "(AKS managed-identity), or DATABASE_URL for local development."
+    )
+
+
 def init_db() -> Engine:
     """Startup bootstrap: prepare the DB and bind ``SessionLocal``.
 
     Returns the bound engine. Raises ``HarnessDatabaseTooNewError`` if the
     schema is newer than this harness (FR-016). Raises ``RuntimeError`` if
-    ``DATABASE_URL`` is not set.
+    neither HARNESS_PG_HOST/USER/DB nor DATABASE_URL is set.
     """
     global _engine
-    database_url = os.environ.get("DATABASE_URL")
-    if not database_url:
-        raise RuntimeError(
-            "DATABASE_URL is not set. A PostgreSQL connection string is required. "
-            "Example: postgresql+psycopg2://user:pass@host:5432/dbname\n"
-            "For AKS managed-identity deployments omit the password and set "
-            "HARNESS_PG_USE_MANAGED_IDENTITY=true."
-        )
+    database_url = _build_database_url()
     if _engine is not None:
         _engine.dispose()
 

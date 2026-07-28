@@ -8,12 +8,15 @@ Consumed by the orchestrator (012); the per-job loop/serialization is 012's.
 from __future__ import annotations
 
 import httpx
+import structlog
 
 from harness.connector.result import ConnectorResult, ConnectorSnapshot, UtteranceRow
 from harness.contract import validate_contract
 from harness.persistence.exceptions import HarnessKeyMismatchError
 from harness.remote.auth import build_auth_headers, decrypt_descriptor
 from harness.remote.oauth import TokenFetchError, resolve_auth_descriptor
+
+log = structlog.get_logger(__name__)
 
 _BODY_TRUNCATE = 2000
 
@@ -34,10 +37,16 @@ def dispatch_utterance(
 ) -> ConnectorResult:
     """Dispatch one utterance to a connector endpoint; return a validated contract
     or a categorized failure. `client` is injectable for MockTransport tests."""
+    log.debug(
+        "connector.dispatch.start",
+        endpoint_url=snapshot.endpoint_url,
+        utterance_id=row.utterance_id if hasattr(row, "utterance_id") else None,
+    )
     # 1. Decrypt credentials before sending; a key failure means no request goes out.
     try:
         descriptor = decrypt_descriptor(snapshot.auth_descriptor)
     except HarnessKeyMismatchError:
+        log.debug("connector.dispatch.key_mismatch", endpoint_url=snapshot.endpoint_url)
         return ConnectorResult(
             ok=False,
             error_stage="connector_auth",
@@ -57,6 +66,7 @@ def dispatch_utterance(
                 descriptor, client=client, timeout=snapshot.timeout_seconds
             )
         except TokenFetchError as exc:
+            log.debug("connector.dispatch.auth_failed", endpoint_url=snapshot.endpoint_url, error=str(exc))
             return ConnectorResult(
                 ok=False,
                 error_stage="connector_auth",
@@ -67,18 +77,21 @@ def dispatch_utterance(
         try:
             response = client.post(snapshot.endpoint_url, json=body, headers=headers)
         except httpx.TimeoutException:
+            log.debug("connector.dispatch.timeout", endpoint_url=snapshot.endpoint_url, timeout_seconds=snapshot.timeout_seconds)
             return ConnectorResult(
                 ok=False,
                 error_stage="connector_transport",
                 error_details=f"timeout exceeded ({snapshot.timeout_seconds}s)",
             )
         except httpx.HTTPError as exc:  # connect / DNS / TLS / protocol errors
+            log.debug("connector.dispatch.transport_error", endpoint_url=snapshot.endpoint_url, error=str(exc))
             return ConnectorResult(
                 ok=False,
                 error_stage="connector_transport",
                 error_details=f"transport error: {exc}",
             )
 
+        log.debug("connector.dispatch.response", endpoint_url=snapshot.endpoint_url, status_code=response.status_code)
         if not 200 <= response.status_code < 300:
             return ConnectorResult(
                 ok=False,
@@ -103,6 +116,7 @@ def dispatch_utterance(
             summary = "; ".join(
                 f"{v.field_path}: {v.kind}" for v in result.violations[:5]
             )
+            log.debug("connector.dispatch.invalid_contract", endpoint_url=snapshot.endpoint_url, violations=summary)
             return ConnectorResult(
                 ok=False,
                 error_stage="connector_normalization",
@@ -110,6 +124,7 @@ def dispatch_utterance(
                 status_code=response.status_code,
             )
 
+        log.debug("connector.dispatch.ok", endpoint_url=snapshot.endpoint_url, status_code=response.status_code)
         return ConnectorResult(ok=True, contract=instance, status_code=response.status_code)
     finally:
         if owns_client:

@@ -25,12 +25,14 @@ async def _lifespan(app: FastAPI):
     # (which installs a handler on the root logger) can still capture harness.*
     # records via propagation.
     if "pytest" not in sys.modules:
+        import os
+        level = getattr(logging, os.environ.get("LOG_LEVEL", "debug").upper(), logging.DEBUG)
         h = logging.getLogger("harness")
         if not h.handlers:
             _h = logging.StreamHandler()
-            _h.setLevel(logging.INFO)
+            _h.setLevel(level)
             h.addHandler(_h)
-            h.setLevel(logging.INFO)
+            h.setLevel(level)
             h.propagate = False
 
     from harness.ui.admin.log_store import install as _install_log_store, record_audit as _record_audit

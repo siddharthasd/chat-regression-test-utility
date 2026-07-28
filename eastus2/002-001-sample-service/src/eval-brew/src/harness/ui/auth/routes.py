@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import structlog
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
 
@@ -11,6 +12,7 @@ from harness.auth.session import (
     clear_auth_flow,
     clear_session_user,
     get_auth_flow,
+    get_session_user,
     set_auth_flow,
     set_session_user,
 )
@@ -20,23 +22,28 @@ from harness.ui._context import ctx
 from harness.ui._templates import templates
 
 router = APIRouter()
+log = structlog.get_logger(__name__)
 
 
 @router.get("/auth/login", name="login")
 def login(request: Request):
+    log.debug("sso.login.initiated")
     cfg = get_auth_config()
     flow = msal_client.initiate_flow(cfg)
     set_auth_flow(request, flow)
+    log.debug("sso.login.redirecting_to_azure")
     return RedirectResponse(flow["auth_uri"], status_code=302)
 
 
 @router.get("/auth/callback", name="auth_callback")
 def auth_callback(request: Request):
+    log.debug("sso.callback.received")
     cfg = get_auth_config()
     flow = get_auth_flow(request)
     clear_auth_flow(request)
 
     if flow is None:
+        log.debug("sso.callback.no_flow_in_session")
         return templates.TemplateResponse(
             request,
             "auth/error.html",
@@ -47,6 +54,7 @@ def auth_callback(request: Request):
     try:
         claims = msal_client.complete_flow(cfg, flow, dict(request.query_params))
     except (ValueError, KeyError) as exc:
+        log.debug("sso.callback.flow_failed", error=str(exc)[:200])
         return templates.TemplateResponse(
             request,
             "auth/error.html",
@@ -79,6 +87,8 @@ def auth_callback(request: Request):
                 seen.add(lowered)
                 email_candidates.append(lowered)
 
+    log.debug("sso.callback.claims_resolved", oid=oid, email_candidates=len(email_candidates))
+
     with get_session() as db:
         repo = UserRegistrationRepository(db)
         reg = repo.find_by_oid(oid)
@@ -88,8 +98,10 @@ def auth_callback(request: Request):
             # the SMTP address the admin used when pre-registering the user.
             reg = repo.find_unlinked_by_any_email(email_candidates)
             if reg is not None:
+                log.debug("sso.callback.oid_linked", oid=oid, email=reg.email)
                 repo.link_oid(reg, oid, display_name or reg.email)
         if reg is None:
+            log.debug("sso.callback.not_registered", oid=oid)
             return RedirectResponse(request.url_for("unauthorised"), status_code=302)
         repo.update_last_login(reg)
         role = reg.role
@@ -98,6 +110,7 @@ def auth_callback(request: Request):
         canonical_email = reg.email
 
     display_name = display_name or canonical_email
+    log.debug("sso.callback.session_established", oid=oid, email=canonical_email, role=role)
     set_session_user(request, oid=oid, email=canonical_email, display_name=display_name, role=role)
     next_url = request.session.pop("next", None) or str(request.url_for("index"))
     return RedirectResponse(next_url, status_code=302)
@@ -105,6 +118,8 @@ def auth_callback(request: Request):
 
 @router.post("/auth/logout", name="logout")
 def logout(request: Request):
+    user = get_session_user(request)
+    log.debug("sso.logout.initiated", oid=user.get("oid") if user else None)
     clear_session_user(request)
     request.session.clear()
     cfg = get_auth_config()
@@ -115,6 +130,7 @@ def logout(request: Request):
         f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/logout"
         f"?client_id={client_id}&post_logout_redirect_uri={post_logout}"
     )
+    log.debug("sso.logout.redirecting_to_azure")
     return RedirectResponse(azure_logout, status_code=302)
 
 
