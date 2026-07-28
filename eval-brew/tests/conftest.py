@@ -23,11 +23,10 @@ import pytest
 from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
-from sqlalchemy.pool import StaticPool
 
 from harness.identity.context import IdentityContext
 from harness.identity.resolution import TesterIdentity
-from harness.persistence.engine import apply_sqlite_pragmas, run_migrations
+from harness.persistence.engine import run_migrations
 
 
 class _StubIdentityContext:
@@ -86,21 +85,16 @@ def stub_job_repository() -> StubJobRepository:
 
 @pytest.fixture(scope="session", autouse=True)
 def _isolate_harness_paths(tmp_path_factory: pytest.TempPathFactory) -> Iterator[None]:
-    """Point the harness DB + key files at a temp dir for the whole test session.
+    """Point the harness key file at a temp dir for the whole test session.
 
-    Keeps the real `~/.harness/` untouched when app-factory / CLI tests call
-    `bootstrap.initialize_harness()` (which now runs `init_db()`), and gives the
-    encryption utility an isolated key file.
+    Keeps the real `~/.harness/` key untouched when app-factory / CLI tests
+    call `bootstrap.initialize_harness()`. DATABASE_URL is left as-is so tests
+    connect to the configured PostgreSQL instance.
     """
     base = tmp_path_factory.mktemp("harness_home")
-    # DATABASE_URL must also be cleared: if it is set in the caller's environment it
-    # takes precedence over HARNESS_DB_PATH inside init_db(), silently connecting every
-    # test to the external DB and voiding all per-test SQLite isolation.
-    prev = {k: os.environ.get(k) for k in ("HARNESS_DB_PATH", "HARNESS_KEY_FILE", "DATABASE_URL", "HARNESS_SESSION_HTTPS_ONLY")}
-    os.environ["HARNESS_DB_PATH"] = str(base / "data.db")
+    prev = {k: os.environ.get(k) for k in ("HARNESS_KEY_FILE", "HARNESS_SESSION_HTTPS_ONLY")}
     os.environ["HARNESS_KEY_FILE"] = str(base / "master.key")
     os.environ["HARNESS_SESSION_HTTPS_ONLY"] = "false"
-    os.environ.pop("DATABASE_URL", None)
     yield
     for key, value in prev.items():
         if value is None:
@@ -111,17 +105,15 @@ def _isolate_harness_paths(tmp_path_factory: pytest.TempPathFactory) -> Iterator
 
 @pytest.fixture(scope="session")
 def db_engine() -> Iterator[Engine]:
-    """Session-scoped in-memory SQLite engine with all migrations applied once.
+    """Session-scoped PostgreSQL engine with all migrations applied once.
 
-    Uses StaticPool so the single in-memory connection (and thus the schema)
-    persists across the session (research R11).
+    Requires DATABASE_URL to be set. Skip the fixture (and dependent tests)
+    when no database is configured.
     """
-    engine = create_engine(
-        "sqlite://",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    apply_sqlite_pragmas(engine)
+    database_url = os.environ.get("DATABASE_URL")
+    if not database_url:
+        pytest.skip("DATABASE_URL not set — skipping database-backed tests")
+    engine = create_engine(database_url, pool_pre_ping=True)
     run_migrations(engine)
     yield engine
     engine.dispose()

@@ -123,7 +123,7 @@ def _process_one(job_id: str, utterance_id: str) -> None:
     """Run a row's pipeline, then persist its result + counters atomically (FR-014).
 
     The two HTTP calls run OUTSIDE any DB transaction so a slow connector/evaluator
-    never holds the SQLite write lock — that keeps cancellation and concurrent jobs
+    never holds a long DB transaction — that keeps cancellation and concurrent jobs
     responsive. The result + counter writes then commit together in one short
     transaction.
     """

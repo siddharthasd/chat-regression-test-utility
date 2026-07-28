@@ -28,7 +28,7 @@ Modules: `src/harness/persistence/` (models, repositories, migrations, engine)
   - [ ] `migrations/versions/0002_add_optional_column.py`
   - [ ] `migrations/versions/0006_add_utterance_intent.py`
   - [ ] *(any additional versions)*
-- [ ] **Engine** — session factory, pool config, SQLite vs PostgreSQL branching
+- [ ] **Engine** — session factory, pool config
   - [ ] `persistence/engine.py`
 - [ ] **Encryption** — credential encrypt/decrypt, key-missing behaviour
   - [ ] `persistence/encryption.py`

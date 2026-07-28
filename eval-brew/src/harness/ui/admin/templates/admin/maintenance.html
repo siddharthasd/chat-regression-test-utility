@@ -52,19 +52,19 @@
 
 <div class="harness-card">
   <div class="card-body p-4">
-    <h5 class="card-title fw-semibold mb-1">Clear &amp; Vacuum</h5>
+    <h5 class="card-title fw-semibold mb-1">Clear Jobs</h5>
     <p class="text-muted small mb-3">
       Permanently deletes all failed, cancelled, and completed-with-errors jobs
-      (including their utterance and evaluation records), then compacts the database
-      file. Successfully completed jobs are not affected. This action cannot be undone.
+      (including their utterance and evaluation records). Successfully completed
+      jobs are not affected. This action cannot be undone.
     </p>
     <form method="post" action="{{ url_for('admin_maintenance_run') }}">
       <button
         type="submit"
         class="btn btn-danger"
-        onclick="return confirm('This will permanently delete {{ clearable_jobs }} clearable jobs and compact the database. Continue?')"
+        onclick="return confirm('This will permanently delete {{ clearable_jobs }} clearable jobs. Continue?')"
       >
-        Clear &amp; Vacuum
+        Clear Jobs
       </button>
     </form>
   </div>

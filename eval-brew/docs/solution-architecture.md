@@ -73,7 +73,7 @@ The harness exposes two distinct interaction surfaces:
 | Templating | Jinja2 (via FastAPI's `Jinja2Templates`) |
 | Frontend | Bootstrap 5.3.3 (CDN); plain HTML/JS — no build step |
 | ORM / migrations | [SQLAlchemy](https://www.sqlalchemy.org/) 2.0 + [Alembic](https://alembic.sqlalchemy.org/) |
-| Database | PostgreSQL (production / PaaS) via [psycopg2](https://www.psycopg.org/) 2.9+; SQLite (local development and tests only) |
+| Database | PostgreSQL via [psycopg2](https://www.psycopg.org/) 2.9+ |
 | HTTP client | [httpx](https://www.python-httpx.org/) (sync) |
 | Browser auth | [MSAL](https://github.com/AzureAD/microsoft-authentication-library-for-python) (Azure AD OAuth2 Authorization Code flow) |
 | API auth | [PyJWT](https://pyjwt.readthedocs.io/) `[crypto]` ≥ 2.8 (Azure AD M2M Bearer token validation) |
@@ -254,19 +254,12 @@ Key fields:
 
 ### Database
 
-PostgreSQL is the production and PaaS target. SQLite is retained for local development
-and the test suite only. The engine is selected by 12-factor config at startup:
-
-| Config | Engine | Use case |
-|---|---|---|
-| `DATABASE_URL` set | PostgreSQL (via `psycopg2`) | Production / Azure PaaS deployments |
-| `DATABASE_URL` unset | SQLite at `HARNESS_DB_PATH` | Local development and automated tests |
+PostgreSQL is the only supported database backend, used for all deployments. `DATABASE_URL` is required.
 
 Schema is managed by Alembic migrations, applied automatically at startup via
 `initialize_harness()`. The current migration head is **`0007`**.
 
-SQLite-specific tuning (WAL mode, `NullPool`, transactional DDL) is applied only when
-running SQLite; PostgreSQL uses the standard connection pool.
+PostgreSQL uses a standard connection pool (`pool_size=2, max_overflow=3`).
 
 ### Migration history
 
@@ -477,8 +470,7 @@ served directly by Nginx for efficiency.
 
 | Variable | Purpose | Default |
 |---|---|---|
-| `DATABASE_URL` | Full SQLAlchemy URL for PostgreSQL (e.g. `postgresql://user:pass@host/db`). Required for production / PaaS. When set, `HARNESS_DB_PATH` is ignored. | — (falls back to SQLite) |
-| `HARNESS_DB_PATH` | SQLite database file path. Local development and tests only; ignored when `DATABASE_URL` is set. | `~/.harness/data.db` |
+| `DATABASE_URL` | Full SQLAlchemy URL for PostgreSQL (e.g. `postgresql://user:pass@host/db`). Required. | — |
 | `HARNESS_MASTER_KEY` | Fernet encryption key bytes supplied inline (URL-safe base64). **Preferred for PaaS / container deployments** — no key file needed. Takes priority over `HARNESS_KEY_FILE`. | — |
 | `HARNESS_KEY_FILE` | Path to the Fernet master encryption key file. Auto-created on first use with mode `0600`. Used when `HARNESS_MASTER_KEY` is not set. | `~/.harness/master.key` |
 | `HARNESS_SESSION_SECRET` | Session signing key (≥ 32 chars) | — (required when auth enabled) |

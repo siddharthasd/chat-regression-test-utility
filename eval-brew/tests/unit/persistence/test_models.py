@@ -10,7 +10,6 @@ from datetime import UTC, datetime
 import pytest
 from sqlalchemy import select
 
-from harness.persistence.engine import _ensure_directory, resolve_db_path
 from harness.persistence.models import (
     ConnectorRegistration,
     EvaluationAgentRegistration,
@@ -117,20 +116,3 @@ def test_registration_defaults(db_session) -> None:
     assert agent.declared_scoring_dimensions == []
 
 
-def test_db_path_configurable(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
-    target = tmp_path / "custom" / "mydata.db"
-    monkeypatch.setenv("HARNESS_DB_PATH", str(target))
-    assert resolve_db_path() == target
-
-
-def test_db_default_path(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("HARNESS_DB_PATH", raising=False)
-    assert resolve_db_path().name == "data.db"
-    assert resolve_db_path().parent.name == ".harness"
-
-
-def test_db_parent_dir_created(tmp_path) -> None:
-    target = tmp_path / "deeply" / "nested" / "data.db"
-    assert not target.parent.exists()
-    _ensure_directory(target)
-    assert target.parent.exists()

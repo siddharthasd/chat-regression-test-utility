@@ -6,6 +6,8 @@ via Flask's test client. Covers create/list/edit-masking/archive/hard-delete-gat
 
 from __future__ import annotations
 
+import os
+
 import pytest
 
 from harness.connector_registry import ConnectorRegistryService
@@ -15,15 +17,16 @@ from harness.persistence.repositories import JobRepository
 
 @pytest.fixture
 def ui_client(tmp_path, monkeypatch):
-    monkeypatch.setenv("HARNESS_DB_PATH", str(tmp_path / "ui.db"))
     monkeypatch.setenv("HARNESS_KEY_FILE", str(tmp_path / "ui.key"))
     from harness.persistence import encryption, engine
 
     encryption._reset_key_cache_for_tests()
+    if not os.environ.get("DATABASE_URL"):
+        pytest.skip("DATABASE_URL not set — integration tests require PostgreSQL")
     # Force a fresh DB + rebind SessionLocal per test. create_app()'s
     # initialize_harness() early-returns once the identity singleton is set, so it
     # would NOT re-run init_db across tests — bind it explicitly here for isolation.
-    engine.init_db(tmp_path / "ui.db")
+    engine.init_db()
     from harness.ui import create_app
     from starlette.testclient import TestClient
 

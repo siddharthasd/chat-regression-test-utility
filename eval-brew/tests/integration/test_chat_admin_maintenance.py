@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -15,13 +16,14 @@ from harness.persistence.repositories.evaluator_registration import EvaluationAg
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    monkeypatch.setenv("HARNESS_DB_PATH", str(tmp_path / "chat_maint.db"))
     monkeypatch.setenv("HARNESS_KEY_FILE", str(tmp_path / "chat_maint.key"))
     monkeypatch.delenv("HARNESS_AUTH_ENABLED", raising=False)
     from harness.persistence import encryption, engine
 
     encryption._reset_key_cache_for_tests()
-    engine.init_db(tmp_path / "chat_maint.db")
+    if not os.environ.get("DATABASE_URL"):
+        pytest.skip("DATABASE_URL not set — integration tests require PostgreSQL")
+    engine.init_db()
     from harness.ui import create_app
 
     return TestClient(create_app(), raise_server_exceptions=True, follow_redirects=False)

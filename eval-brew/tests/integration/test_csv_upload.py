@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import codecs
+import os
 
 import pytest
 
@@ -15,12 +16,13 @@ from harness.persistence.repositories import JobRepository, UtteranceRepository
 
 @pytest.fixture
 def db(tmp_path, monkeypatch):
-    monkeypatch.setenv("HARNESS_DB_PATH", str(tmp_path / "up.db"))
     monkeypatch.setenv("HARNESS_KEY_FILE", str(tmp_path / "up.key"))
     from harness.persistence import encryption, engine
 
     encryption._reset_key_cache_for_tests()
-    engine.init_db(tmp_path / "up.db")
+    if not os.environ.get("DATABASE_URL"):
+        pytest.skip("DATABASE_URL not set — integration tests require PostgreSQL")
+    engine.init_db()
     password_store._reset_for_tests()
     yield tmp_path
     password_store._reset_for_tests()

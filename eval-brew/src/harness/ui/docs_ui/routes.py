@@ -133,7 +133,7 @@ _RELEASES = [
             {
                 "title": "Infrastructure",
                 "bullets": [
-                    "PostgreSQL support alongside SQLite — switch databases by setting the DATABASE_URL environment variable.",
+                    "PostgreSQL database backend — configure via the DATABASE_URL environment variable.",
                     "Azure Container Apps deployment guide with PostgreSQL configuration.",
                     "Structured startup logging: backend type, migration revision, and orphan-turn recovery count emitted as structured JSON log lines on every startup.",
                     "PostgreSQL connection-pool safety hardening and test-isolation improvements.",
@@ -220,7 +220,7 @@ _RELEASES = [
                 "title": "Platform",
                 "bullets": [
                     "FastAPI + Jinja2 server-side-rendered UI with Bootstrap 5.",
-                    "SQLite persistence with Alembic migrations.",
+                    "PostgreSQL persistence with Alembic migrations.",
                     "Azure AD RBAC: admin and user roles with scoped job visibility.",
                     "Admin maintenance page: bulk-clear failed, cancelled, and completed jobs.",
                     "Tester identity stamped on every job for audit and filtering.",

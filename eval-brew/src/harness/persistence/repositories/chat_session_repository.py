@@ -67,7 +67,7 @@ class ChatSessionRepository:
           - it has no in-progress turn, AND
           - its last activity (max turn completed_at/created_at, or session created_at) < cutoff.
 
-        SQLite stores naive datetimes; timezone info is stripped from cutoff_dt.
+        Timezone info is stripped from cutoff_dt for consistent comparison.
         """
         from sqlalchemy import func
 

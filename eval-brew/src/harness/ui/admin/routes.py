@@ -2,17 +2,16 @@
 
 from __future__ import annotations
 
-import os
-import sqlite3
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
+from sqlalchemy import text
 
 from harness.auth.middleware import require_role
 from harness.auth.session import get_session_user
 from harness.persistence import get_session
-from harness.persistence.engine import resolve_db_path
+from harness.persistence.engine import get_engine
 from harness.persistence.exceptions import SelfRemovalError
 from harness.persistence.repositories.chat_session_repository import ChatSessionRepository
 from harness.persistence.repositories.job import JobRepository
@@ -30,20 +29,11 @@ def _actor(user: dict) -> str:
 
 def _db_size_mb() -> float | str:
     try:
-        return round(os.path.getsize(resolve_db_path()) / (1024 * 1024), 2)
-    except OSError:
+        with get_engine().connect() as conn:
+            result = conn.execute(text("SELECT pg_database_size(current_database())")).scalar()
+            return round(result / (1024 * 1024), 2)
+    except Exception:
         return "unknown"
-
-
-def _vacuum_db() -> None:
-    # Must use a raw sqlite3 connection — SQLAlchemy's enable_transactional_ddl
-    # listener auto-emits BEGIN on every engine connection, and SQLite refuses
-    # VACUUM inside an open transaction.
-    conn = sqlite3.connect(str(resolve_db_path()))
-    try:
-        conn.execute("VACUUM")
-    finally:
-        conn.close()
 
 
 _ROLES = ("admin", "user")
@@ -174,19 +164,16 @@ def admin_maintenance_run(
     request: Request,
     user: dict = Depends(require_role("admin")),
 ):
-    size_before = _db_size_mb()
     with get_session() as db:
         deleted = JobRepository(db).delete_all_clearable()
-    _vacuum_db()
-    size_after = _db_size_mb()
     log_store.record_audit(
         _actor(user),
         "maintenance.job_clear",
-        f"deleted {deleted} job(s); DB {size_before} MB → {size_after} MB",
+        f"deleted {deleted} job(s)",
     )
     _flash(
         request,
-        f"Deleted {deleted} job(s). Database size: {size_before} MB → {size_after} MB.",
+        f"Deleted {deleted} job(s).",
         "success",
     )
     return RedirectResponse(request.url_for("admin_maintenance"), status_code=303)

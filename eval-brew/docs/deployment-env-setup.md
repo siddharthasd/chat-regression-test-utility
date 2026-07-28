@@ -59,17 +59,11 @@ python -c "import secrets; print(secrets.token_hex(32))"
 
 ### Database
 
-The harness supports SQLite (local/dev) and PostgreSQL (cloud/container). The choice
-is made at startup based on which variable is set.
+PostgreSQL is the only supported database backend. `DATABASE_URL` is required for all deployments.
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `DATABASE_URL` | No | — | Full SQLAlchemy connection URL. **When set, `HARNESS_DB_PATH` is ignored.** Use this for PostgreSQL on Azure. Format: `postgresql+psycopg2://user:password@host:5432/dbname?sslmode=require` |
-| `HARNESS_DB_PATH` | No | `~/.harness/data.db` | Absolute path to the SQLite database file. Used only when `DATABASE_URL` is not set. Ignored in container deployments backed by PostgreSQL. |
-
-> **Container deployments must use `DATABASE_URL`.**
-> The container filesystem is ephemeral — a SQLite file stored on it is lost on every
-> redeploy. PostgreSQL on a managed Azure service persists across deployments.
+| `DATABASE_URL` | Yes | — | Full SQLAlchemy connection URL for PostgreSQL. Format: `postgresql+psycopg2://user:password@host:5432/dbname?sslmode=require` |
 
 ### Encryption
 
@@ -113,14 +107,11 @@ is made at startup based on which variable is set.
 
 ## 3. Sample `.env` files
 
-### Local development (SQLite, no SSO)
+### Local development (no SSO)
 
 ```dotenv
 HARNESS_AUTH_ENABLED=false
-
-# SQLite — default path is used; no DATABASE_URL needed.
-# Uncomment to override the location:
-# HARNESS_DB_PATH=C:\Users\you\.harness\data.db
+DATABASE_URL=postgresql+psycopg2://postgres:YOUR_PASSWORD@localhost:5432/evalbrew
 ```
 
 ### Azure container deployment (PostgreSQL, SSO enabled)
@@ -585,19 +576,10 @@ Set `HARNESS_AUTH_ENABLED=false`. All other auth variables are ignored. A synthe
 admin identity is used, so all routes and admin features are accessible without a login
 page.
 
-For the database, two options:
-
-**SQLite (default — no setup needed)**
-
-Leave `DATABASE_URL` unset. The harness creates `~/.harness/data.db` automatically.
-
-**PostgreSQL (local install)**
-
-Install PostgreSQL locally, create a database, then set:
+Install PostgreSQL locally (or use a Docker container), create a database, then set:
 
 ```bash
 DATABASE_URL=postgresql+psycopg2://postgres:YOUR_PASSWORD@localhost:5432/evalbrew
 ```
 
-Alembic migrations run automatically on first start regardless of which database is
-used.
+Alembic migrations run automatically on first start.

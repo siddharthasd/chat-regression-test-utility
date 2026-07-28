@@ -80,14 +80,15 @@ def run(tmp_path_factory):
     """Register a cc connector + cc evaluator and run one real two-row job."""
     tmp = tmp_path_factory.mktemp("cc_e2e")
     db_path = tmp / "cc.db"
-    prev = {k: os.environ.get(k) for k in ("HARNESS_DB_PATH", "HARNESS_KEY_FILE")}
-    os.environ["HARNESS_DB_PATH"] = str(db_path)
+    prev = {k: os.environ.get(k) for k in ("HARNESS_KEY_FILE",)}
     os.environ["HARNESS_KEY_FILE"] = str(tmp / "cc.key")
 
     from harness.persistence import encryption, engine
 
     encryption._reset_key_cache_for_tests()
-    engine.init_db(db_path)
+    if not os.environ.get("DATABASE_URL"):
+        pytest.skip("DATABASE_URL not set — integration tests require PostgreSQL")
+    engine.init_db()
     oauth.reset_token_cache()
 
     connector = conn_mock.make_server(mode="ok")

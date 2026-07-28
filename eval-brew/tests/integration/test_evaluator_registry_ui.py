@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 import pytest
 
 from harness.evaluator_registry import EvaluatorRegistryService
@@ -11,12 +13,13 @@ from harness.persistence.repositories import JobRepository
 
 @pytest.fixture
 def ui_client(tmp_path, monkeypatch):
-    monkeypatch.setenv("HARNESS_DB_PATH", str(tmp_path / "ui.db"))
     monkeypatch.setenv("HARNESS_KEY_FILE", str(tmp_path / "ui.key"))
     from harness.persistence import encryption, engine
 
     encryption._reset_key_cache_for_tests()
-    engine.init_db(tmp_path / "ui.db")  # per-test isolation (create_app won't re-init; see 013)
+    if not os.environ.get("DATABASE_URL"):
+        pytest.skip("DATABASE_URL not set — integration tests require PostgreSQL")
+    engine.init_db()  # per-test isolation (create_app won't re-init; see 013)
     from harness.ui import create_app
     from starlette.testclient import TestClient
 

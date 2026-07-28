@@ -54,14 +54,15 @@ def run(tmp_path_factory):
     """Run one real job carrying the known password through the full pipeline."""
     tmp = tmp_path_factory.mktemp("masking")
     db_path = tmp / "masking.db"
-    prev = {k: os.environ.get(k) for k in ("HARNESS_DB_PATH", "HARNESS_KEY_FILE")}
-    os.environ["HARNESS_DB_PATH"] = str(db_path)
+    prev = {k: os.environ.get(k) for k in ("HARNESS_KEY_FILE",)}
     os.environ["HARNESS_KEY_FILE"] = str(tmp / "masking.key")
 
     from harness.persistence import encryption, engine
 
     encryption._reset_key_cache_for_tests()
-    eng = engine.init_db(db_path)
+    if not os.environ.get("DATABASE_URL"):
+        pytest.skip("DATABASE_URL not set — integration tests require PostgreSQL")
+    eng = engine.init_db()
     password_store._reset_for_tests()
 
     connector = conn_mock.make_server(mode="ok")
@@ -154,7 +155,7 @@ def _detail_results_section(run) -> str:
 
 
 def test_password_not_in_db(run) -> None:
-    """FR-010: the SQLite database file contains zero bytes of the password value."""
+    """FR-010: the database file contains zero bytes of the password value."""
     raw_bytes = run.db_path.read_bytes()
     assert KNOWN_PASSWORD.encode("utf-8") not in raw_bytes, (
         f"Password {KNOWN_PASSWORD!r} found in database file (UTF-8) — "

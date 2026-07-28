@@ -18,7 +18,7 @@ _DELETABLE = {JobStatus.FAILED.value, JobStatus.CANCELLED.value}
 
 
 def _aware(dt: datetime) -> datetime:
-    """Treat naive DB datetimes as UTC (SQLite stores naive)."""
+    """Treat naive DB datetimes as UTC."""
     return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
 
 

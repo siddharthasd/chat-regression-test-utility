@@ -7,6 +7,7 @@ Each test gets an isolated DB (per-test init_db) + a fresh password store.
 
 from __future__ import annotations
 
+import os
 import sys
 import threading
 import time
@@ -28,12 +29,13 @@ from harness.persistence.repositories import (
 
 @pytest.fixture
 def db(tmp_path, monkeypatch):
-    monkeypatch.setenv("HARNESS_DB_PATH", str(tmp_path / "e2e.db"))
     monkeypatch.setenv("HARNESS_KEY_FILE", str(tmp_path / "e2e.key"))
     from harness.persistence import encryption, engine
 
     encryption._reset_key_cache_for_tests()
-    engine.init_db(tmp_path / "e2e.db")
+    if not os.environ.get("DATABASE_URL"):
+        pytest.skip("DATABASE_URL not set — integration tests require PostgreSQL")
+    engine.init_db()
     password_store._reset_for_tests()
     yield
     password_store._reset_for_tests()
@@ -182,7 +184,7 @@ def test_reconcile_orphans(db) -> None:
 
 
 # --------------------------------------------------------------------------- US5
-@pytest.mark.skipif(sys.platform == "win32", reason="SQLite WAL file-locking is unreliable under concurrent writers on Windows")
+@pytest.mark.skipif(sys.platform == "win32", reason="concurrent writer test unreliable on Windows")
 def test_two_jobs_concurrent_independent(db) -> None:
     # Drive two run_job workers truly concurrently and join them deterministically
     # (no wall-clock deadline). Servers stay up until both threads finish.

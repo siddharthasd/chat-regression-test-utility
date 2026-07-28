@@ -124,23 +124,11 @@ Trusted hostname allowlist enforced by `TrustedHostMiddleware`. Requests with a 
 
 | | |
 |---|---|
-| **Default** | *(none — falls back to SQLite at `HARNESS_DB_PATH`)* |
-| **Accepted values** | Any SQLAlchemy connection URL |
+| **Default** | *(none — required; no fallback)* |
+| **Accepted values** | Any SQLAlchemy connection URL for PostgreSQL |
 | **Sample** | `DATABASE_URL=postgresql+psycopg2://user:pass@db-host:5432/harness` |
 
-Full SQLAlchemy database connection URL. When set, all SQLite-specific logic is skipped and a connection pool (`pool_size=2, max_overflow=3`) is used. Intended for cloud and Azure PostgreSQL deployments. Takes priority over `HARNESS_DB_PATH`.
-
----
-
-### `HARNESS_DB_PATH`
-
-| | |
-|---|---|
-| **Default** | `~/.harness/data.db` |
-| **Accepted values** | Any writable file path |
-| **Sample** | `HARNESS_DB_PATH=/data/harness.db` |
-
-Path to the SQLite database file. Ignored when `DATABASE_URL` is set. The parent directory is created automatically on first run. Use this for single-instance local or Docker deployments.
+Full SQLAlchemy database connection URL. PostgreSQL is the only supported backend. A connection pool (`pool_size=2, max_overflow=3`) is used. Required for all deployments.
 
 ---
 
@@ -245,8 +233,7 @@ The evaluation dimension names exposed by the mock evaluator server. Only used w
 | `HARNESS_AZURE_API_AUDIENCE` | `HARNESS_AZURE_CLIENT_ID` | No | Auth |
 | `HARNESS_SESSION_HTTPS_ONLY` | `true` | No | Security |
 | `HARNESS_ALLOWED_HOSTS` | `*` | No (set in production) | Security |
-| `DATABASE_URL` | — | No | Database |
-| `HARNESS_DB_PATH` | `~/.harness/data.db` | No | Database |
+| `DATABASE_URL` | — | Yes | Database |
 | `HARNESS_MASTER_KEY` | — | No (recommended for containers) | Encryption |
 | `HARNESS_KEY_FILE` | platform default | No | Encryption |
 | `HARNESS_PUBLIC_URL` | `""` | No | API |

@@ -3,7 +3,7 @@
 The Job status enum is the parent spec's canonical seven-value lifecycle
 (`009` spec Clarifications Q2). Values are stored lowercase as plain strings on
 the ``Job.status`` column; this enum enforces valid values at the application
-boundary (research R1 — avoids SQLite enum-migration pain).
+boundary (research R1).
 """
 
 from __future__ import annotations
