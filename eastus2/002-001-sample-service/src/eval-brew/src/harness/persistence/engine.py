@@ -163,9 +163,14 @@ def init_db() -> Engine:
     if _engine is not None:
         _engine.dispose()
 
-    use_managed_identity = os.environ.get("HARNESS_PG_USE_MANAGED_IDENTITY", "").lower() in {
-        "1", "true", "yes"
-    }
+    # Default to managed identity when the URL was assembled from HARNESS_PG_* vars —
+    # those vars are exclusively used in AKS deployments that authenticate via workload
+    # identity. An explicit HARNESS_PG_USE_MANAGED_IDENTITY=false still overrides this.
+    _pg_vars_in_use = bool(os.environ.get("HARNESS_PG_HOST"))
+    _mi_default = "true" if _pg_vars_in_use else "false"
+    use_managed_identity = os.environ.get(
+        "HARNESS_PG_USE_MANAGED_IDENTITY", _mi_default
+    ).lower() in {"1", "true", "yes"}
     # pool_pre_ping reconnects silently after firewall/server-side idle timeouts.
     # pool_size=2 / max_overflow=3 caps each worker at 5 connections; with the
     # default workers=cpu*2+1 formula, a 2-vCPU host (5 workers) uses 25 connections
