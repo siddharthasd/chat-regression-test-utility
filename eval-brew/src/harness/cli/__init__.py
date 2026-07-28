@@ -8,8 +8,14 @@ modules (`serve.py`, `info.py`, etc.) and register themselves into the group.
 from __future__ import annotations
 
 import click
+from dotenv import load_dotenv
 
 from harness.bootstrap import initialize_harness
+
+# Load .env from the project root (if present) before any env vars are read.
+# This is a no-op when the file doesn't exist, so production deployments
+# that set env vars via the environment or a secret manager are unaffected.
+load_dotenv(override=False)
 
 
 @click.group()
