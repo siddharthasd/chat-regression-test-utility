@@ -48,6 +48,9 @@ data.db
 *.log
 *.tmp
 
+# Sample / test CSV files — local only, never commit
+*.csv
+
 # Terraform — local config only, never commit to remote
 *.tfvars
 *.tf
