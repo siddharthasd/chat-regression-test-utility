@@ -55,8 +55,8 @@ class ConnectorRegistrationUpdateData(TypedDict, total=False):
 
 class EvaluationAgentRegistrationCreateData(TypedDict):
     display_name: str
-    description: str
     endpoint_url: str
+    description: NotRequired[str]
     auth_descriptor: dict
     evaluation_agent_id: NotRequired[str]
     timeout_seconds: NotRequired[int]

@@ -1,7 +1,7 @@
 """Form parsing + validation for evaluator registrations (FR-002/004/005/007-011).
 
-Mirrors connector_registry.forms; adds ordered declared-dimension parsing and a
-required description. Maps to the canonical auth descriptor (009/remote.auth).
+Mirrors connector_registry.forms; adds ordered declared-dimension parsing.
+Maps to the canonical auth descriptor (009/remote.auth).
 """
 
 from __future__ import annotations
@@ -50,8 +50,6 @@ def parse_evaluator_form(
         errors["display_name"] = "Display name is required."
 
     description = (form.get("description") or "").strip()
-    if not description:
-        errors["description"] = "Description is required."
 
     endpoint_url = (form.get("endpoint_url") or "").strip()
     if not endpoint_url:

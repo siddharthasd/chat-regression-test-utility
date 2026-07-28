@@ -45,7 +45,7 @@
               {% if errors.endpoint_url %}<div class="invalid-feedback">{{ errors.endpoint_url }}</div>{% endif %}
             </div>
             <div class="col-12">
-              <label class="form-label fw-semibold" for="description">Description <span class="text-danger">*</span></label>
+              <label class="form-label fw-semibold" for="description">Description</label>
               <input class="form-control {% if errors.description %}is-invalid{% endif %}"
                      id="description" name="description"
                      value="{{ form.get('description') or (reg.description if reg else '') }}">
