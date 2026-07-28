@@ -1,0 +1,63 @@
+resources:
+  repositories:
+    - repository: AzurePipelinesTemplateAIR2731
+      type: git
+      name: REBAR_2731/_git/evergreen_pipeline_templates_AIR2731
+      endpoint: CIO EA Cross Organization Access Evergreen-REBAR_2731
+      ref: refs/heads/master
+
+trigger: none
+#trigger:
+#  batch: true
+#  branches:
+#    include:
+#    - master
+
+variables:
+- template: azure-pipelines-common-vars.yml
+- group: cio-cloud-azure-sbx-308826
+- name: azurePipelinesTemplateRef
+  value: $[ resources.repositories['AzurePipelinesTemplateAIR2731'].ref ]
+- name: WIF_SERVICE_CONNECTION_SBX
+  value: '${{ variables.AIR_ID }}-SBX-HRAIASSIST-AZR-WIF'
+- name: WIF_SERVICE_CONNECTION_NPD
+  value: '${{ variables.AIR_ID }}-NPD-HRAIASSIST-AZR-WIF'
+- name: WIF_SERVICE_CONNECTION_PRD
+  value: '${{ variables.AIR_ID }}-PRD-HRAIASSIST-AZR-WIF'
+- name: Azure_SUBSCRIPTION_ID_SBX
+  value: '5caba92f-a6d8-4d4e-8dd5-18bb80ccb3ab'
+- name: Azure_SUBSCRIPTION_ID_NPD
+  value: '80a15954-f04e-4a6f-bad3-2c05b69c2fcd'
+- name: Azure_SUBSCRIPTION_ID_PRD
+  value: '66c46cc9-ac68-414e-b6f0-65aa60b7b63e'
+
+stages:
+  # IaC and Common Compliance Test
+  - template: templates/release-stage-template/azure-stage-template/tf-compliance.yml@AzurePipelinesTemplateAIR2731
+    parameters:
+     deployInfraTFLayerFolder: ${{ variables.DEPLOY_INFRA_TF_LAYER_FOLDER }}
+     airId: ${{ variables.AIR_ID }}
+
+  # Buil image once, Scan with Aqua, Push to Dev Registry (Same image Promotion with same tag and deploy in CD pipeline)
+  - template: templates/containerized-stage-template/image-build-stage.yml@AzurePipelinesTemplateAIR2731
+    parameters:
+      vmImage: ${{ variables.VMIMAGE}}
+      dockerFilePath: ${{ variables.DOCKERFILE_PATH }}
+      dockerImgName: ${{ variables.DOCKER_IMG_NAME }}
+      dockerImgTagName: ${{ variables.DOCKER_IMG_TAG_NAME }}
+      imgPostBuildAction: ${{ variables.IMG_POST_BUILD_ACTION }}
+      dockerRegistry: ${{ variables.DOCKER_REGISTRY_NPD }}
+      azureDevOpsVarGroups: []
+      # deployerHashiVaultConnRoleSetName: 'npd-${{ variables.AIR_ID }}-iac-az-2.0'
+      subscriptionId: ${{ variables.Azure_SUBSCRIPTION_ID_NPD }}
+      wifServiceConnection: ${{ variables.WIF_SERVICE_CONNECTION_NPD }}
+      dockerLabels:
+        - azurePipelinesTemplateRef=$(azurePipelinesTemplateRef)
+        
+  # Publish Artifact
+  - template: templates/release-stage-template/azure-stage-template/common-publish-artifact.yml@AzurePipelinesTemplateAIR2731
+    parameters:
+      vmImage: ${{ variables.VMIMAGE}}
+      archiveFolder: ${{ variables.ARCHIVE_FOLDER }}
+      artifactName: ${{ variables.ARTIFACT_NAME }}
+

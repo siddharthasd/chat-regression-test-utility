@@ -1,0 +1,47 @@
+variables:
+  # Common
+  VMIMAGE: 'ubuntu-latest'
+  DOCKERFILE_PATH: '$(Build.SourcesDirectory)/eastus2/002-001-sample-service/src/eval-brew-release-3.2/eval-brew/Dockerfile'
+  DOCKER_IMG_NAME: 'evalbrewrelease' #FIXME
+  DOCKER_IMG_TAG_NAME: '$(Build.BuildId)'
+  IMG_POST_BUILD_ACTION: 'pushToRegistry' #buildOnly, saveToTarAsPipelieArtifact, pushToRegistry
+  ARCHIVE_FOLDER: 'eastus2'
+  ARTIFACT_NAME: 'hraiassist-Kubernetes-Service'
+  ARCHIVE_FILE_PATH_TO_EXTRACT: '$(ARTIFACT_NAME)-*.zip'
+  DEPLOY_INFRA_TF_LAYER_FOLDER: 'eastus2/002-001-sample-service/infra'
+  AIR_ID: '308826'
+
+  # SSL cert for ingress per environment
+  # COMPUTE_SSLCERT_SBX: ''
+  COMPUTE_SSLCERT_NPD: 'evalbrew.ciostage.pfx'  # i.e. myteamapi-api1.cionpd.pfx # FIXME
+  # COMPUTE_SSLCERT_PRD: ''  # i.e. myteamapi-api1.cioprd.pfx # FIXME
+
+  # Docker Registry per Environment
+  DOCKER_REGISTRY_SBX: 'acr30882603use25ca.azurecr.io' # replace *** with the first 3 characters of your subscription ID
+  DOCKER_REGISTRY_NPD: 'acr30882602use280a.azurecr.io'
+  DOCKER_REGISTRY_PRD: 'acr30882601use266c.azurecr.io'
+
+  # Azure Blob Storage Account and Blog Container Host Terraform State Files per logic environment
+  # Please manage the state file path and make sure it's unique and not being used by other pipelines 
+  AZURERM_BACKEND_STORAGE_CONTAINER_BLOB_KEY_SANDBOX: 'cio/308826/hraiassist/azure2/sandbox/Accenture.CIO.KubChatRegressionUtility_AIR308826/eastus2/002-001-sample-service.tfstate'
+  AZURERM_BACKEND_STORAGE_CONTAINER_BLOB_KEY_NONPROD: 'cio/308826/hraiassist/azure2/nonprod/Accenture.CIO.KubChatRegressionUtility_AIR308826/eastus2/002-001-sample-service.tfstate'
+  AZURERM_BACKEND_STORAGE_CONTAINER_BLOB_KEY_PROD: 'cio/308826/hraiassist/azure2/prod/Accenture.CIO.KubChatRegressionUtility_AIR308826/eastus2/002-001-sample-service.tfstate'
+
+  # AzureDevOps Environment 
+  AZUREDEVOPS_ENVIRONMENT_NAME_SANDBOX: '308826-hraiassist-Azure2-Sandbox'
+  AZUREDEVOPS_ENVIRONMENT_NAME_NONPROD: '308826-hraiassist-Azure2-Nonprod'
+  AZUREDEVOPS_ENVIRONMENT_NAME_PROD: '308826-hraiassist-Azure2-Prod'
+
+  # AzureDevOps Variable Group hosting Azure Credential. Auto rotated daily, please don't change
+  AZUREDEVOPS_VAR_GROUP_NAME_SBX: 'cio-cloud-azure-sbx-308826'
+  AZUREDEVOPS_VAR_GROUP_NAME_NPD: 'cio-cloud-azure-nprd-308826'
+  AZUREDEVOPS_VAR_GROUP_NAME_PRD: 'cio-cloud-azure-prd-308826'
+
+  # Terraform Remote Backend Azure Service Principal Credentials. Auto rotated daily, please don't change
+  AZURE_PFX_CERT_NAME_SBX: 'azure2.0-30882603-service-principal.pfx'
+  AZURE_PEM_CERT_NAME_SBX: 'azure2.0-30882603-service-principal.pem'
+  AZURE_PFX_CERT_NAME_NPD: 'azure2.0-30882602-service-principal.pfx'
+  AZURE_PEM_CERT_NAME_NPD: 'azure2.0-30882602-service-principal.pem'
+  AZURE_PFX_CERT_NAME_PRD: 'azure2.0-30882601-service-principal.pfx'
+  AZURE_PEM_CERT_NAME_PRD: 'azure2.0-30882601-service-principal.pem'
+

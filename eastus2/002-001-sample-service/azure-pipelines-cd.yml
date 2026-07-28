@@ -1,0 +1,361 @@
+resources:
+  repositories:
+    - repository: AzurePipelinesTemplateAIR2731
+      type: git
+      name: REBAR_2731/_git/evergreen_pipeline_templates_AIR2731
+      endpoint: CIO EA Cross Organization Access Evergreen-REBAR_2731
+      ref: refs/heads/master
+  pipelines:
+    - pipeline: Accenture.CIO.KubChatRegressionUtility_AIR308826_eastus2_002-001-sample-service_CI_AIR308826
+      source: Accenture.CIO.KubChatRegressionUtility_AIR308826_eastus2_002-001-sample-service_CI_AIR308826
+      branch: Stage
+      # trigger:
+      #   branches:
+      #     include:
+      #     - master
+
+trigger: none
+
+variables:
+- template: azure-pipelines-common-vars.yml
+- group: cio-cloud-azure-2.0-common-308826-hraiassist
+- name: myContainerImgTag
+  value: $(resources.pipeline.Accenture.CIO.KubChatRegressionUtility_AIR308826_eastus2_002-001-sample-service_CI_AIR308826.runID)
+- name: WIF_SERVICE_CONNECTION_SBX
+  value: '${{ variables.AIR_ID }}-SBX-HRAIASSIST-AZR-WIF'
+- name: WIF_SERVICE_CONNECTION_NPD
+  value: '${{ variables.AIR_ID }}-NPD-HRAIASSIST-AZR-WIF'
+- name: WIF_SERVICE_CONNECTION_PRD
+  value: '${{ variables.AIR_ID }}-PRD-HRAIASSIST-AZR-WIF'
+- name: Azure_SUBSCRIPTION_ID_SBX
+  value: '42e9471f-89ca-4351-b0dc-93f71151ed4d'
+- name: Azure_SUBSCRIPTION_ID_NPD
+  value: '80a15954-f04e-4a6f-bad3-2c05b69c2fcd'
+- name: Azure_SUBSCRIPTION_ID_PRD
+  value: '66c46cc9-ac68-414e-b6f0-65aa60b7b63e'
+
+stages:
+#     # Terraform Plan SBX
+#   - template: templates/release-stage-template/azure-stage-template/tf-plan.yml@AzurePipelinesTemplateAIR2731
+#     parameters:
+#       azureEnvName: 'sbx'
+#       # msHostedPoolVmImage: ${{ variables.VMIMAGE }}
+#       artifactName: ${{ variables.ARTIFACT_NAME }}
+#       archiveFilePathToExtract: ${{ variables.ARCHIVE_FILE_PATH_TO_EXTRACT }}
+#       azureDevOpsVarGroups: []
+#       # azureEnvPfxCertName: ${{ variables.AZURE_PFX_CERT_NAME_SBX }}
+#       # azureEnvPemCertName: ${{ variables.AZURE_PEM_CERT_NAME_SBX }}
+#       azureDevOpsSecureFiles: []
+#       azurermBackendStorageContainerBlobKey: ${{ variables.AZURERM_BACKEND_STORAGE_CONTAINER_BLOB_KEY_SANDBOX }}
+#       deployInfraTFLayerFolder: ${{ variables.DEPLOY_INFRA_TF_LAYER_FOLDER }}
+#       condition: '' 
+#       dependsOn: [] 
+#       pipelineResourceIdentifier: 'Accenture.CIO.KubChatRegressionUtility_AIR308826_eastus2_002-001-sample-service_CI_AIR308826'
+#       inputTFVarDefinitionFiles: 
+#       - azure-sbx.tfvars
+#       inputTFVars:
+#       - image_tag=$(myContainerImgTag)
+#       - ssl_password=$(COMPUTE_SSLCERT_PASSWORD_SBX)
+#       wifServiceConnection: ${{ variables.WIF_SERVICE_CONNECTION_SBX }}
+#       subscriptionId: ${{ variables.AZURE_SUBSCRIPTION_ID_SBX }}
+#       additionalPreSteps: []
+#       additionalPostSteps: []
+
+#   # Terraform Apply SBX
+#   - template: templates/release-stage-template/azure-stage-template/tf-apply.yml@AzurePipelinesTemplateAIR2731
+#     parameters:
+#       azureEnvName: 'sbx'
+#       # msHostedPoolVmImage: ${{ variables.VMIMAGE }}
+#       artifactName: ${{ variables.ARTIFACT_NAME }}
+#       archiveFilePathToExtract: ${{ variables.ARCHIVE_FILE_PATH_TO_EXTRACT }}
+#       azureDevOpsVarGroups: []
+#       # azureEnvPfxCertName: ${{ variables.AZURE_PFX_CERT_NAME_SBX }}
+#       # azureEnvPemCertName: ${{ variables.AZURE_PEM_CERT_NAME_SBX }}
+#       azureDevOpsSecureFiles: []
+#       azurermBackendStorageContainerBlobKey: ${{ variables.AZURERM_BACKEND_STORAGE_CONTAINER_BLOB_KEY_SANDBOX }}
+#       deployInfraTFLayerFolder: ${{ variables.DEPLOY_INFRA_TF_LAYER_FOLDER }}
+#       condition: '' 
+#       dependsOn: ['Terraform_Plan_sbx'] 
+#       pipelineResourceIdentifier: 'Accenture.CIO.KubChatRegressionUtility_AIR308826_eastus2_002-001-sample-service_CI_AIR308826'
+#       inputTFVarDefinitionFiles:
+#       - azure-sbx.tfvars
+#       inputTFVars:
+#       - image_tag=$(myContainerImgTag)
+#       - ssl_password=$(COMPUTE_SSLCERT_PASSWORD_SBX)
+#       additionalPreSteps: []
+#       additionalPostSteps: []
+#       wifServiceConnection: ${{ variables.WIF_SERVICE_CONNECTION_SBX }}
+#       subscriptionId: ${{ variables.AZURE_SUBSCRIPTION_ID_SBX }}
+#       azureDevOpsEnvironment: '${{ variables.AZUREDEVOPS_ENVIRONMENT_NAME_SANDBOX }}'
+
+# ## Promote from Sandbox Registry to Nonprod Registry
+#   - template: templates/containerized-stage-template/image-promote-stage.yml@AzurePipelinesTemplateAIR2731
+#     parameters:
+#       stageName: 'PromoteImgfromSandboxToNonprod' # name of the stage (A-Z, a-z, 0-9, and underscore)
+#       vmImage: ${{ variables.VMIMAGE}}
+#       sourceDockerImgTag: '${{ variables.DOCKER_REGISTRY_SBX }}/${{ variables.DOCKER_IMG_NAME }}:$(myContainerImgTag)'
+#       sourceWifServiceConnection: ${{ variables.WIF_SERVICE_CONNECTION_SBX }}
+#       sourceSubscriptionId: ${{ variables.Azure_SUBSCRIPTION_ID_SBX}}
+#       targetDockerImgTag: '${{ variables.DOCKER_REGISTRY_NPD }}/${{ variables.DOCKER_IMG_NAME }}:$(myContainerImgTag)'
+#       targetSubscriptionId : ${{ variables.Azure_SUBSCRIPTION_ID_NPD }}
+#       targetWifServiceConnection: ${{ variables.WIF_SERVICE_CONNECTION_NPD }}
+#       condition: '' 
+#       dependsOn: ['Terraform_Plan_sbx', 'Terraform_Apply_sbx']
+#       azureDevOpsEnvironment: ${{ variables.AZUREDEVOPS_ENVIRONMENT_NAME_NONPROD }}
+
+  # # Terraform Plan Destroy Sandbox
+  # - template: templates/release-stage-template/azure-stage-template/tf-plan-destroy.yml@AzurePipelinesTemplateAIR2731
+  #   parameters:
+  #     azureEnvName: 'sbx'
+  #     msHostedPoolVmImage: ${{ variables.VMIMAGE }}
+  #     artifactName: ${{ variables.ARTIFACT_NAME }}
+  #     archiveFilePathToExtract: ${{ variables.ARCHIVE_FILE_PATH_TO_EXTRACT }}
+  #     azureDevOpsVarGroups: []
+  #     azureDevOpsSecureFiles: []
+  #     azurermBackendStorageContainerBlobKey: ${{ variables.AZURERM_BACKEND_STORAGE_CONTAINER_BLOB_KEY_SANDBOX }}
+  #     deployInfraTFLayerFolder: ${{ variables.DEPLOY_INFRA_TF_LAYER_FOLDER }}
+  #     dependsOn: []
+  #     pipelineResourceIdentifier: 'Accenture.CIO.KubChatRegressionUtility_AIR308826_eastus2_002-001-sample-service_CI_AIR308826'
+  #     inputTFVarDefinitionFiles:
+  #     - azure-sbx.tfvars
+  #     inputTFVars: 
+  #     - image_tag=$(myContainerImgTag)
+  #     - ssl_password=$(COMPUTE_SSLCERT_PASSWORD_SBX)
+  #     subscriptionId: ${{ variables.AZURE_SUBSCRIPTION_ID_SBX }}
+  #     wifServiceConnection: ${{ variables.WIF_SERVICE_CONNECTION_SBX }}
+
+  # # Terraform Apply Destroy Sandbox
+  # - template: templates/release-stage-template/azure-stage-template/tf-apply-destroy.yml@AzurePipelinesTemplateAIR2731
+  #   parameters:
+  #     azureEnvName: 'sbx'
+  #     msHostedPoolVmImage: ${{ variables.VMIMAGE }}
+  #     artifactName: ${{ variables.ARTIFACT_NAME }}
+  #     archiveFilePathToExtract: ${{ variables.ARCHIVE_FILE_PATH_TO_EXTRACT }}
+  #     azureDevOpsVarGroups: []
+  #     azureDevOpsSecureFiles: []
+  #     azurermBackendStorageContainerBlobKey: ${{ variables.AZURERM_BACKEND_STORAGE_CONTAINER_BLOB_KEY_SANDBOX }}
+  #     deployInfraTFLayerFolder: ${{ variables.DEPLOY_INFRA_TF_LAYER_FOLDER }}
+  #     condition: '' 
+  #     dependsOn: ['Terraform_Plan_Destroy_sbx'] 
+  #     pipelineResourceIdentifier: 'Accenture.CIO.KubChatRegressionUtility_AIR308826_eastus2_002-001-sample-service_CI_AIR308826'
+  #     inputTFVarDefinitionFiles:
+  #     - azure-sbx.tfvars
+  #     inputTFVars: 
+  #     - image_tag=$(myContainerImgTag)
+  #     - ssl_password=$(COMPUTE_SSLCERT_PASSWORD_SBX)
+  #     azureDevOpsEnvironment: ${{ variables.AZUREDEVOPS_ENVIRONMENT_NAME_SANDBOX }}
+  #     subscriptionId: ${{ variables.AZURE_SUBSCRIPTION_ID_SBX }}
+  #     wifServiceConnection: ${{ variables.WIF_SERVICE_CONNECTION_SBX }}
+
+##
+    # Terraform Plan Non-Prod 
+  - template: templates/release-stage-template/azure-stage-template/tf-plan.yml@AzurePipelinesTemplateAIR2731
+    parameters:
+      azureEnvName: 'npd'
+      # msHostedPoolVmImage: ${{ variables.VMIMAGE }}
+      artifactName: ${{ variables.ARTIFACT_NAME }}
+      archiveFilePathToExtract: ${{ variables.ARCHIVE_FILE_PATH_TO_EXTRACT }}
+      azureDevOpsVarGroups: []
+      # azureEnvPfxCertName: ${{ variables.AZURE_PFX_CERT_NAME_NPD}}
+      # azureEnvPemCertName: ${{ variables.AZURE_PEM_CERT_NAME_NPD }}
+      azureDevOpsSecureFiles: []
+      azurermBackendStorageContainerBlobKey: ${{ variables.AZURERM_BACKEND_STORAGE_CONTAINER_BLOB_KEY_NONPROD }}
+      deployInfraTFLayerFolder: ${{ variables.DEPLOY_INFRA_TF_LAYER_FOLDER }}
+      condition: '' 
+      dependsOn: []
+      pipelineResourceIdentifier: 'Accenture.CIO.KubChatRegressionUtility_AIR308826_eastus2_002-001-sample-service_CI_AIR308826'
+      inputTFVarDefinitionFiles: 
+      - azure-npd.tfvars
+      inputTFVars:
+      - image_tag=$(myContainerImgTag)
+      - ssl_password=$(COMPUTE_SSLCERT_PASSWORD_NPD)
+      wifServiceConnection: ${{ variables.WIF_SERVICE_CONNECTION_NPD }}
+      subscriptionId: ${{ variables.AZURE_SUBSCRIPTION_ID_NPD }}
+      additionalPreSteps: []
+      additionalPostSteps: []
+
+  # Terraform Apply Non-Prod 
+  - template: templates/release-stage-template/azure-stage-template/tf-apply.yml@AzurePipelinesTemplateAIR2731
+    parameters:
+      azureEnvName: 'npd'
+      # msHostedPoolVmImage: ${{ variables.VMIMAGE }}
+      artifactName: ${{ variables.ARTIFACT_NAME }}
+      archiveFilePathToExtract: ${{ variables.ARCHIVE_FILE_PATH_TO_EXTRACT }}
+      azureDevOpsVarGroups: []
+      # azureEnvPfxCertName: ${{ variables.AZURE_PFX_CERT_NAME_NPD }}
+      # azureEnvPemCertName: ${{ variables.AZURE_PEM_CERT_NAME_NPD }}
+      azureDevOpsSecureFiles: ['evalbrew.ciostage.pfx']
+      azurermBackendStorageContainerBlobKey: ${{ variables.AZURERM_BACKEND_STORAGE_CONTAINER_BLOB_KEY_NONPROD }}
+      deployInfraTFLayerFolder: ${{ variables.DEPLOY_INFRA_TF_LAYER_FOLDER }}
+      condition: '' 
+      dependsOn: ['Terraform_Plan_npd'] 
+      pipelineResourceIdentifier: 'Accenture.CIO.KubChatRegressionUtility_AIR308826_eastus2_002-001-sample-service_CI_AIR308826'
+      inputTFVarDefinitionFiles:
+      - azure-npd.tfvars
+      inputTFVars:
+      - image_tag=$(myContainerImgTag)
+      - ssl_password=$(COMPUTE_SSLCERT_PASSWORD_NPD)
+      additionalPreSteps: []
+      additionalPostSteps: []
+      wifServiceConnection: ${{ variables.WIF_SERVICE_CONNECTION_NPD }}
+      subscriptionId: ${{ variables.AZURE_SUBSCRIPTION_ID_NPD }}
+      azureDevOpsEnvironment: '${{ variables.AZUREDEVOPS_ENVIRONMENT_NAME_NONPROD }}'
+
+## Promote from Nonprod Registry to Prod Registry
+  - template: templates/containerized-stage-template/image-promote-stage.yml@AzurePipelinesTemplateAIR2731
+    parameters:
+      stageName: 'PromoteImgfromNonprodToProduction' # name of the stage (A-Z, a-z, 0-9, and underscore)
+      vmImage: ${{ variables.VMIMAGE}}
+      sourceDockerImgTag: '${{ variables.DOCKER_REGISTRY_NPD }}/${{ variables.DOCKER_IMG_NAME }}:$(myContainerImgTag)'
+      sourceWifServiceConnection: ${{ variables.WIF_SERVICE_CONNECTION_NPD }}
+      sourceSubscriptionId: ${{ variables.Azure_SUBSCRIPTION_ID_NPD }}
+      targetDockerImgTag: '${{ variables.DOCKER_REGISTRY_PRD }}/${{ variables.DOCKER_IMG_NAME }}:$(myContainerImgTag)'
+      targetSubscriptionId : ${{ variables.Azure_SUBSCRIPTION_ID_PRD }}
+      targetWifServiceConnection: ${{ variables.WIF_SERVICE_CONNECTION_PRD }}
+      condition: '' 
+      dependsOn: ['Terraform_Plan_npd', 'Terraform_Apply_npd']
+      azureDevOpsEnvironment: ${{ variables.AZUREDEVOPS_ENVIRONMENT_NAME_PROD }}
+
+  # # Terraform Plan Destroy Non-Prod
+  # - template: templates/release-stage-template/azure-stage-template/tf-plan-destroy.yml@AzurePipelinesTemplateAIR2731
+  #   parameters:
+  #     azureEnvName: 'npd'
+  #     msHostedPoolVmImage: ${{ variables.VMIMAGE }}
+  #     artifactName: ${{ variables.ARTIFACT_NAME }}
+  #     archiveFilePathToExtract: ${{ variables.ARCHIVE_FILE_PATH_TO_EXTRACT }}
+  #     azureDevOpsVarGroups: []
+  #     azureDevOpsSecureFiles: []
+  #     azurermBackendStorageContainerBlobKey: ${{ variables.AZURERM_BACKEND_STORAGE_CONTAINER_BLOB_KEY_NONPROD }}
+  #     deployInfraTFLayerFolder: ${{ variables.DEPLOY_INFRA_TF_LAYER_FOLDER }}
+  #     dependsOn: []
+  #     pipelineResourceIdentifier: 'Accenture.CIO.KubChatRegressionUtility_AIR308826_eastus2_002-001-sample-service_CI_AIR308826'
+  #     inputTFVarDefinitionFiles:
+  #     - azure-npd.tfvars
+  #     inputTFVars: 
+  #     - image_tag=$(myContainerImgTag)
+  #     - ssl_password=$(COMPUTE_SSLCERT_PASSWORD_NPD)
+  #     subscriptionId: ${{ variables.AZURE_SUBSCRIPTION_ID_NPD }}
+  #     wifServiceConnection: ${{ variables.WIF_SERVICE_CONNECTION_NPD }}
+
+  # # Terraform Apply Destroy Non-Prod 
+  # - template: templates/release-stage-template/azure-stage-template/tf-apply-destroy.yml@AzurePipelinesTemplateAIR2731
+  #   parameters:
+  #     azureEnvName: 'npd'
+  #     msHostedPoolVmImage: ${{ variables.VMIMAGE }}
+  #     artifactName: ${{ variables.ARTIFACT_NAME }}
+  #     archiveFilePathToExtract: ${{ variables.ARCHIVE_FILE_PATH_TO_EXTRACT }}
+  #     azureDevOpsVarGroups: []
+  #     azureDevOpsSecureFiles: []
+  #     azurermBackendStorageContainerBlobKey: ${{ variables.AZURERM_BACKEND_STORAGE_CONTAINER_BLOB_KEY_NONPROD }}
+  #     deployInfraTFLayerFolder: ${{ variables.DEPLOY_INFRA_TF_LAYER_FOLDER }}
+  #     condition: '' 
+  #     dependsOn: ['Terraform_Plan_Destroy_npd'] 
+  #     pipelineResourceIdentifier: 'Accenture.CIO.KubChatRegressionUtility_AIR308826_eastus2_002-001-sample-service_CI_AIR308826'
+  #     inputTFVarDefinitionFiles:
+  #     - azure-npd.tfvars
+  #     inputTFVars: 
+  #     - image_tag=$(myContainerImgTag)
+  #     - ssl_password=$(COMPUTE_SSLCERT_PASSWORD_NPD)
+  #     azureDevOpsEnvironment: ${{ variables.AZUREDEVOPS_ENVIRONMENT_NAME_NONPROD }}
+  #     subscriptionId: ${{ variables.AZURE_SUBSCRIPTION_ID_NPD }}
+  #     wifServiceConnection: ${{ variables.WIF_SERVICE_CONNECTION_NPD }}
+
+##
+    # Terraform Plan Production
+  - template: templates/release-stage-template/azure-stage-template/tf-plan.yml@AzurePipelinesTemplateAIR2731
+    parameters:
+      azureEnvName: 'prd'
+      # msHostedPoolVmImage: ${{ variables.VMIMAGE }}
+      artifactName: ${{ variables.ARTIFACT_NAME }}
+      archiveFilePathToExtract: ${{ variables.ARCHIVE_FILE_PATH_TO_EXTRACT }}
+      azureDevOpsVarGroups: []
+      # azureEnvPfxCertName: ${{ variables.AZURE_PFX_CERT_NAME_PRD }}
+      # azureEnvPemCertName: ${{ variables.AZURE_PEM_CERT_NAME_PRD }}
+      azureDevOpsSecureFiles: []
+      azurermBackendStorageContainerBlobKey: ${{ variables.AZURERM_BACKEND_STORAGE_CONTAINER_BLOB_KEY_PROD }}
+      deployInfraTFLayerFolder: ${{ variables.DEPLOY_INFRA_TF_LAYER_FOLDER }}
+      condition: '' 
+      dependsOn: ['PromoteImgfromNonprodToProduction'] 
+      pipelineResourceIdentifier: 'Accenture.CIO.KubChatRegressionUtility_AIR308826_eastus2_002-001-sample-service_CI_AIR308826'
+      inputTFVarDefinitionFiles: 
+      - azure-prd.tfvars
+      inputTFVars:
+      - image_tag=$(myContainerImgTag)
+      - ssl_password=$(COMPUTE_SSLCERT_PASSWORD_PRD)
+      wifServiceConnection: ${{ variables.WIF_SERVICE_CONNECTION_PRD }}
+      subscriptionId: ${{ variables.AZURE_SUBSCRIPTION_ID_PRD }}
+      additionalPreSteps: []
+      additionalPostSteps: []
+
+  # Terraform Apply Production
+  - template: templates/release-stage-template/azure-stage-template/tf-apply.yml@AzurePipelinesTemplateAIR2731
+    parameters:
+      azureEnvName: 'prd'
+      # msHostedPoolVmImage: ${{ variables.VMIMAGE }}
+      artifactName: ${{ variables.ARTIFACT_NAME }}
+      archiveFilePathToExtract: ${{ variables.ARCHIVE_FILE_PATH_TO_EXTRACT }}
+      azureDevOpsVarGroups: []
+      # azureEnvPfxCertName: ${{ variables.AZURE_PFX_CERT_NAME_PRD }}
+      # azureEnvPemCertName: ${{ variables.AZURE_PEM_CERT_NAME_PRD }}
+      azureDevOpsSecureFiles: []
+      azurermBackendStorageContainerBlobKey: ${{ variables.AZURERM_BACKEND_STORAGE_CONTAINER_BLOB_KEY_PROD }}
+      deployInfraTFLayerFolder: ${{ variables.DEPLOY_INFRA_TF_LAYER_FOLDER }}
+      condition: '' 
+      dependsOn: ['Terraform_Plan_prd'] 
+      pipelineResourceIdentifier: 'Accenture.CIO.KubChatRegressionUtility_AIR308826_eastus2_002-001-sample-service_CI_AIR308826'
+      inputTFVarDefinitionFiles:
+      - azure-prd.tfvars
+      inputTFVars:
+      - image_tag=$(myContainerImgTag)
+      - ssl_password=$(COMPUTE_SSLCERT_PASSWORD_PRD)
+      additionalPreSteps: []
+      additionalPostSteps: []
+      wifServiceConnection: ${{ variables.WIF_SERVICE_CONNECTION_PRD }}
+      subscriptionId: ${{ variables.AZURE_SUBSCRIPTION_ID_PRD }}
+      azureDevOpsEnvironment: '${{ variables.AZUREDEVOPS_ENVIRONMENT_NAME_PROD }}'
+
+  # # Terraform Plan Destroy Production
+  # - template: templates/release-stage-template/azure-stage-template/tf-plan-destroy.yml@AzurePipelinesTemplateAIR2731
+  #   parameters:
+  #     azureEnvName: 'prd'
+  #     msHostedPoolVmImage: ${{ variables.VMIMAGE }}
+  #     artifactName: ${{ variables.ARTIFACT_NAME }}
+  #     archiveFilePathToExtract: ${{ variables.ARCHIVE_FILE_PATH_TO_EXTRACT }}
+  #     azureDevOpsVarGroups: []
+  #     azureDevOpsSecureFiles: []
+  #     azurermBackendStorageContainerBlobKey: ${{ variables.AZURERM_BACKEND_STORAGE_CONTAINER_BLOB_KEY_PROD }}
+  #     deployInfraTFLayerFolder: ${{ variables.DEPLOY_INFRA_TF_LAYER_FOLDER }}
+  #     dependsOn: []
+  #     pipelineResourceIdentifier: 'Accenture.CIO.KubChatRegressionUtility_AIR308826_eastus2_002-001-sample-service_CI_AIR308826'
+  #     inputTFVarDefinitionFiles:
+  #     - azure-prd.tfvars
+  #     inputTFVars: 
+  #     - image_tag=$(myContainerImgTag)
+  #     - ssl_password=$(COMPUTE_SSLCERT_PASSWORD_PRD)
+  #     subscriptionId: ${{ variables.AZURE_SUBSCRIPTION_ID_PRD }}
+  #     wifServiceConnection: ${{ variables.WIF_SERVICE_CONNECTION_PRD }}
+
+  # # Terraform Apply Destroy Production
+  # - template: templates/release-stage-template/azure-stage-template/tf-apply-destroy.yml@AzurePipelinesTemplateAIR2731
+  #   parameters:
+  #     azureEnvName: 'prd'
+  #     msHostedPoolVmImage: ${{ variables.VMIMAGE }}
+  #     artifactName: ${{ variables.ARTIFACT_NAME }}
+  #     archiveFilePathToExtract: ${{ variables.ARCHIVE_FILE_PATH_TO_EXTRACT }}
+  #     azureDevOpsVarGroups: []
+  #     azureDevOpsSecureFiles: []
+  #     azurermBackendStorageContainerBlobKey: ${{ variables.AZURERM_BACKEND_STORAGE_CONTAINER_BLOB_KEY_PROD }}
+  #     deployInfraTFLayerFolder: ${{ variables.DEPLOY_INFRA_TF_LAYER_FOLDER }}
+  #     condition: '' 
+  #     dependsOn: ['Terraform_Plan_Destroy_prd'] 
+  #     pipelineResourceIdentifier: 'Accenture.CIO.KubChatRegressionUtility_AIR308826_eastus2_002-001-sample-service_CI_AIR308826'
+  #     inputTFVarDefinitionFiles:
+  #     - azure-prd.tfvars
+  #     inputTFVars: 
+  #     - image_tag=$(myContainerImgTag)
+  #     - ssl_password=$(COMPUTE_SSLCERT_PASSWORD_PRD)
+  #     azureDevOpsEnvironment: ${{ variables.AZUREDEVOPS_ENVIRONMENT_NAME_PROD }}
+  #     subscriptionId: ${{ variables.AZURE_SUBSCRIPTION_ID_PRD }}
+  #     wifServiceConnection: ${{ variables.WIF_SERVICE_CONNECTION_PRD }}
+
+
