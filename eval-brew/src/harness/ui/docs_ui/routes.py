@@ -58,6 +58,12 @@ _RELEASES = [
                 ],
             },
             {
+                "title": "Infrastructure",
+                "bullets": [
+                    "PostgreSQL managed identity authentication for AKS — the database engine acquires an Azure AD access token via DefaultAzureCredential on every new connection when HARNESS_PG_USE_MANAGED_IDENTITY=true. Covers AKS Workload Identity, node-level Managed Identity, and Azure CLI for local testing. No static database password is required at runtime; pool_pre_ping handles transparent reconnection when a token nears expiry.",
+                ],
+            },
+            {
                 "title": "Security & Auth",
                 "bullets": [
                     "Loading indicator on wizard Next buttons — the Next button in connector and evaluator selection steps (job wizard steps 3 & 4, chat session wizard steps 2 & 4) shows a spinner and disables itself while the server-side connection test runs.",
@@ -65,6 +71,7 @@ _RELEASES = [
                     "Auth descriptor encryption consolidated — encrypt_descriptor / decrypt_descriptor are now the single canonical implementation in persistence.encryption; all registry and remote modules import from one place, eliminating silent drift.",
                     "SSE connector test now correctly sends a sample password when expects_per_row_password is set, fixing a silent test failure for password-per-row connectors.",
                     "Auth error categories corrected — test-connection results distinguish auth_config_error (unsupported mode) from auth_decrypt_failed (key mismatch at DB read); visual styling covers all auth failure categories including auth_token_failed.",
+                    "Evaluator description field made optional — the Description field is no longer required when registering or editing an evaluator.",
                 ],
             },
             {
