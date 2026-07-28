@@ -47,3 +47,7 @@ flask_session/
 data.db
 *.log
 *.tmp
+
+# Terraform — local config only, never commit to remote
+*.tfvars
+*.tf
