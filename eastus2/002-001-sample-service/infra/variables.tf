@@ -171,3 +171,8 @@ variable "HARNESS_DB_USE_MANAGED_IDENTITY" {
   type        = string
   default     = "false"
 }
+
+variable "harness_master_key" {
+  description = "Fernet key for per-credential encryption of stored authDescriptors "
+  type        = string
+}
