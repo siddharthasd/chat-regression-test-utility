@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 
 import click
 
@@ -13,19 +14,22 @@ def _resolve_log_level() -> int:
 
 
 def _configure_harness_logging() -> None:
-    """Add a stderr handler to the harness logger hierarchy for server deployments.
+    """Add a stdout handler to the harness logger hierarchy for server deployments.
 
     logging_attribution.py intentionally does not install handlers so that
     tests (pytest caplog) and library consumers control output. This function
     is the server entry point's responsibility: it wires harness.* log lines
-    to stderr at the LOG_LEVEL env var level before uvicorn's dictConfig runs,
+    to stdout at the LOG_LEVEL env var level before uvicorn's dictConfig runs,
     then disables propagation so uvicorn's root handler doesn't double-print them.
+
+    stdout (not stderr) is used so that container log collectors do not classify
+    structured log lines as errors solely because of the output stream.
     """
     harness_logger = logging.getLogger("harness")
     if harness_logger.handlers:
         return  # already configured (e.g., second call in the same process)
     level = _resolve_log_level()
-    handler = logging.StreamHandler()
+    handler = logging.StreamHandler(sys.stdout)
     handler.setLevel(level)
     harness_logger.addHandler(handler)
     harness_logger.setLevel(level)

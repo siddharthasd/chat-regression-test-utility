@@ -19,17 +19,18 @@ async def _lifespan(app: FastAPI):
     import logging
     import sys
 
-    # Wire harness.* log lines to stderr when running under a direct ASGI server
+    # Wire harness.* log lines to stdout when running under a direct ASGI server
     # (gunicorn, uvicorn without the CLI wrapper). The CLI path is handled by
     # harness_group() in harness.cli. Skip when pytest is active so caplog
     # (which installs a handler on the root logger) can still capture harness.*
-    # records via propagation.
+    # records via propagation. stdout (not stderr) prevents container log
+    # collectors from classifying structured lines as errors by stream alone.
     if "pytest" not in sys.modules:
         import os
         level = getattr(logging, os.environ.get("LOG_LEVEL", "debug").upper(), logging.DEBUG)
         h = logging.getLogger("harness")
         if not h.handlers:
-            _h = logging.StreamHandler()
+            _h = logging.StreamHandler(sys.stdout)
             _h.setLevel(level)
             h.addHandler(_h)
             h.setLevel(level)
