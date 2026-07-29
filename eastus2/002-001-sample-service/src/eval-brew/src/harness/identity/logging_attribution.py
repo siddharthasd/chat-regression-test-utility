@@ -18,7 +18,16 @@ JSON output (machine-readable logs) without touching any caller.
 
 from __future__ import annotations
 
+import sys
+
 import structlog
+
+
+def _renderer():
+    """Return ConsoleRenderer for TTY sessions, JSONRenderer for containers."""
+    if sys.stderr.isatty():
+        return structlog.dev.ConsoleRenderer()
+    return structlog.processors.JSONRenderer()
 
 
 def configure_structlog_with_identity(identity_value: str) -> None:
@@ -46,7 +55,7 @@ def configure_structlog_with_identity(identity_value: str) -> None:
             structlog.contextvars.merge_contextvars,
             structlog.processors.add_log_level,
             structlog.processors.TimeStamper(fmt="iso"),
-            structlog.dev.ConsoleRenderer(),
+            _renderer(),
         ],
         logger_factory=structlog.stdlib.LoggerFactory(),
         wrapper_class=structlog.stdlib.BoundLogger,
