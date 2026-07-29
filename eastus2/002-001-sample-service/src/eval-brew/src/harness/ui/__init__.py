@@ -52,10 +52,13 @@ def create_app() -> FastAPI:
     Performs the one-time harness initialization via `initialize_harness()`
     in the lifespan hook, then mounts all domain routers.
     """
+    import logging
     import os
     from pathlib import Path
 
     from harness.auth.config import get_auth_config
+
+    _health_log = logging.getLogger("harness.health")
 
     cfg = get_auth_config()
     secret_key = cfg.get("secret_key") or os.urandom(32).hex()
@@ -72,6 +75,11 @@ def create_app() -> FastAPI:
     _raw = os.environ.get("HARNESS_ALLOWED_HOSTS", "*")
     _allowed_hosts = [h.strip() for h in _raw.split(",")]
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=_allowed_hosts)
+
+    @app.get("/health", include_in_schema=False)
+    def health():
+        _health_log.debug("health.check")
+        return {"status": "ok"}
 
     # Static files
     _static_dir = Path(__file__).parent / "static"

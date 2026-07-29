@@ -193,6 +193,25 @@ PostgreSQL Flexible Server and Azure AD SSO.
   ANSI escape codes from `ConsoleRenderer` appear as raw character sequences in
   log aggregators and make structured fields unparseable.
 
+### Health endpoint — K8s liveness/readiness probes
+
+- [ ] **Register a `/health` GET route in the FastAPI app.** K8s liveness and
+  readiness probes will issue `GET /health` (or whatever path is configured in
+  the pod spec). If the route does not exist the probe gets `404 Not Found` and
+  the pod is restarted indefinitely — there will be no error in the application
+  logs, making this failure invisible.
+- [ ] The endpoint must return HTTP 200 with a JSON body:
+  ```python
+  @app.get("/health", include_in_schema=False)
+  def health():
+      log.debug("health.check")
+      return {"status": "ok"}
+  ```
+  `include_in_schema=False` keeps it out of the OpenAPI docs.
+- [ ] Add a `debug`-level log on every probe call. With `LOG_LEVEL=debug` you can
+  confirm in the container logs that the probe is reaching the app and being
+  served correctly before switching to `info`.
+
 ### Pod spec essentials
 
 - [ ] Set `HARNESS_PG_USE_MANAGED_IDENTITY=true` explicitly in the pod environment —
