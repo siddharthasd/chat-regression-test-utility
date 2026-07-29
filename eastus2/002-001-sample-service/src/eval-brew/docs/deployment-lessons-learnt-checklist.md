@@ -130,16 +130,50 @@ PostgreSQL Flexible Server and Azure AD SSO.
 - [ ] K8s policy at many organisations prohibits plain-HTTP liveness probes.
   Uvicorn on plain HTTP causes the pod to emit
   `WARNING: Invalid HTTP request received.` on every probe cycle.
-- [ ] Generate a self-signed TLS certificate **at image build time** in the
-  Dockerfile (no runtime dependency on a cert manager):
-  ```dockerfile
-  RUN openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
-      -keyout /app/tls.key -out /app/tls.crt \
-      -subj "/CN=localhost"
-  ```
-- [ ] Start uvicorn with `--ssl-keyfile` and `--ssl-certfile` on port `8443`.
 - [ ] Set K8s liveness/readiness probes to `scheme: HTTPS` — the kubelet does not
   validate the certificate, so self-signed is sufficient.
+- [ ] Start uvicorn with `--ssl-keyfile /app/ssl/tls.key` and
+  `--ssl-certfile /app/ssl/tls.crt` on port `8443`.
+
+### Aqua scan — never embed a private key in an image layer
+
+- [ ] **Do not generate TLS certificates in a Dockerfile `RUN` step.** Aqua's
+  secret scanner finds `-----BEGIN RSA PRIVATE KEY-----` (or any private key
+  header) in image layers and fails the build with
+  _"1 occurrence of sensitive data was found in the image"_, regardless of the
+  key's purpose or certificate validity period.
+- [ ] **Move cert generation to an entrypoint script** that runs at container
+  startup. The key is written into the running container's filesystem and never
+  touches a layer:
+  ```sh
+  #!/bin/sh
+  set -e
+  # Use a mounted cert (K8s TLS secret at /app/ssl/) if available;
+  # otherwise generate a self-signed cert as a fallback.
+  if [ ! -f /app/ssl/tls.key ]; then
+      mkdir -p /app/ssl
+      openssl req -x509 -newkey rsa:2048 \
+          -keyout /app/ssl/tls.key -out /app/ssl/tls.crt \
+          -days 365 -nodes -subj "/CN=<app-name>" 2>/dev/null
+      chmod 600 /app/ssl/tls.key && chmod 644 /app/ssl/tls.crt
+  fi
+  exec uvicorn harness.ui:create_app --factory \
+      --host 0.0.0.0 --port 8443 \
+      --ssl-keyfile /app/ssl/tls.key --ssl-certfile /app/ssl/tls.crt
+  ```
+- [ ] In the Dockerfile, `COPY` the script and `RUN chmod +x` it — no key material
+  ever appears in a layer:
+  ```dockerfile
+  COPY entrypoint.sh /app/entrypoint.sh
+  RUN chmod +x /app/entrypoint.sh
+  EXPOSE 8443
+  CMD ["/app/entrypoint.sh"]
+  ```
+- [ ] The `/app/ssl/` path doubles as the mount point for a real K8s TLS secret.
+  When a proper cert is mounted there (cert-manager, Azure Key Vault CSI), the
+  entrypoint picks it up with no image rebuild required.
+- [ ] Certificate validity must be **≤ 397 days** (CA/Browser Forum limit). Aqua
+  may also flag longer periods as a separate policy violation.
 
 ### Log output stream
 
