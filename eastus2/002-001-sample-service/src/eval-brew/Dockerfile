@@ -19,15 +19,12 @@ COPY eastus2/002-001-sample-service/src/eval-brew/src/ src/
 # /docs/{guide} viewer reads markdown files from /app/docs at request time.
 COPY eastus2/002-001-sample-service/src/eval-brew/docs/ docs/
 
-# Generate a self-signed TLS certificate so uvicorn can serve HTTPS on 8443.
-# K8s httpGet probes with scheme: HTTPS do not validate the certificate, so
-# self-signed is sufficient to satisfy the policy that forbids plain-HTTP probes.
-#RUN openssl req -x509 -newkey rsa:2048 \
-#    -keyout /app/tls.key -out /app/tls.crt \
-#    -days 3650 -nodes \
-#    -subj "/CN=eval-brew"
+# entrypoint.sh serves HTTPS on 8443. It uses a cert mounted at /app/ssl/ when
+# available (e.g. a K8s TLS secret), or generates a self-signed cert at startup
+# as a fallback. Either way the private key never appears in an image layer,
+# which avoids the Aqua "sensitive data found in image" compliance failure.
+COPY eastus2/002-001-sample-service/src/eval-brew/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
 EXPOSE 8443
-CMD ["uvicorn", "harness.ui:create_app", "--factory", \
-     "--host", "0.0.0.0", "--port", "8443", \
-     "--ssl-keyfile", "/app/ssl/tls.key", "--ssl-certfile", "/app/ssl/tls.crt"]
+CMD ["/app/entrypoint.sh"]
