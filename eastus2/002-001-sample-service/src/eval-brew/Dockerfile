@@ -28,10 +28,6 @@ COPY eastus2/002-001-sample-service/src/eval-brew/docs/ docs/
 #    -subj "/CN=eval-brew"
 
 EXPOSE 8443
-CMD ["uvicorn",
-     "harness.ui:create_app",
-     "--factory",
-     "--host","0.0.0.0",
-     "--port","8443",
-     "--ssl-keyfile","/app/tls.key",
-     "--ssl-certfile","/app/tls.crt"]
+CMD ["uvicorn", "harness.ui:create_app", "--factory", \
+     "--host", "0.0.0.0", "--port", "8443", \
+     "--ssl-keyfile", "/app/ssl/tls.key", "--ssl-certfile", "/app/ssl/tls.crt"]
