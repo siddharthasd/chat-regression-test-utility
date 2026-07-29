@@ -23,7 +23,7 @@ from harness.persistence.repositories import (
     JobRepository,
     UtteranceRepository,
 )
-from harness.ui.api.job_event_bus import create_bus, get_bus
+from harness.ui.api.job_event_bus import create_bus, get_bus, remove_bus
 from harness.ui.api.schemas import (
     FailedCase,
     HeadlessJobSubmission,
@@ -53,6 +53,11 @@ def submit_job(
     cases = submission.test_cases
 
     # --- input validation (all before any DB write) ---
+    if not cases:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="test_cases must not be empty.",
+        )
     if len(cases) > _MAX_CASES:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -82,7 +87,7 @@ def submit_job(
                 detail=f"Test case '{tc.id}' has an empty input_message.",
             )
 
-    # --- connector / evaluator validation + in-flight check ---
+    # --- single session: validate + in-flight check + create (atomic TOCTOU guard) ---
     with get_session() as session:
         connector_entry = ConnectorRegistryReader(session).get(submission.connector_id)
         if connector_entry is None or connector_entry.archived:
@@ -119,8 +124,6 @@ def submit_job(
                 },
             )
 
-    # --- create job + stage utterances ---
-    with get_session() as session:
         job_repo = JobRepository(session)
         job = job_repo.create_draft(
             name=_job_name(submission),
@@ -192,6 +195,7 @@ def submit_job(
             )
             payload = {"error": error_msg, "summary": summary}
             loop.call_soon_threadsafe(b.push, "job_failed", payload)
+        loop.call_soon_threadsafe(remove_bus, jid)
 
     enqueue_job(
         job_id,
@@ -283,12 +287,13 @@ def cancel_job(job_id: str, owner_id: str, loop: asyncio.AbstractEventLoop) -> d
         else:
             repo.transition_to_cancelling(job_id)
 
-    # Push terminal event on any open stream
+    # Push terminal event on any open stream and release the bus
     bus = get_bus(job_id)
     if bus:
         loop.call_soon_threadsafe(
             bus.push, "job_failed", {"error": "Job cancelled by user", "summary": {}}
         )
+        loop.call_soon_threadsafe(remove_bus, job_id)
 
     return {"job_id": job_id, "status": "cancelled"}
 

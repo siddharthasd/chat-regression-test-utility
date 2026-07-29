@@ -31,10 +31,8 @@
   <!-- Sidebar -->
   <aside class="detail-sidebar">
     <nav class="sidebar-nav mb-3" id="sidebar-nav">
-      <a href="#section-session-overview">Session Overview</a>
-      <a href="#section-parameter-breakdown"
-         class="{{ 'muted-anchor' if (analytics_empty or skip_analytics) else '' }}">Parameter Breakdown</a>
-      <a href="#section-turn-explorer">Turn Explorer</a>
+      <a href="#" data-tab="analytics" class="active" onclick="switchTab('analytics');return false;">Analytics</a>
+      <a href="#" data-tab="results" onclick="switchTab('results');return false;">Results</a>
     </nav>
     <div class="sidebar-actions">
       <button type="button" onclick="window.print()" class="btn btn-sm btn-outline-secondary w-100">
@@ -52,6 +50,9 @@
   <!-- Main content -->
   <main class="detail-main">
 
+    <!-- TAB 1: Analytics (Overview + Parameter Breakdown) -->
+    <div id="tab-analytics" class="report-tab">
+
     <!-- SECTION 1: Session Overview -->
     <section id="section-session-overview" class="mb-4">
       <h5 class="fw-bold border-bottom pb-2 mb-3">Session Overview</h5>
@@ -61,25 +62,22 @@
         <div class="col-12 col-xl-6">
           <div class="card shadow-sm border-0 h-100">
             <div class="card-header bg-white fw-semibold small border-bottom py-2">Session Details</div>
-            <div class="card-body p-3">
-              <dl class="row row-cols-2 g-1 mb-0" style="font-size:.82rem">
-                <dt class="col-5 text-muted">Session Name</dt>
-                <dd class="col-7">{{ chat_session.session_name }}</dd>
-                <dt class="col-5 text-muted">Created</dt>
-                <dd class="col-7">{{ chat_session.created_at.strftime('%Y-%m-%d %H:%M') }}</dd>
-                <dt class="col-5 text-muted">Connector</dt>
-                <dd class="col-7">{{ chat_session.connector_name or '—' }}</dd>
-                <dt class="col-5 text-muted">Evaluator</dt>
-                <dd class="col-7">{{ chat_session.evaluator_name or '—' }}</dd>
-                <dt class="col-5 text-muted">Total Turns</dt>
-                <dd class="col-7">{{ total_turn_count }}</dd>
-                <dt class="col-5 text-muted">Failed Turns</dt>
-                <dd class="col-7">{{ failed_turn_count }}</dd>
-                {% if declared_dims %}
-                <dt class="col-5 text-muted">Dimensions</dt>
-                <dd class="col-7 small">{{ declared_dims | join(', ') }}</dd>
-                {% endif %}
-              </dl>
+            <div class="card-body p-2">
+              <table class="table table-sm table-borderless mb-0" style="font-size:.78rem">
+                <tbody>
+                  <tr><td class="text-muted ps-0 py-1" style="width:38%;white-space:nowrap">Session Name</td><td class="pe-0 py-1">{{ chat_session.session_name }}</td></tr>
+                  <tr><td class="text-muted ps-0 py-1">Created</td><td class="pe-0 py-1">{{ chat_session.created_at.strftime('%Y-%m-%d %H:%M') }}</td></tr>
+                  <tr><td class="text-muted ps-0 py-1">Connector</td><td class="pe-0 py-1">{{ chat_session.connector_name or '—' }}</td></tr>
+                  <tr><td class="text-muted ps-0 py-1">Connector Auth</td><td class="pe-0 py-1">{{ (chat_session.connector_auth_descriptor or {}).get('mode', '—') }}</td></tr>
+                  <tr><td class="text-muted ps-0 py-1">Evaluator</td><td class="pe-0 py-1">{{ chat_session.evaluator_name or '—' }}</td></tr>
+                  <tr><td class="text-muted ps-0 py-1">Eval Auth</td><td class="pe-0 py-1">{{ (chat_session.evaluator_auth_descriptor or {}).get('mode', '—') }}</td></tr>
+                  <tr><td class="text-muted ps-0 py-1">Total Turns</td><td class="pe-0 py-1">{{ total_turn_count }}</td></tr>
+                  <tr><td class="text-muted ps-0 py-1">Failed Turns</td><td class="pe-0 py-1">{{ failed_turn_count }}</td></tr>
+                  {% if declared_dims %}
+                  <tr><td class="text-muted ps-0 py-1">Dimensions</td><td class="pe-0 py-1">{{ declared_dims | join(', ') }}</td></tr>
+                  {% endif %}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
@@ -142,10 +140,10 @@
       <div class="analytics-guide" id="analytics-guide">
         <div class="d-flex justify-content-between align-items-center mb-2">
           <strong>How to read this report</strong>
-          <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2"
-                  style="font-size:.72rem" onclick="toggleGuide()">Collapse</button>
+          <button type="button" id="analytics-guide-btn" class="btn btn-sm btn-outline-secondary py-0 px-2"
+                  style="font-size:.72rem" onclick="toggleGuide()">Expand</button>
         </div>
-        <div id="analytics-guide-body">
+        <div id="analytics-guide-body" style="display:none">
           <dl class="mb-0">
             <dt>Mean</dt>
             <dd>The average score for this parameter across all turns. Your baseline answer to "how well did the chatbot perform on this dimension?"</dd>
@@ -164,6 +162,59 @@
           </dl>
         </div>
       </div>
+
+      {% if analytics.overall_stats and not analytics.overall_stats.no_data %}
+      {% set _op = analytics.overall_stats %}
+      <div class="parameter-block">
+        <h5 class="fw-semibold">Overall
+          <small class="text-muted fw-normal ms-1" style="font-size:.72rem">mean score across all dimensions per turn</small>
+        </h5>
+        <div class="stat-tile-grid">
+          {% for label, value in [
+              ('Mean', _op.mean), ('Median', _op.median),
+              ('Min', _op.min), ('Max', _op.max),
+              ('Range', _op.range), ('σ', _op.stddev)] %}
+          <div class="stat-tile">
+            <div class="tile-label">
+              {{ label }}
+              <span class="info-icon" data-bs-toggle="tooltip"
+                    data-bs-title="{{ tooltip_copy[label] }}">ⓘ</span>
+            </div>
+            <div class="tile-value">{{ "%.4f"|format(value) }}</div>
+          </div>
+          {% endfor %}
+        </div>
+        {% set _omax = namespace(v=1) %}
+        {% for b in _op.histogram_buckets %}
+          {% if b.count > _omax.v %}{% set _omax.v = b.count %}{% endif %}
+        {% endfor %}
+        <div class="histogram-wrap" title="Score Distribution (hover bars for range and count)">
+          {% if _op.histogram_buckets %}
+          {% set b0 = _op.histogram_buckets[0] %}
+          <div class="sigma-band"
+               style="left:{{ (b0.sigma_low * 100)|round(1) }}%;width:{{ ((b0.sigma_high - b0.sigma_low) * 100)|round(1) }}%;"></div>
+          {% for b in _op.histogram_buckets %}
+          <div class="histogram-bar"
+               style="height:{{ ((b.count / _omax.v * 100) if _omax.v > 0 else 0)|round(1) }}%;"
+               title="[{{ '%.3f'|format(b.raw_low) }}–{{ '%.3f'|format(b.raw_high) }}]: {{ b.count }} turn(s)"></div>
+          {% endfor %}
+          {% endif %}
+        </div>
+        <div class="histogram-xaxis">
+          {% for b in _op.histogram_buckets %}<span>{{ "%.2f"|format(b.raw_low) }}</span>{% endfor %}
+          {% if _op.histogram_buckets %}<span>{{ "%.2f"|format(_op.histogram_buckets[-1].raw_high) }}</span>{% endif %}
+        </div>
+        {% if _op.verdict_distribution %}
+        <div class="d-flex flex-wrap gap-2 mt-2 align-items-center">
+          {% for vc in _op.verdict_distribution %}
+          <span class="verdict-pill verdict-pill-{{ vc.verdict.lower() }}">
+            {{ vc.verdict }}: {{ vc.count }} ({{ vc.pct }}%)
+          </span>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
 
       {% for param in analytics.parameters %}
       <div class="parameter-block">
@@ -243,6 +294,11 @@
 
       {% endif %}{# end analytics #}
     </section>
+
+    </div><!-- /tab-analytics -->
+
+    <!-- TAB 2: Results (Turn Explorer) -->
+    <div id="tab-results" class="report-tab" style="display:none">
 
     <!-- SECTION 3: Turn Explorer -->
     <section id="section-turn-explorer">
@@ -375,47 +431,57 @@
       </div>
     </section>
 
+    </div><!-- /tab-results -->
+
   </main>
 </div>{# /detail-layout #}
 {% endblock %}
 
 {% block scripts %}
+<style>
+@media print { .report-tab { display: block !important; } }
+</style>
 <script>
 function copyPre(btn) {
   var pre = btn.closest('.artifact').querySelector('pre');
   if (pre && navigator.clipboard) navigator.clipboard.writeText(pre.textContent);
 }
 
-// Scrollspy
-(function () {
-  var sections = document.querySelectorAll('section[id]');
-  var navLinks = document.querySelectorAll('#sidebar-nav a');
-  if (!sections.length || !navLinks.length) return;
-  var io = new IntersectionObserver(function (entries) {
-    entries.forEach(function (e) {
-      if (e.isIntersecting) {
-        navLinks.forEach(function (a) { a.classList.remove('active'); });
-        var active = document.querySelector('#sidebar-nav a[href="#' + e.target.id + '"]');
-        if (active) active.classList.add('active');
-      }
-    });
-  }, { threshold: 0.15 });
-  sections.forEach(function (s) { io.observe(s); });
+// Tab switching
+function switchTab(tabName) {
+  document.querySelectorAll('.report-tab').forEach(function(t) { t.style.display = 'none'; });
+  var tab = document.getElementById('tab-' + tabName);
+  if (tab) tab.style.display = '';
+  document.querySelectorAll('#sidebar-nav a[data-tab]').forEach(function(a) {
+    a.classList.toggle('active', a.dataset.tab === tabName);
+  });
+  try { sessionStorage.setItem('report-active-tab', tabName); } catch(e) {}
+}
+
+(function() {
+  try {
+    var saved = sessionStorage.getItem('report-active-tab');
+    if (saved) switchTab(saved);
+  } catch(e) {}
 })();
 
-// Guide collapse
+// Guide collapse (sessionStorage) — collapsed by default; stores explicit expand
 function toggleGuide() {
   var body = document.getElementById('analytics-guide-body');
+  var btn = document.getElementById('analytics-guide-btn');
   if (!body) return;
-  var collapsed = body.style.display === 'none';
-  body.style.display = collapsed ? '' : 'none';
-  try { sessionStorage.setItem('chat-analytics-guide-collapsed', collapsed ? '0' : '1'); } catch (e) {}
+  var nowOpen = body.style.display === 'none';
+  body.style.display = nowOpen ? '' : 'none';
+  if (btn) btn.textContent = nowOpen ? 'Collapse' : 'Expand';
+  try { sessionStorage.setItem('chat-analytics-guide-open', nowOpen ? '1' : '0'); } catch (e) {}
 }
 (function () {
   try {
-    if (sessionStorage.getItem('chat-analytics-guide-collapsed') === '1') {
+    if (sessionStorage.getItem('chat-analytics-guide-open') === '1') {
       var b = document.getElementById('analytics-guide-body');
-      if (b) b.style.display = 'none';
+      var btn = document.getElementById('analytics-guide-btn');
+      if (b) b.style.display = '';
+      if (btn) btn.textContent = 'Collapse';
     }
   } catch (e) {}
 })();

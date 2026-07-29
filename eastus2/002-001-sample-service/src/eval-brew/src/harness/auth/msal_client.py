@@ -17,7 +17,7 @@ def _app(cfg: dict) -> msal.ConfidentialClientApplication:
     )
 
 
-_SCOPES = ["openid", "profile", "email"]
+_SCOPES = ["email"]
 
 
 def initiate_flow(cfg: dict) -> dict:

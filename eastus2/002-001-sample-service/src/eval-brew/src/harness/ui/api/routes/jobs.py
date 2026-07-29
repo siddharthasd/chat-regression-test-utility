@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 
 from harness.ui.api.auth import require_api_auth
-from harness.ui.api.job_event_bus import get_bus, remove_bus
+from harness.ui.api.job_event_bus import get_bus
 from harness.ui.api.schemas import HeadlessJobResult, HeadlessJobSubmission, HeadlessJobSubmissionResponse
 from harness.ui.api.service import cancel_job, get_job_result, submit_job
 
@@ -54,11 +54,8 @@ async def stream_job(
         )
 
     async def _event_generator() -> AsyncIterator[str]:
-        try:
-            async for event in bus.stream(cursor=0):
-                yield f"event: {event['event']}\ndata: {json.dumps(event['data'])}\n\n"
-        finally:
-            remove_bus(job_id)
+        async for event in bus.stream(cursor=0):
+            yield f"event: {event['event']}\ndata: {json.dumps(event['data'])}\n\n"
 
     return StreamingResponse(_event_generator(), media_type="text/event-stream")
 

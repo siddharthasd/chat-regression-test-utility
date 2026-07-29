@@ -72,6 +72,7 @@ _MAX_INTENT_ROWS = 20
 class RunAnalytics:
     overall_mean_score: float | None
     overall_verdict_distribution: tuple[VerdictCount, ...]
+    overall_stats: ParameterStats | None
     parameters: tuple[ParameterStats, ...]
     evaluated_count: int
     error_count: int
@@ -194,6 +195,55 @@ def _build_intent_breakdown(valid: list[ScoreEntry]) -> tuple[tuple[IntentStats,
     return tuple(stats[:_MAX_INTENT_ROWS]), total
 
 
+def _build_overall_stats(
+    valid: list[ScoreEntry],
+    overall_verdict_dist: tuple[VerdictCount, ...],
+) -> ParameterStats | None:
+    """Compute per-unit mean scores and derive an Overall ParameterStats block."""
+    scored = [e for e in valid if e.parameter_name]
+    if not scored:
+        return None
+
+    has_unit_ids = any(e.unit_id is not None for e in scored)
+    if has_unit_ids:
+        unit_scores: dict[str, list[float]] = {}
+        for e in scored:
+            if e.unit_id is None:
+                continue
+            unit_scores.setdefault(e.unit_id, []).append(e.score)
+        scores = [statistics.mean(v) for v in unit_scores.values() if v]
+    else:
+        scores = [e.score for e in scored]
+
+    if not scores:
+        return None
+
+    mn = min(scores)
+    mx = max(scores)
+    mean = statistics.mean(scores)
+    med = statistics.median(scores)
+    rng = mx - mn
+    stddev = statistics.pstdev(scores)
+    normalised = _normalise(scores)
+    histogram = _build_histogram(normalised, mn, mx, mean, stddev)
+
+    return ParameterStats(
+        parameter_name="Overall",
+        parameter_id="overall",
+        mean=mean,
+        median=med,
+        min=mn,
+        max=mx,
+        range=rng,
+        stddev=stddev,
+        histogram_buckets=histogram,
+        verdict_distribution=overall_verdict_dist if overall_verdict_dist else None,
+        verdict_coverage=None,
+        is_unexpected=False,
+        no_data=False,
+    )
+
+
 def compute_analytics(
     entries: list[ScoreEntry],
     declared_dims: list[str],
@@ -305,10 +355,12 @@ def compute_analytics(
         )
 
     intent_breakdown, intent_total_count = _build_intent_breakdown(valid)
+    overall_stats = _build_overall_stats(valid, overall_verdict_dist)
 
     return RunAnalytics(
         overall_mean_score=overall_mean_score,
         overall_verdict_distribution=overall_verdict_dist,
+        overall_stats=overall_stats,
         parameters=tuple(param_stats),
         evaluated_count=evaluated_count,
         error_count=error_count,
