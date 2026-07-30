@@ -63,7 +63,13 @@ def create_app() -> FastAPI:
     cfg = get_auth_config()
     secret_key = cfg.get("secret_key") or os.urandom(32).hex()
 
-    app = FastAPI(lifespan=_lifespan, title="AI Regression Test Harness")
+    app = FastAPI(
+        lifespan=_lifespan,
+        title="AI Regression Test Harness",
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
+    )
 
     # https_only defaults to True (production-safe); set HARNESS_SESSION_HTTPS_ONLY=false
     # in test environments where TestClient speaks plain HTTP.
