@@ -30,7 +30,7 @@ class EvaluatorRegistryReader:
     def __init__(self, session: Session) -> None:
         self._repo = EvaluationAgentRegistrationRepository(session)
 
-    def list_active(self) -> list[EvaluatorListEntry]:
+    def list_active(self, *, supports_sse: bool | None = None) -> list[EvaluatorListEntry]:
         return [
             EvaluatorListEntry(
                 evaluation_agent_id=r.evaluation_agent_id,
@@ -38,7 +38,7 @@ class EvaluatorRegistryReader:
                 description=r.description,
                 declared_scoring_dimensions=list(r.declared_scoring_dimensions),
             )
-            for r in self._repo.get_active()
+            for r in self._repo.get_active(supports_sse=supports_sse)
         ]
 
     def get(self, evaluation_agent_id: str) -> EvaluationAgentRegistration | None:

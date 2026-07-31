@@ -53,14 +53,11 @@ class ConnectorRegistrationRepository:
     def get(self, connector_id: str) -> ConnectorRegistration | None:
         return self._session.get(ConnectorRegistration, connector_id)
 
-    def get_active(self) -> list[ConnectorRegistration]:
-        return list(
-            self._session.scalars(
-                select(ConnectorRegistration).where(
-                    ConnectorRegistration.archived.is_(False)
-                )
-            )
-        )
+    def get_active(self, *, supports_sse: bool | None = None) -> list[ConnectorRegistration]:
+        stmt = select(ConnectorRegistration).where(ConnectorRegistration.archived.is_(False))
+        if supports_sse is not None:
+            stmt = stmt.where(ConnectorRegistration.supports_sse.is_(supports_sse))
+        return list(self._session.scalars(stmt))
 
     def get_auth_descriptor_decrypted(self, connector_id: str) -> dict:
         return decrypt_descriptor(self._require(connector_id).auth_descriptor)

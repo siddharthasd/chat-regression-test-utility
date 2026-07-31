@@ -30,7 +30,7 @@ class ConnectorRegistryReader:
     def __init__(self, session: Session) -> None:
         self._repo = ConnectorRegistrationRepository(session)
 
-    def list_active(self) -> list[ConnectorListEntry]:
+    def list_active(self, *, supports_sse: bool | None = None) -> list[ConnectorListEntry]:
         """Active (non-archived) connectors as minimal entries (FR-010a)."""
         return [
             ConnectorListEntry(
@@ -39,7 +39,7 @@ class ConnectorRegistryReader:
                 description=r.description,
                 expects_per_row_password=r.expects_per_row_password,
             )
-            for r in self._repo.get_active()
+            for r in self._repo.get_active(supports_sse=supports_sse)
         ]
 
     def get(self, connector_id: str) -> ConnectorRegistration | None:

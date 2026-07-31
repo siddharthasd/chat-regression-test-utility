@@ -55,14 +55,11 @@ class EvaluationAgentRegistrationRepository:
     def get(self, evaluation_agent_id: str) -> EvaluationAgentRegistration | None:
         return self._session.get(EvaluationAgentRegistration, evaluation_agent_id)
 
-    def get_active(self) -> list[EvaluationAgentRegistration]:
-        return list(
-            self._session.scalars(
-                select(EvaluationAgentRegistration).where(
-                    EvaluationAgentRegistration.archived.is_(False)
-                )
-            )
-        )
+    def get_active(self, *, supports_sse: bool | None = None) -> list[EvaluationAgentRegistration]:
+        stmt = select(EvaluationAgentRegistration).where(EvaluationAgentRegistration.archived.is_(False))
+        if supports_sse is not None:
+            stmt = stmt.where(EvaluationAgentRegistration.supports_sse.is_(supports_sse))
+        return list(self._session.scalars(stmt))
 
     def get_auth_descriptor_decrypted(self, evaluation_agent_id: str) -> dict:
         return decrypt_descriptor(self._require(evaluation_agent_id).auth_descriptor)

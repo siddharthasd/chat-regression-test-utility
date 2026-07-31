@@ -276,7 +276,7 @@ def step3(
 ):
     with get_session() as session:
         job = _require_draft_job(session, job_id)
-        entries = ConnectorRegistryReader(session).list_active()
+        entries = ConnectorRegistryReader(session).list_active(supports_sse=False)
         selected = job.connector_id
     return templates.TemplateResponse(
         request,
@@ -297,8 +297,8 @@ def step3_save(
         _require_draft_job(session, job_id)
         reader = ConnectorRegistryReader(session)
         reg = reader.get(cid) if cid else None
-        entries = reader.list_active()
-        if reg is None or reg.archived:
+        entries = reader.list_active(supports_sse=False)
+        if reg is None or reg.archived or reg.supports_sse:
             return templates.TemplateResponse(
                 request,
                 "wizard/step3.html",
@@ -337,7 +337,7 @@ def step3_save(
     test_result = run_connector_test(endpoint, descriptor, timeout, expects, sse)
     if not test_result.ok:
         with get_session() as session:
-            entries = ConnectorRegistryReader(session).list_active()
+            entries = ConnectorRegistryReader(session).list_active(supports_sse=False)
         return templates.TemplateResponse(
             request,
             "wizard/step3.html",
@@ -371,7 +371,7 @@ def step4(
 ):
     with get_session() as session:
         job = _require_draft_job(session, job_id)
-        entries = EvaluatorRegistryReader(session).list_active()
+        entries = EvaluatorRegistryReader(session).list_active(supports_sse=False)
         selected = job.evaluation_agent_id
     return templates.TemplateResponse(
         request,
@@ -392,8 +392,8 @@ def step4_save(
         _require_draft_job(session, job_id)
         reader = EvaluatorRegistryReader(session)
         reg = reader.get(agent_id) if agent_id else None
-        entries = reader.list_active()
-        if reg is None or reg.archived:
+        entries = reader.list_active(supports_sse=False)
+        if reg is None or reg.archived or reg.supports_sse:
             return templates.TemplateResponse(
                 request,
                 "wizard/step4.html",
@@ -432,7 +432,7 @@ def step4_save(
     test_result = run_evaluator_test(endpoint, descriptor, timeout, dims, sse)
     if not test_result.ok:
         with get_session() as session:
-            entries = EvaluatorRegistryReader(session).list_active()
+            entries = EvaluatorRegistryReader(session).list_active(supports_sse=False)
         return templates.TemplateResponse(
             request,
             "wizard/step4.html",
