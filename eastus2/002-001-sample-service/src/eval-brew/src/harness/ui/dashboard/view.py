@@ -47,6 +47,27 @@ def format_timestamp(dt: datetime | None, now: datetime) -> tuple[str, str]:
     return absolute, absolute
 
 
+def format_duration(started_at: datetime | None, completed_at: datetime | None) -> str:
+    """Human-readable job run duration for the jobs table.
+
+    Returns "—" when the job hasn't started, "In progress" when running,
+    and a formatted elapsed string (e.g. "2m 34s", "1h 12m") once done.
+    completed_at is also set on failed/cancelled jobs so those show a duration too.
+    """
+    if started_at is None:
+        return "—"
+    if completed_at is None:
+        return "In progress"
+    total_seconds = max(0, int((_aware(completed_at) - _aware(started_at)).total_seconds()))
+    if total_seconds < 60:
+        return f"{total_seconds}s"
+    minutes, seconds = divmod(total_seconds, 60)
+    if minutes < 60:
+        return f"{minutes}m {seconds}s"
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours}h {minutes}m"
+
+
 def _badge_class(status: str, failed: int) -> str:
     if status == JobStatus.COMPLETED.value and failed > 0:
         return "badge-completed-errors"
@@ -65,7 +86,12 @@ def row_view(job: Job, now: datetime | None = None) -> dict:
     failed = job.failed_count or 0
     created = format_timestamp(job.created_at, now)
     started = format_timestamp(job.started_at, now)
-    completed = format_timestamp(job.completed_at, now)
+    duration = format_duration(job.started_at, job.completed_at)
+    duration_seconds = (
+        int((_aware(job.completed_at) - _aware(job.started_at)).total_seconds())
+        if job.started_at and job.completed_at
+        else -1
+    )
     return {
         "job_id": job.job_id,
         "job_name": job.job_name,
@@ -75,10 +101,10 @@ def row_view(job: Job, now: datetime | None = None) -> dict:
         "created_by": job.created_by,
         "created_at": created,
         "started_at": started,
-        "completed_at": completed,
+        "duration": duration,
         "created_at_value": _aware(job.created_at),
         "started_at_value": _aware(job.started_at) if job.started_at else None,
-        "completed_at_value": _aware(job.completed_at) if job.completed_at else None,
+        "duration_seconds": duration_seconds,
         "connector_name": job.connector_name,
         "processed": job.processed_count or 0,
         "total": job.total_utterance_count,
@@ -128,7 +154,7 @@ _SORT_KEYS = {
     "created_by": lambda r: (r["created_by"] or "").lower(),
     "created_at": lambda r: r["created_at_value"],
     "started_at": lambda r: r["started_at_value"] or datetime.min.replace(tzinfo=UTC),
-    "completed_at": lambda r: r["completed_at_value"] or datetime.min.replace(tzinfo=UTC),
+    "duration": lambda r: r["duration_seconds"],
     "connector": lambda r: (r["connector_name"] or "").lower(),
     "failed_count": lambda r: r["failed_count"],
     "harness_version": lambda r: r["harness_version"] or "",

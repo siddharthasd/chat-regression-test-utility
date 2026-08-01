@@ -91,7 +91,7 @@
           <th>{{ sortlink('created_by', 'Created By') }}</th>
           <th>{{ sortlink('created_at', 'Created') }}</th>
           <th>{{ sortlink('started_at', 'Started') }}</th>
-          <th>{{ sortlink('completed_at', 'Completed') }}</th>
+          <th>{{ sortlink('duration', 'Duration') }}</th>
           <th>{{ sortlink('connector', 'Connector') }}</th>
           <th>{{ sortlink('harness_version', 'Version') }}</th>
           <th>Utterances</th>
@@ -115,7 +115,7 @@
           <td class="text-muted">{{ r.created_by }}</td>
           <td class="text-muted" title="{{ r.created_at[1] }}">{{ r.created_at[0] }}</td>
           <td class="text-muted" title="{{ r.started_at[1] }}">{{ r.started_at[0] }}</td>
-          <td class="text-muted" title="{{ r.completed_at[1] }}">{{ r.completed_at[0] }}</td>
+          <td class="text-muted">{{ r.duration }}</td>
           <td>{{ r.connector_name or '—' }}</td>
           <td class="text-muted">{{ r.harness_version }}</td>
           <td data-cell="utterances">{{ r.processed }}/{{ r.total if r.total is not none else '—' }}</td>
