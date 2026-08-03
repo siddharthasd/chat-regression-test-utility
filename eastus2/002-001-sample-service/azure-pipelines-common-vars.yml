@@ -14,7 +14,7 @@ variables:
   # SSL cert for ingress per environment
   # COMPUTE_SSLCERT_SBX: ''
   COMPUTE_SSLCERT_NPD: 'evalbrew.ciostage.pfx'  # i.e. myteamapi-api1.cionpd.pfx # FIXME
-  # COMPUTE_SSLCERT_PRD: ''  # i.e. myteamapi-api1.cioprd.pfx # FIXME
+  COMPUTE_SSLCERT_PRD: 'evalbrew.pfx'  # i.e. myteamapi-api1.cioprd.pfx # FIXME
 
   # Docker Registry per Environment
   DOCKER_REGISTRY_SBX: 'acr30882603use25ca.azurecr.io' # replace *** with the first 3 characters of your subscription ID
