@@ -19,7 +19,7 @@ variables:
   # Docker Registry per Environment
   DOCKER_REGISTRY_SBX: 'acr30882603use25ca.azurecr.io' # replace *** with the first 3 characters of your subscription ID
   DOCKER_REGISTRY_NPD: 'acr30882602use280a.azurecr.io'
-  DOCKER_REGISTRY_PRD: 'acr30882601use266c.azurecr.io'
+  DOCKER_REGISTRY_PRD: 'acr30882601kubacrprd66c.azurecr.io'
 
   # Azure Blob Storage Account and Blog Container Host Terraform State Files per logic environment
   # Please manage the state file path and make sure it's unique and not being used by other pipelines 
