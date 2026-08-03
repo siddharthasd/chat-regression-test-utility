@@ -271,7 +271,7 @@ stages:
       azureDevOpsVarGroups: []
       # azureEnvPfxCertName: ${{ variables.AZURE_PFX_CERT_NAME_PRD }}
       # azureEnvPemCertName: ${{ variables.AZURE_PEM_CERT_NAME_PRD }}
-      azureDevOpsSecureFiles: []
+      azureDevOpsSecureFiles: ['evalbrew.pfx']
       azurermBackendStorageContainerBlobKey: ${{ variables.AZURERM_BACKEND_STORAGE_CONTAINER_BLOB_KEY_PROD }}
       deployInfraTFLayerFolder: ${{ variables.DEPLOY_INFRA_TF_LAYER_FOLDER }}
       condition: '' 
