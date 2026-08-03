@@ -17,7 +17,7 @@ proxy_buffer_size = "30k"
 backend_protocol  = "HTTPS"
 
 ###### service ######
-api_1             = "evalbrewprd"   #FIXME Input the name of the docker image repo in the ACR
+api_1             = "evalbrewrelease"   #FIXME Input the name of the docker image repo in the ACR
 api_1_port        = 8443 #FIXME Input the port for the healthcheck, 8443 is default
 healthcheck_api_1 = "/health"  # Public probe path (no auth); see harness.ui /health
 replicas          = 1    #FIXME Input the number of replicas (pods)
