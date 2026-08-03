@@ -4,7 +4,7 @@ aks_cluster_name        = "aks-30882601-66c-kubclusterprd"    #FIXME Input the A
 aks_resource_group_name = "rg-30882601-prd"    #FIXME Input the resource group name of the AKS Cluster
 environment             = "prd" #Do Not Change
 acr_name                = "acr30882601kubacrprd66c"    #FIXME Input your ACR Name
-sub_environment         = "stage"    #OPTIONAL -Input your sub_environment name from the AKS Config to deploy to the namespace, leave empty to deploy to ns-<AIRID><ENV_CODE>
+sub_environment         = "prod"    #OPTIONAL -Input your sub_environment name from the AKS Config to deploy to the namespace, leave empty to deploy to ns-<AIRID><ENV_CODE>
 
 ###### ingress ######
 ssl_certificate  = "evalbrew.pfx"                                 #FIXME Input the name of the Secure File for the certificate - i.e. "mycertificate.pfx"
