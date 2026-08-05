@@ -1,4 +1,4 @@
-# Solution Architecture
+ Solution Architecture
 
 This document describes the architecture of EvalBrew for architects and developers who need
 to understand its internals, deploy it, extend it, or integrate with it.
@@ -116,7 +116,7 @@ src/harness/
 ├── persistence/               # SQLAlchemy models, repositories, migrations, encryption
 │   ├── models/                # One file per ORM model
 │   ├── repositories/          # Repository classes (query/mutation per entity)
-│   └── migrations/            # Alembic env + numbered revision scripts (0001–0007)
+│   └── migrations/            # Alembic env + numbered revision scripts (0001–0009)
 ├── remote/                    # Remote OAuth2 token acquisition for connector/evaluator auth
 └── ui/                        # FastAPI app factory + all UI domain routers
     ├── __init__.py            # create_app() — app factory
@@ -257,7 +257,7 @@ Key fields:
 PostgreSQL is the only supported database backend, used for all deployments. `DATABASE_URL` is required.
 
 Schema is managed by Alembic migrations, applied automatically at startup via
-`initialize_harness()`. The current migration head is **`0007`**.
+`initialize_harness()`. The current migration head is **`0009`**.
 
 PostgreSQL uses a standard connection pool (`pool_size=2, max_overflow=3`).
 
@@ -272,6 +272,8 @@ PostgreSQL uses a standard connection pool (`pool_size=2, max_overflow=3`).
 | `0005` | Live chat models (chat_session, chat_turn, chat_turn_result, evaluation_event) |
 | `0006` | Utterance intent field |
 | `0007` | Headless job metadata (`submission_source`, `source_system`, `product_name`, `feature_name`) |
+| `0008` | Token count columns on `evaluation_result` (`connector_token_count`, `evaluator_token_count`, `total_token_count`) — nullable; `NULL` means the service did not report usage |
+| `0009` | `active_conversation_id` column on `chat_session` — stores connector-supplied conversationId across turns for multi-turn continuity |
 
 ### Key models
 
@@ -279,11 +281,11 @@ PostgreSQL uses a standard connection pool (`pool_size=2, max_overflow=3`).
 |---|---|
 | `Job` | A test run: status, timestamps, snapshotted connector/evaluator config, submission metadata |
 | `Utterance` | One input row belonging to a job: text, test ID, row index, extra metadata |
-| `EvaluationResult` | Outcome for one row: stage, verdict, scores, full contract/result JSON |
+| `EvaluationResult` | Outcome for one row: stage, verdict, scores, full contract/result JSON; optional `connector_token_count`, `evaluator_token_count`, `total_token_count` (nullable) |
 | `ConnectorRegistration` | Registered connector: URL, auth config (credential encrypted at rest) |
 | `EvaluationAgentRegistration` | Registered evaluator: URL, auth config, declared scoring dimensions |
 | `UserRegistration` | Authorized Azure AD user: email, role (admin/user), OID, last login |
-| `ChatSession` | A live chat evaluation session (spec 017) |
+| `ChatSession` | A live chat evaluation session (spec 017); `active_conversation_id` carries the connector-supplied conversationId across turns for multi-turn continuity |
 | `ChatTurn` | One user message + chatbot response within a chat session |
 | `ChatTurnResult` | Evaluator verdict and scores for one chat turn |
 | `EvaluationEvent` | One SSE streaming event emitted by the evaluator during a chat turn |
