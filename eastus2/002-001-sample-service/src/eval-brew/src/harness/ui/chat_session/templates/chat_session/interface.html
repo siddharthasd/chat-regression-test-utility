@@ -659,6 +659,16 @@ let sessionEvaluatorTokens = {{ session_evaluator_tokens | default(0) }};
     });
 
     es.onerror = function () {
+      connectorGeneratingIndicator.style.display = 'none';
+      evaluatingIndicator.style.display = 'none';
+      if (!tokenBuffer) {
+        liveConnectorContent.className = 'p-2 border rounded bg-light';
+        liveConnectorContent.innerHTML = '<em class="text-muted small">(no response)</em>';
+      }
+      const connErrDiv = document.createElement('div');
+      connErrDiv.className = 'text-danger small mt-1';
+      connErrDiv.textContent = 'Streaming connection lost. Check your network and try again.';
+      liveConnectorPane.appendChild(connErrDiv);
       setStreamingState(false);
       es.close();
     };

@@ -4,28 +4,31 @@ from __future__ import annotations
 
 import asyncio
 import json
-from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse, Response, StreamingResponse
 
 from harness.auth.middleware import require_auth
 from harness.chat import event_bus as bus_registry
+from harness.chat.session_service import ChatSessionService
+from harness.chat.stream_orchestrator import run_turn
+from harness.chat.turn_service import TurnService
 from harness.connector_registry import ConnectorRegistryService as _ConnRegService
 from harness.connector_registry import run_test_connection as _run_conn_test
 from harness.evaluator_registry import EvaluatorRegistryService as _EvalRegService
 from harness.evaluator_registry import run_test_connection as _run_eval_test
-from harness.persistence.exceptions import HarnessKeyMismatchError
-from harness.chat.session_service import ChatSessionService
-from harness.chat.stream_orchestrator import run_turn
-from harness.chat.turn_service import TurnService
 from harness.persistence import get_session
+from harness.persistence.exceptions import HarnessKeyMismatchError
 from harness.persistence.models.connector_registration import ConnectorRegistration
 from harness.persistence.models.evaluator_registration import EvaluationAgentRegistration
 from harness.persistence.repositories.chat_session_repository import ChatSessionRepository
 from harness.ui._context import ctx
 from harness.ui._templates import templates
 from harness.ui.chat_session import view as session_view
+
+# Seconds between SSE keep-alive comments sent while waiting for bus events.
+# Prevents proxies (nginx, IIS ARR, Azure App Gateway) from closing idle connections.
+_SSE_KEEPALIVE_INTERVAL = 15
 
 router = APIRouter()
 
@@ -608,7 +611,11 @@ async def chat_turn_stream(
                 for ev in events_from_db:
                     yield f"event: {ev['event']}\ndata: {json.dumps(ev['data'])}\n\n"
 
-            return StreamingResponse(replay_stream(), media_type="text/event-stream")
+            return StreamingResponse(
+                replay_stream(),
+                media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+            )
 
     # in_progress: stream from live bus
     bus = bus_registry.get_bus(turn_id)
@@ -617,12 +624,41 @@ async def chat_turn_stream(
         if bus is None:
             yield f"event: turn_failed\ndata: {json.dumps({'turn_id': turn_id, 'error_stage': 'server_restart', 'error_details': 'Stream bus not found'})}\n\n"
             return
-        async for event in bus.stream_from(cursor=0):
-            yield f"event: {event['event']}\ndata: {json.dumps(event['data'])}\n\n"
-            if event["event"] in ("turn_complete", "turn_failed"):
-                break
 
-    return StreamingResponse(live_stream(), media_type="text/event-stream")
+        # Drain bus events into a Queue so we can interleave keep-alive SSE comments
+        # while waiting, preventing intermediate proxies from closing the idle connection.
+        q: asyncio.Queue = asyncio.Queue()
+
+        async def _drain() -> None:
+            async for ev in bus.stream_from(cursor=0):
+                await q.put(ev)
+            await q.put(None)  # terminal sentinel
+
+        drain_task = asyncio.create_task(_drain())
+        try:
+            while True:
+                try:
+                    item = await asyncio.wait_for(q.get(), timeout=_SSE_KEEPALIVE_INTERVAL)
+                except asyncio.TimeoutError:
+                    yield ": keep-alive\n\n"
+                    continue
+                if item is None:
+                    break
+                yield f"event: {item['event']}\ndata: {json.dumps(item['data'])}\n\n"
+                if item["event"] in ("turn_complete", "turn_failed"):
+                    break
+        finally:
+            drain_task.cancel()
+            try:
+                await drain_task
+            except asyncio.CancelledError:
+                pass
+
+    return StreamingResponse(
+        live_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 # ---------------------------------------------------------------------------
