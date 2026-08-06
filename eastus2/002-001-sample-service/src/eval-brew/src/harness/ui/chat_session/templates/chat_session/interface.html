@@ -181,14 +181,9 @@
 {% endblock %}
 
 {% block scripts %}
-<!-- marked.js v14 for GFM rendering -->
-<script src="https://cdn.jsdelivr.net/npm/marked@14/marked.min.js"
-        integrity="sha384-lqPzN0kmFw9t2syAMwVPM4VbAyqsz/lPyYWbb2Xt6nSPM0WPNrpSWCUBgdcAdgnC"
-        crossorigin="anonymous"></script>
-<!-- DOMPurify v3 for sanitization -->
-<script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"
-        integrity="sha384-piCcpDdJ7qVeK4Tv8Z6Hpcr3ZBIgP16TxQTPVfsLFdZ5uDgwc3Y8Ho7oUnqf12qu"
-        crossorigin="anonymous"></script>
+<!-- marked.js v14 and DOMPurify v3 served locally — avoids CDN dependency in restricted networks -->
+<script src="{{ url_for('static', path='marked.min.js') }}"></script>
+<script src="{{ url_for('static', path='purify.min.js') }}"></script>
 <script>
 const EVAL_TURNS = {{ eval_turns | tojson }};
 const TOTAL_TURNS = {{ turn_count }};

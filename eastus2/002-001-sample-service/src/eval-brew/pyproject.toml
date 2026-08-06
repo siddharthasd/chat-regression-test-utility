@@ -46,7 +46,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "harness.contract.schemas" = ["*.json"]
-"harness.ui" = ["templates/*.html", "static/*.css"]
+"harness.ui" = ["templates/*.html", "static/*.css", "static/*.js"]
 "harness.ui.dashboard" = ["templates/dashboard/*.html"]
 "harness.ui.detail" = ["templates/detail/*.html"]
 "harness.ui.connector_registry" = ["templates/connector_registry/*.html"]
