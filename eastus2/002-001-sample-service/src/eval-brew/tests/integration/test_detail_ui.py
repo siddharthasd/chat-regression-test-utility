@@ -442,3 +442,81 @@ def test_v2_verdict_in_scores_cells(client) -> None:
     body = _html(client, job_id)
     # v2 verdict rendered in the scores cells as [pass]
     assert "[pass]" in body
+
+
+# --------------------------------------------------------------------------- BL-002 Flat downloads
+
+def _completed_result_with_sources(text="Answer", sources=None):
+    return {
+        "normalized_contract": {
+            "chatbotResponse": {
+                "normalizedText": text,
+                "metadata": {"sources": sources or []},
+            }
+        },
+        "raw_chatbot_response": {"echo": text},
+        "evaluation_verdict": "pass",
+        "evaluation_scores": [
+            {"parameter_name": "relevance", "score": 0.9, "reasoning": "good", "verdict": "pass"},
+            {"parameter_name": "tone", "score": 0.8, "reasoning": "fine", "verdict": "pass"},
+        ],
+        "result_metadata": {},
+    }
+
+
+def test_download_results_flat_csv_terminal(client) -> None:
+    sources = [
+        {"url": "https://kb/1", "title": "Art1", "chunk": "c1", "scope": "hr", "documentId": "d1"},
+    ]
+    job_id = _seed(
+        dims=["relevance", "tone"],
+        rows=[{"text": "Q1", "test_id": "t1", "result": _completed_result_with_sources(sources=sources)}],
+    )
+    resp = client.get(f"/jobs/{job_id}/download-results-flat.csv")
+    assert resp.status_code == 200
+    assert "results-flat.csv" in resp.headers["Content-Disposition"]
+    header = resp.text.splitlines()[0]
+    for col in ("utteranceText", "testId", "relevance_score", "relevance_verdict",
+                "tone_score", "source1_title", "source1_url"):
+        assert col in header, f"Missing column: {col}"
+    import csv as csv_mod
+    rows = list(csv_mod.DictReader(resp.text.splitlines()))
+    assert len(rows) == 1
+    assert rows[0]["utteranceText"] == "Q1"
+    assert rows[0]["relevance_score"] == "0.9"
+    assert rows[0]["source1_title"] == "Art1"
+
+
+def test_download_results_flat_csv_running_returns_404(client) -> None:
+    job_id = _seed(status=JobStatus.RUNNING, rows=[{"text": "hi", "test_id": "t1"}])
+    assert client.get(f"/jobs/{job_id}/download-results-flat.csv").status_code == 404
+
+
+def test_download_results_flat_xlsx_terminal(client) -> None:
+    import io as _io
+    import openpyxl as _openpyxl
+    sources = [
+        {"url": "https://kb/1", "title": "Art1", "chunk": "c1", "scope": "hr", "documentId": "d1"},
+    ]
+    job_id = _seed(
+        dims=["relevance", "tone"],
+        rows=[{"text": "Q1", "test_id": "t1", "result": _completed_result_with_sources(sources=sources)}],
+    )
+    resp = client.get(f"/jobs/{job_id}/download-results-flat.xlsx")
+    assert resp.status_code == 200
+    assert "results-flat.xlsx" in resp.headers["Content-Disposition"]
+    wb = _openpyxl.load_workbook(_io.BytesIO(resp.content))
+    assert "Results (Flat)" in wb.sheetnames
+    assert "Data Dictionary" in wb.sheetnames
+    ws = wb["Results (Flat)"]
+    # header row + 1 utterance row
+    assert ws.max_row == 2
+    header_vals = [c.value for c in next(ws.iter_rows(min_row=1, max_row=1))]
+    assert "utteranceText" in header_vals
+    assert "relevance_score" in header_vals
+    assert "source1_title" in header_vals
+
+
+def test_download_results_flat_xlsx_running_returns_404(client) -> None:
+    job_id = _seed(status=JobStatus.RUNNING, rows=[{"text": "hi", "test_id": "t1"}])
+    assert client.get(f"/jobs/{job_id}/download-results-flat.xlsx").status_code == 404

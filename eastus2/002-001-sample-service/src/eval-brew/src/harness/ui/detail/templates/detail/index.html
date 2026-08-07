@@ -70,6 +70,10 @@
          class="btn btn-sm btn-outline-primary">PBI Compatible CSV Download</a>
       <a href="/jobs/{{ meta.job_id }}/download-results.xlsx"
          class="btn btn-sm btn-outline-primary">PBI Compatible XLSX Download</a>
+      <a href="/jobs/{{ meta.job_id }}/download-results-flat.csv"
+         class="btn btn-sm btn-outline-primary">Flat CSV Download</a>
+      <a href="/jobs/{{ meta.job_id }}/download-results-flat.xlsx"
+         class="btn btn-sm btn-outline-primary">Flat XLSX Download</a>
       <a href="/jobs/{{ meta.job_id }}/download-results.json"
          class="btn btn-sm btn-outline-primary">JSON Download</a>
       {% else %}
@@ -77,6 +81,10 @@
               title="Available after job completes">PBI Compatible CSV Download</button>
       <button type="button" class="btn btn-sm btn-outline-secondary" disabled
               title="Available after job completes">PBI Compatible XLSX Download</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" disabled
+              title="Available after job completes">Flat CSV Download</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" disabled
+              title="Available after job completes">Flat XLSX Download</button>
       <button type="button" class="btn btn-sm btn-outline-secondary" disabled
               title="Available after job completes">JSON Download</button>
       {% endif %}

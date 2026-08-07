@@ -11,6 +11,8 @@ import pytest
 from harness.ui.detail.view import (
     _extract_sources,
     results_csv_builder,
+    results_flat_csv_builder,
+    results_flat_xlsx_builder,
     results_json_builder,
     results_xlsx_builder,
     row_view,
@@ -298,3 +300,148 @@ def test_xlsx_filename_uses_csv_basename():
     job.source_csv_filename = "my_run.csv"
     filename, _ = results_xlsx_builder(job, _make_utterances_for_xlsx())
     assert filename == "my_run-results.xlsx"
+
+
+# ── results_flat_csv_builder ──────────────────────────────────────────────────
+
+def _make_utterances_flat(sources=None):
+    return _make_utterances_for_csv(sources=sources)
+
+
+def _make_utterances_flat_multi():
+    """Two utterances with different scores to test dynamic dim columns."""
+    sources_a = [{"url": "u1", "title": "T1", "chunk": "c1", "scope": "s", "documentId": "d1"}]
+    sources_b = [
+        {"url": "u2", "title": "T2", "chunk": "c2", "scope": "s", "documentId": "d2"},
+        {"url": "u3", "title": "T3", "chunk": "c3", "scope": "s", "documentId": "d3"},
+    ]
+
+    def _make_u(text, tid, contract, scores):
+        class FakeResult:
+            normalized_contract = contract
+            evaluation_verdict = "pass"
+            evaluation_scores = scores
+            utterance_intent = "faq"
+            error_status = None
+            error_stage = None
+
+        class FakeUtterance:
+            utterance_id = f"uid-{tid}"
+            row_index = 1
+            utterance_text = text
+            test_id = tid
+            extra_metadata = {}
+            evaluation_result = FakeResult()
+
+        return FakeUtterance()
+
+    u1 = _make_u(
+        "Q1", "t1",
+        _make_contract(sources=sources_a, normalized_text="A1"),
+        [{"parameter_name": "relevance", "score": 0.9, "verdict": "pass", "reasoning": "good"},
+         {"parameter_name": "tone", "score": 0.8, "verdict": "pass", "reasoning": "ok"}],
+    )
+    u2 = _make_u(
+        "Q2", "t2",
+        _make_contract(sources=sources_b, normalized_text="A2"),
+        [{"parameter_name": "relevance", "score": 0.5, "verdict": "fail", "reasoning": "poor"},
+         {"parameter_name": "tone", "score": 0.7, "verdict": "warn", "reasoning": "meh"}],
+    )
+    return [u1, u2]
+
+
+def test_flat_csv_one_row_per_utterance():
+    utterances = _make_utterances_flat_multi()
+    _, body = results_flat_csv_builder(_FakeJob(), utterances)
+    lines = [l for l in body.splitlines() if l]
+    assert len(lines) == 3  # header + 2 utterances
+
+
+def test_flat_csv_fixed_columns_present():
+    _, body = results_flat_csv_builder(_FakeJob(), _make_utterances_flat())
+    header = body.splitlines()[0]
+    for col in ("utteranceText", "testId", "utteranceIntent", "chatbotResponse", "overallVerdict"):
+        assert col in header
+
+
+def test_flat_csv_dimension_columns_named_correctly():
+    utterances = _make_utterances_flat_multi()
+    _, body = results_flat_csv_builder(_FakeJob(), utterances)
+    header = body.splitlines()[0]
+    for col in ("relevance_score", "relevance_verdict", "relevance_reasoning",
+                "tone_score", "tone_verdict", "tone_reasoning"):
+        assert col in header
+
+
+def test_flat_csv_source_columns_named_correctly():
+    utterances = _make_utterances_flat_multi()  # max 2 sources
+    _, body = results_flat_csv_builder(_FakeJob(), utterances)
+    header = body.splitlines()[0]
+    for col in ("source1_title", "source1_url", "source1_documentId",
+                "source1_scope", "source1_chunk",
+                "source2_title", "source2_url"):
+        assert col in header
+
+
+def test_flat_csv_no_source_columns_when_no_sources():
+    _, body = results_flat_csv_builder(_FakeJob(), _make_utterances_flat(sources=[]))
+    header = body.splitlines()[0]
+    assert "source1" not in header
+
+
+def test_flat_csv_dim_values_correct():
+    utterances = _make_utterances_flat_multi()
+    _, body = results_flat_csv_builder(_FakeJob(), utterances)
+    import csv as csv_mod
+    rows = list(csv_mod.DictReader(body.splitlines()))
+    assert rows[0]["relevance_score"] == "0.9"
+    assert rows[0]["tone_verdict"] == "pass"
+    assert rows[1]["relevance_score"] == "0.5"
+    assert rows[1]["tone_verdict"] == "warn"
+
+
+def test_flat_csv_sparse_source_cols_empty():
+    utterances = _make_utterances_flat_multi()  # u1 has 1 src, u2 has 2 srcs
+    _, body = results_flat_csv_builder(_FakeJob(), utterances)
+    import csv as csv_mod
+    rows = list(csv_mod.DictReader(body.splitlines()))
+    # u1 has only 1 source — source2_* columns should be blank
+    assert rows[0]["source2_title"] == ""
+    assert rows[0]["source2_chunk"] == ""
+    # u2 has 2 sources — both populated
+    assert rows[1]["source1_title"] == "T2"
+    assert rows[1]["source2_title"] == "T3"
+
+
+# ── results_flat_xlsx_builder ─────────────────────────────────────────────────
+
+def test_flat_xlsx_sheet_names():
+    _, body = results_flat_xlsx_builder(_FakeJob(), _make_utterances_flat())
+    wb = openpyxl.load_workbook(io.BytesIO(body))
+    assert wb.sheetnames == ["Results (Flat)", "Data Dictionary"]
+
+
+def test_flat_xlsx_header_matches_flat_csv():
+    utterances = _make_utterances_flat_multi()
+    _, csv_body = results_flat_csv_builder(_FakeJob(), utterances)
+    _, xlsx_body = results_flat_xlsx_builder(_FakeJob(), utterances)
+    csv_header = csv_body.splitlines()[0].split(",")
+    wb = openpyxl.load_workbook(io.BytesIO(xlsx_body))
+    xlsx_header = [c.value for c in next(wb["Results (Flat)"].iter_rows(min_row=1, max_row=1))]
+    assert csv_header == xlsx_header
+
+
+def test_flat_xlsx_one_row_per_utterance():
+    utterances = _make_utterances_flat_multi()
+    _, body = results_flat_xlsx_builder(_FakeJob(), utterances)
+    wb = openpyxl.load_workbook(io.BytesIO(body))
+    # header + 2 utterance rows
+    assert wb["Results (Flat)"].max_row == 3
+
+
+def test_flat_xlsx_data_dictionary_present():
+    _, body = results_flat_xlsx_builder(_FakeJob(), _make_utterances_flat())
+    wb = openpyxl.load_workbook(io.BytesIO(body))
+    ws2 = wb["Data Dictionary"]
+    first_cell = ws2.cell(1, 1).value
+    assert first_cell == "Fixed Columns"

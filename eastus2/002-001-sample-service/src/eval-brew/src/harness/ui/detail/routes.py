@@ -23,6 +23,8 @@ from harness.ui.detail import view
 from harness.ui.detail.analytics import compute_analytics
 from harness.ui.detail.view import (
     results_csv_builder,
+    results_flat_csv_builder,
+    results_flat_xlsx_builder,
     results_json_builder,
     results_xlsx_builder,
     score_entries_from_utterances,
@@ -281,6 +283,46 @@ def download_results_json(
     return Response(
         content=body,
         media_type="application/json; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/jobs/{job_id}/download-results-flat.csv")
+def download_results_flat_csv(
+    request: Request,
+    job_id: str,
+    user: dict = Depends(require_auth),
+):
+    """One-row-per-utterance flat CSV with dynamic dimension and source columns (BL-002)."""
+    with get_session() as session:
+        job = JobRepository(session).get(job_id)
+        if job is None or job.status not in _TERMINAL:
+            raise HTTPException(status_code=404)
+        utterances = UtteranceRepository(session).get_by_job_ordered(job_id)
+        filename, body = results_flat_csv_builder(job, utterances)
+    return Response(
+        content=body,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/jobs/{job_id}/download-results-flat.xlsx")
+def download_results_flat_xlsx(
+    request: Request,
+    job_id: str,
+    user: dict = Depends(require_auth),
+):
+    """One-row-per-utterance flat XLSX with dynamic dimension and source columns (BL-002)."""
+    with get_session() as session:
+        job = JobRepository(session).get(job_id)
+        if job is None or job.status not in _TERMINAL:
+            raise HTTPException(status_code=404)
+        utterances = UtteranceRepository(session).get_by_job_ordered(job_id)
+        filename, body = results_flat_xlsx_builder(job, utterances)
+    return Response(
+        content=body,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
