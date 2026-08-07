@@ -171,10 +171,11 @@ def _make_utterances_for_csv(sources=None):
 def test_csv_header_includes_source_columns():
     _, body = results_csv_builder(_FakeJob(), _make_utterances_for_csv())
     header = body.splitlines()[0]
-    for col in ("sourceIndex", "title", "url", "documentId", "scope", "chunk"):
+    for col in ("Source #", "Source Title", "Source URL", "Document ID", "Scope", "Retrieved Text"):
         assert col in header
     assert "sourceCount" not in header
     assert "retrievedSources" not in header
+    assert "sourceIndex" not in header
 
 
 def test_csv_source_count_and_json_in_data_row():
@@ -182,21 +183,21 @@ def test_csv_source_count_and_json_in_data_row():
     _, body = results_csv_builder(_FakeJob(), _make_utterances_for_csv(sources=sources))
     import csv as csv_mod
     rows = list(csv_mod.DictReader(body.splitlines()))
-    assert rows[0]["sourceIndex"] == "1"
-    assert rows[0]["title"] == "t"
-    assert rows[0]["url"] == "u"
-    assert rows[0]["documentId"] == "d"
-    assert rows[0]["scope"] == "s"
-    assert rows[0]["chunk"] == "c"
+    assert rows[0]["Source #"] == "1"
+    assert rows[0]["Source Title"] == "t"
+    assert rows[0]["Source URL"] == "u"
+    assert rows[0]["Document ID"] == "d"
+    assert rows[0]["Scope"] == "s"
+    assert rows[0]["Retrieved Text"] == "c"
 
 
 def test_csv_zero_sources():
     _, body = results_csv_builder(_FakeJob(), _make_utterances_for_csv(sources=[]))
     import csv as csv_mod
     rows = list(csv_mod.DictReader(body.splitlines()))
-    assert rows[0]["sourceIndex"] == ""
-    assert rows[0]["title"] == ""
-    assert rows[0]["chunk"] == ""
+    assert rows[0]["Source #"] == ""
+    assert rows[0]["Source Title"] == ""
+    assert rows[0]["Retrieved Text"] == ""
 
 
 # ── results_json_builder ──────────────────────────────────────────────────────
@@ -251,11 +252,12 @@ def test_xlsx_sheet1_header():
     wb = openpyxl.load_workbook(io.BytesIO(body))
     ws1 = wb["Results"]
     headers = [c.value for c in next(ws1.iter_rows(min_row=1, max_row=1))]
-    for col in ("sourceIndex", "title", "url", "documentId", "scope", "chunk"):
+    for col in ("Source #", "Source Title", "Source URL", "Document ID", "Scope", "Retrieved Text"):
         assert col in headers
     assert "sourceCount" not in headers
     assert "retrievedSources" not in headers
-    assert "utteranceText" in headers
+    assert "utteranceText" not in headers
+    assert "User Question" in headers
 
 
 def test_xlsx_sheet1_row_count_matches_scores():
@@ -360,7 +362,8 @@ def test_flat_csv_one_row_per_utterance():
 def test_flat_csv_fixed_columns_present():
     _, body = results_flat_csv_builder(_FakeJob(), _make_utterances_flat())
     header = body.splitlines()[0]
-    for col in ("utteranceText", "testId", "utteranceIntent", "chatbotResponse", "overallVerdict"):
+    for col in ("User Question", "Test Case Reference", "Intent Category",
+                "Chatbot Answer", "Overall Result"):
         assert col in header
 
 
@@ -368,8 +371,8 @@ def test_flat_csv_dimension_columns_named_correctly():
     utterances = _make_utterances_flat_multi()
     _, body = results_flat_csv_builder(_FakeJob(), utterances)
     header = body.splitlines()[0]
-    for col in ("relevance_score", "relevance_verdict", "relevance_reasoning",
-                "tone_score", "tone_verdict", "tone_reasoning"):
+    for col in ("relevance: Score (0–1)", "relevance: Result", "relevance: Justification",
+                "tone: Score (0–1)", "tone: Result", "tone: Justification"):
         assert col in header
 
 
@@ -377,16 +380,16 @@ def test_flat_csv_source_columns_named_correctly():
     utterances = _make_utterances_flat_multi()  # max 2 sources
     _, body = results_flat_csv_builder(_FakeJob(), utterances)
     header = body.splitlines()[0]
-    for col in ("source1_title", "source1_url", "source1_documentId",
-                "source1_scope", "source1_chunk",
-                "source2_title", "source2_url"):
+    for col in ("Source 1: Title", "Source 1: URL", "Source 1: Document ID",
+                "Source 1: Scope", "Source 1: Retrieved Text",
+                "Source 2: Title", "Source 2: URL"):
         assert col in header
 
 
 def test_flat_csv_no_source_columns_when_no_sources():
     _, body = results_flat_csv_builder(_FakeJob(), _make_utterances_flat(sources=[]))
     header = body.splitlines()[0]
-    assert "source1" not in header
+    assert "Source 1" not in header
 
 
 def test_flat_csv_dim_values_correct():
@@ -394,10 +397,10 @@ def test_flat_csv_dim_values_correct():
     _, body = results_flat_csv_builder(_FakeJob(), utterances)
     import csv as csv_mod
     rows = list(csv_mod.DictReader(body.splitlines()))
-    assert rows[0]["relevance_score"] == "0.9"
-    assert rows[0]["tone_verdict"] == "pass"
-    assert rows[1]["relevance_score"] == "0.5"
-    assert rows[1]["tone_verdict"] == "warn"
+    assert rows[0]["relevance: Score (0–1)"] == "0.9"
+    assert rows[0]["tone: Result"] == "pass"
+    assert rows[1]["relevance: Score (0–1)"] == "0.5"
+    assert rows[1]["tone: Result"] == "warn"
 
 
 def test_flat_csv_sparse_source_cols_empty():
@@ -405,12 +408,12 @@ def test_flat_csv_sparse_source_cols_empty():
     _, body = results_flat_csv_builder(_FakeJob(), utterances)
     import csv as csv_mod
     rows = list(csv_mod.DictReader(body.splitlines()))
-    # u1 has only 1 source — source2_* columns should be blank
-    assert rows[0]["source2_title"] == ""
-    assert rows[0]["source2_chunk"] == ""
+    # u1 has only 1 source — Source 2 columns should be blank
+    assert rows[0]["Source 2: Title"] == ""
+    assert rows[0]["Source 2: Retrieved Text"] == ""
     # u2 has 2 sources — both populated
-    assert rows[1]["source1_title"] == "T2"
-    assert rows[1]["source2_title"] == "T3"
+    assert rows[1]["Source 1: Title"] == "T2"
+    assert rows[1]["Source 2: Title"] == "T3"
 
 
 # ── results_flat_xlsx_builder ─────────────────────────────────────────────────
@@ -445,3 +448,22 @@ def test_flat_xlsx_data_dictionary_present():
     ws2 = wb["Data Dictionary"]
     first_cell = ws2.cell(1, 1).value
     assert first_cell == "Fixed Columns"
+
+
+def test_flat_csv_friendly_names_not_engineering():
+    """Engineering column names must not leak into stakeholder headers."""
+    utterances = _make_utterances_flat_multi()
+    _, body = results_flat_csv_builder(_FakeJob(), utterances)
+    header = body.splitlines()[0]
+    for bad in ("utteranceText", "testId", "overallVerdict", "utteranceIntent",
+                "chatbotResponse", "source1_title", "relevance_score"):
+        assert bad not in header, f"Engineering label leaked: {bad}"
+
+
+def test_csv_friendly_names_not_engineering():
+    """Engineering column names must not leak into long-format stakeholder headers."""
+    _, body = results_csv_builder(_FakeJob(), _make_utterances_for_csv())
+    header = body.splitlines()[0]
+    for bad in ("utteranceText", "testId", "overallVerdict", "parameterName",
+                "sourceIndex", "chatbotResponse"):
+        assert bad not in header, f"Engineering label leaked: {bad}"

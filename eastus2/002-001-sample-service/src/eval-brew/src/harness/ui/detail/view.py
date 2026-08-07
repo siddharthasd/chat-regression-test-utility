@@ -31,6 +31,59 @@ _TRUNCATE = 200
 _VERDICT_ORDER = {"fail": 0, "warn": 1, "pass": 2}
 _ERROR_STATUSES = frozenset({"failed", "cancelled"})
 
+# BL-003: stakeholder-friendly column header mapping.
+# Maps internal engineering names → display labels used in all CSV/XLSX exports.
+# Dynamic flat columns ({name}_score / source{N}_title etc.) are handled by _friendly().
+_HEADER_MAP: dict[str, str] = {
+    "utteranceText":   "User Question",
+    "testId":          "Test Case Reference",
+    "utteranceIntent": "Intent Category",
+    "chatbotResponse": "Chatbot Answer",
+    "overallVerdict":  "Overall Result",
+    "utteranceId":     "Row ID",
+    # Long-format per-dim columns
+    "parameterName":   "Dimension",
+    "score":           "Score (0–1)",
+    "verdict":         "Result",
+    "reasoning":       "Justification",
+    # Long-format and Sheet 2 source columns
+    "sourceIndex":     "Source #",
+    "title":           "Source Title",
+    "url":             "Source URL",
+    "documentId":      "Document ID",
+    "scope":           "Scope",
+    "chunk":           "Retrieved Text",
+}
+
+_SRC_FIELD_LABEL: dict[str, str] = {
+    "title":      "Title",
+    "url":        "URL",
+    "documentId": "Document ID",
+    "scope":      "Scope",
+    "chunk":      "Retrieved Text",
+}
+
+
+def _friendly(col: str) -> str:
+    """Return the stakeholder-friendly label for an internal column name."""
+    if col in _HEADER_MAP:
+        return _HEADER_MAP[col]
+    # Dynamic flat dim columns: {name}_score / {name}_verdict / {name}_reasoning
+    for suffix, label in (
+        ("_score",     ": Score (0–1)"),
+        ("_verdict",   ": Result"),
+        ("_reasoning", ": Justification"),
+    ):
+        if col.endswith(suffix):
+            return col[: -len(suffix)] + label
+    # Dynamic flat source columns: source{N}_field
+    import re as _re
+    m = _re.match(r"^source(\d+)_(\w+)$", col)
+    if m:
+        n, field = m.group(1), m.group(2)
+        return f"Source {n}: {_SRC_FIELD_LABEL.get(field, field)}"
+    return col
+
 
 def mask_descriptor(descriptor: dict | None) -> dict:
     """Copy the stored auth descriptor with secret subfields masked (FR-005). No decryption."""
@@ -296,11 +349,11 @@ def results_csv_builder(job: Job, utterances: list) -> tuple[str, str]:
 
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow(
-        ["utteranceText", "testId", "utteranceIntent", "chatbotResponse", "overallVerdict",
-         "parameterName", "score", "verdict", "reasoning",
-         "sourceIndex", "title", "url", "documentId", "scope", "chunk"]
-    )
+    writer.writerow([_friendly(c) for c in (
+        "utteranceText", "testId", "utteranceIntent", "chatbotResponse", "overallVerdict",
+        "parameterName", "score", "verdict", "reasoning",
+        "sourceIndex", "title", "url", "documentId", "scope", "chunk",
+    )])
     for u in utterances:
         result = u.evaluation_result
         contract = result.normalized_contract if result else None
@@ -387,21 +440,21 @@ def results_json_builder(job: Job, utterances: list) -> tuple[str, str]:
 
 _DICT_S1 = [
     ("Column", "Type", "Description", "Allowed values"),
-    ("utteranceText", "Text", "The user question sent to the chatbot", "Any UTF-8 string"),
-    ("testId", "Text", "Reference ID from the uploaded CSV", "Any string"),
-    ("utteranceIntent", "Text", "Intent category from the evaluator", "Evaluator-defined or blank"),
-    ("chatbotResponse", "Text", "The chatbot's plain-text reply", "Any string"),
-    ("overallVerdict", "Text", "Worst-case verdict for this utterance", "pass / warn / fail / blank"),
-    ("parameterName", "Text", "The scoring dimension being evaluated", "Evaluator-defined"),
-    ("score", "Decimal", "Numeric score for this dimension", "0.0 (worst) to 1.0 (best)"),
-    ("verdict", "Text", "Verdict for this dimension", "pass / warn / fail / blank"),
-    ("reasoning", "Text", "Evaluator's rationale for this score", "Any string"),
-    ("sourceIndex", "Integer", "1-based position of the KB source for this row; blank when no sources retrieved", "1, 2, 3, … or blank"),
-    ("title", "Text", "KB article or document title", "Any string or blank"),
-    ("url", "Text", "Direct URL to the KB article", "URL or blank"),
-    ("documentId", "Text", "Stable document identifier", "Any string or blank"),
-    ("scope", "Text", "Collection or namespace this article belongs to", "Any string or blank"),
-    ("chunk", "Text", "Full text passage retrieved as grounding context", "Any string or blank"),
+    ("User Question", "Text", "The user question sent to the chatbot", "Any UTF-8 string"),
+    ("Test Case Reference", "Text", "Reference ID from the uploaded CSV", "Any string"),
+    ("Intent Category", "Text", "Intent category from the evaluator", "Evaluator-defined or blank"),
+    ("Chatbot Answer", "Text", "The chatbot's plain-text reply", "Any string"),
+    ("Overall Result", "Text", "Worst-case verdict for this utterance", "pass / warn / fail / blank"),
+    ("Dimension", "Text", "The scoring dimension being evaluated", "Evaluator-defined"),
+    ("Score (0–1)", "Decimal", "Numeric score for this dimension", "0.0 (worst) to 1.0 (best)"),
+    ("Result", "Text", "Verdict for this dimension", "pass / warn / fail / blank"),
+    ("Justification", "Text", "Evaluator's rationale for this score", "Any string"),
+    ("Source #", "Integer", "1-based position of the KB source for this row; blank when no sources retrieved", "1, 2, 3, … or blank"),
+    ("Source Title", "Text", "KB article or document title", "Any string or blank"),
+    ("Source URL", "Text", "Direct URL to the KB article", "URL or blank"),
+    ("Document ID", "Text", "Stable document identifier", "Any string or blank"),
+    ("Scope", "Text", "Collection or namespace this article belongs to", "Any string or blank"),
+    ("Retrieved Text", "Text", "Full text passage retrieved as grounding context", "Any string or blank"),
 ]
 
 _DICT_VERDICTS = [
@@ -414,15 +467,15 @@ _DICT_VERDICTS = [
 
 _DICT_S2 = [
     ("Column", "Type", "Description"),
-    ("utteranceId", "Text", "Internal ID — joins to Sheet 1 rows for this utterance"),
-    ("testId", "Text", "Reference ID from the uploaded CSV (repeated for readability)"),
-    ("utteranceText", "Text", "The user question (repeated for readability)"),
-    ("sourceIndex", "Integer", "1-based position of this source in the retrieved list"),
-    ("title", "Text", "KB article or document title"),
-    ("url", "Text", "Direct URL to the KB article"),
-    ("documentId", "Text", "Stable document identifier"),
-    ("scope", "Text", "Collection or namespace this article belongs to"),
-    ("chunk", "Text", "Full text passage retrieved as grounding context"),
+    ("Row ID", "Text", "Internal ID — joins to Sheet 1 rows for this utterance"),
+    ("Test Case Reference", "Text", "Reference ID from the uploaded CSV (repeated for readability)"),
+    ("User Question", "Text", "The user question (repeated for readability)"),
+    ("Source #", "Integer", "1-based position of this source in the retrieved list"),
+    ("Source Title", "Text", "KB article or document title"),
+    ("Source URL", "Text", "Direct URL to the KB article"),
+    ("Document ID", "Text", "Stable document identifier"),
+    ("Scope", "Text", "Collection or namespace this article belongs to"),
+    ("Retrieved Text", "Text", "Full text passage retrieved as grounding context"),
 ]
 
 
@@ -493,19 +546,19 @@ def results_xlsx_builder(job: Job, utterances: list) -> tuple[str, bytes]:
     # ── Sheet 1: Results ──────────────────────────────────────────────────────
     ws1 = wb.create_sheet("Results")
     _set_widths(ws1, [40, 15, 20, 40, 15, 20, 10, 12, 40, 12, 30, 40, 20, 15, 60])
-    _header(ws1, [
+    _header(ws1, [_friendly(c) for c in (
         "utteranceText", "testId", "utteranceIntent", "chatbotResponse", "overallVerdict",
         "parameterName", "score", "verdict", "reasoning",
         "sourceIndex", "title", "url", "documentId", "scope", "chunk",
-    ])
+    )])
 
     # ── Sheet 2: Retrieved Sources ────────────────────────────────────────────
     ws2 = wb.create_sheet("Retrieved Sources")
     _set_widths(ws2, [20, 15, 40, 12, 30, 40, 20, 15, 60])
-    _header(ws2, [
+    _header(ws2, [_friendly(c) for c in (
         "utteranceId", "testId", "utteranceText",
         "sourceIndex", "title", "url", "documentId", "scope", "chunk",
-    ])
+    )])
 
     for u in utterances:
         result = u.evaluation_result
@@ -631,7 +684,7 @@ def _flat_header(dim_names: list[str], max_sources: int) -> list[str]:
             f"source{i}_title", f"source{i}_url", f"source{i}_documentId",
             f"source{i}_scope", f"source{i}_chunk",
         ])
-    return fixed + dim_cols + src_cols
+    return [_friendly(c) for c in fixed + dim_cols + src_cols]
 
 
 def results_flat_csv_builder(job: Job, utterances: list) -> tuple[str, str]:
@@ -652,27 +705,27 @@ def results_flat_csv_builder(job: Job, utterances: list) -> tuple[str, str]:
 
 _FLAT_DICT_FIXED = [
     ("Column", "Type", "Description"),
-    ("utteranceText", "Text", "The user question sent to the chatbot"),
-    ("testId", "Text", "Reference ID from the uploaded CSV"),
-    ("utteranceIntent", "Text", "Intent category from the evaluator"),
-    ("chatbotResponse", "Text", "The chatbot's plain-text reply"),
-    ("overallVerdict", "Text", "Worst-case verdict across all dimensions (pass / warn / fail)"),
+    ("User Question", "Text", "The user question sent to the chatbot"),
+    ("Test Case Reference", "Text", "Reference ID from the uploaded CSV"),
+    ("Intent Category", "Text", "Intent category from the evaluator"),
+    ("Chatbot Answer", "Text", "The chatbot's plain-text reply"),
+    ("Overall Result", "Text", "Worst-case verdict across all dimensions (pass / warn / fail)"),
 ]
 
 _FLAT_DICT_DIMS = [
     ("Pattern", "Type", "Description"),
-    ("{name}_score", "Decimal", "Numeric score for the named dimension (0.0 worst — 1.0 best)"),
-    ("{name}_verdict", "Text", "Verdict for the named dimension (pass / warn / fail / blank)"),
-    ("{name}_reasoning", "Text", "Evaluator rationale for the named dimension score"),
+    ("{name}: Score (0–1)", "Decimal", "Numeric score for the named dimension (0.0 worst — 1.0 best)"),
+    ("{name}: Result", "Text", "Verdict for the named dimension (pass / warn / fail / blank)"),
+    ("{name}: Justification", "Text", "Evaluator rationale for the named dimension score"),
 ]
 
 _FLAT_DICT_SRCS = [
     ("Pattern", "Type", "Description"),
-    ("source{N}_title", "Text", "KB article or document title for source N"),
-    ("source{N}_url", "Text", "Direct URL to the KB article for source N"),
-    ("source{N}_documentId", "Text", "Stable document identifier for source N"),
-    ("source{N}_scope", "Text", "Collection or namespace for source N"),
-    ("source{N}_chunk", "Text", "Full text passage retrieved as grounding context for source N"),
+    ("Source {N}: Title", "Text", "KB article or document title for source N"),
+    ("Source {N}: URL", "Text", "Direct URL to the KB article for source N"),
+    ("Source {N}: Document ID", "Text", "Stable document identifier for source N"),
+    ("Source {N}: Scope", "Text", "Collection or namespace for source N"),
+    ("Source {N}: Retrieved Text", "Text", "Full text passage retrieved as grounding context for source N"),
 ]
 
 

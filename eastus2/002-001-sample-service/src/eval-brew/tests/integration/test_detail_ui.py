@@ -129,8 +129,9 @@ def test_download_results_csv_terminal(client) -> None:
     text = resp.text
     header = text.splitlines()[0]
     assert header == (
-        "utteranceText,testId,utteranceIntent,chatbotResponse,overallVerdict,"
-        "parameterName,score,verdict,reasoning,sourceIndex,title,url,documentId,scope,chunk"
+        "User Question,Test Case Reference,Intent Category,Chatbot Answer,Overall Result,"
+        "Dimension,Score (0–1),Result,Justification,"
+        "Source #,Source Title,Source URL,Document ID,Scope,Retrieved Text"
     )
     assert "password" not in text
     assert "results.csv" in resp.headers["Content-Disposition"]
@@ -476,15 +477,16 @@ def test_download_results_flat_csv_terminal(client) -> None:
     assert resp.status_code == 200
     assert "results-flat.csv" in resp.headers["Content-Disposition"]
     header = resp.text.splitlines()[0]
-    for col in ("utteranceText", "testId", "relevance_score", "relevance_verdict",
-                "tone_score", "source1_title", "source1_url"):
+    for col in ("User Question", "Test Case Reference",
+                "relevance: Score (0–1)", "relevance: Result",
+                "tone: Score (0–1)", "Source 1: Title", "Source 1: URL"):
         assert col in header, f"Missing column: {col}"
     import csv as csv_mod
     rows = list(csv_mod.DictReader(resp.text.splitlines()))
     assert len(rows) == 1
-    assert rows[0]["utteranceText"] == "Q1"
-    assert rows[0]["relevance_score"] == "0.9"
-    assert rows[0]["source1_title"] == "Art1"
+    assert rows[0]["User Question"] == "Q1"
+    assert rows[0]["relevance: Score (0–1)"] == "0.9"
+    assert rows[0]["Source 1: Title"] == "Art1"
 
 
 def test_download_results_flat_csv_running_returns_404(client) -> None:
@@ -512,9 +514,9 @@ def test_download_results_flat_xlsx_terminal(client) -> None:
     # header row + 1 utterance row
     assert ws.max_row == 2
     header_vals = [c.value for c in next(ws.iter_rows(min_row=1, max_row=1))]
-    assert "utteranceText" in header_vals
-    assert "relevance_score" in header_vals
-    assert "source1_title" in header_vals
+    assert "User Question" in header_vals
+    assert "relevance: Score (0–1)" in header_vals
+    assert "Source 1: Title" in header_vals
 
 
 def test_download_results_flat_xlsx_running_returns_404(client) -> None:
