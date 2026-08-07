@@ -93,6 +93,22 @@ def test_extract_sources_non_list_value_returns_empty():
     assert _extract_sources(contract) == []
 
 
+def test_extract_sources_strips_non_http_url():
+    """javascript: and other non-http(s) URLs must be sanitised to '' (XSS prevention)."""
+    bad_urls = ["javascript:alert(1)", "data:text/html,hi", "vbscript:x", "ftp://x", "u"]
+    for bad_url in bad_urls:
+        result = _extract_sources(_make_contract(sources=[
+            {"url": bad_url, "title": "T", "chunk": "c", "scope": "s", "documentId": "d"}
+        ]))
+        assert result[0]["url"] == "", f"expected empty url for {bad_url!r}"
+
+    for good_url in ["https://example.com", "http://localhost/path"]:
+        result = _extract_sources(_make_contract(sources=[
+            {"url": good_url, "title": "T", "chunk": "c", "scope": "s", "documentId": "d"}
+        ]))
+        assert result[0]["url"] == good_url
+
+
 def test_extract_sources_chunk_short_truncated():
     long_chunk = "x" * 201
     contract = _make_contract(sources=[
@@ -179,13 +195,13 @@ def test_csv_header_includes_source_columns():
 
 
 def test_csv_source_count_and_json_in_data_row():
-    sources = [{"url": "u", "title": "t", "chunk": "c", "scope": "s", "documentId": "d"}]
+    sources = [{"url": "https://kb.example.com/u", "title": "t", "chunk": "c", "scope": "s", "documentId": "d"}]
     _, body = results_csv_builder(_FakeJob(), _make_utterances_for_csv(sources=sources))
     import csv as csv_mod
     rows = list(csv_mod.DictReader(body.splitlines()))
     assert rows[0]["Source #"] == "1"
     assert rows[0]["Source Title"] == "t"
-    assert rows[0]["Source URL"] == "u"
+    assert rows[0]["Source URL"] == "https://kb.example.com/u"
     assert rows[0]["Document ID"] == "d"
     assert rows[0]["Scope"] == "s"
     assert rows[0]["Retrieved Text"] == "c"

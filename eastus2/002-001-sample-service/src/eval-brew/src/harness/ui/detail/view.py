@@ -10,12 +10,14 @@ from __future__ import annotations
 import csv
 import io
 import json
+import re
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import openpyxl
 from openpyxl.cell.cell import WriteOnlyCell
 from openpyxl.styles import Font, PatternFill
+from openpyxl.utils import get_column_letter
 
 from harness.persistence.enums import JobStatus
 from harness.ui.dashboard.view import format_timestamp
@@ -63,6 +65,29 @@ _SRC_FIELD_LABEL: dict[str, str] = {
     "chunk":      "Retrieved Text",
 }
 
+# Module-level XLSX style singletons — created once, reused across all builders.
+_BOLD = Font(bold=True)
+_FILL = PatternFill("solid", fgColor="DDEEFF")
+_SECTION_FONT = Font(bold=True, size=12)
+
+
+def _set_ws_widths(ws, widths: list[int]) -> None:
+    """Set column widths on a write-only worksheet."""
+    for i, w in enumerate(widths, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+
+
+def _write_header_row(ws, values: list, fill: bool = False) -> None:
+    """Append a bold (optionally filled) header row to a write-only worksheet."""
+    cells = []
+    for v in values:
+        c = WriteOnlyCell(ws, value=v)
+        c.font = _BOLD
+        if fill:
+            c.fill = _FILL
+        cells.append(c)
+    ws.append(cells)
+
 
 def _friendly(col: str) -> str:
     """Return the stakeholder-friendly label for an internal column name."""
@@ -77,8 +102,7 @@ def _friendly(col: str) -> str:
         if col.endswith(suffix):
             return col[: -len(suffix)] + label
     # Dynamic flat source columns: source{N}_field
-    import re as _re
-    m = _re.match(r"^source(\d+)_(\w+)$", col)
+    m = re.match(r"^source(\d+)_(\w+)$", col)
     if m:
         n, field = m.group(1), m.group(2)
         return f"Source {n}: {_SRC_FIELD_LABEL.get(field, field)}"
@@ -166,8 +190,11 @@ def _extract_sources(contract: dict | None) -> list[dict]:
         if not isinstance(s, dict):
             continue
         chunk = s.get("chunk") or ""
+        url = s.get("url") or ""
+        if url and not url.startswith(("http://", "https://")):
+            url = ""
         result.append({
-            "url": s.get("url") or "",
+            "url": url,
             "title": s.get("title") or "",
             "chunk": chunk,
             "chunk_short": chunk[:_TRUNCATE] + "…" if len(chunk) > _TRUNCATE else chunk,
@@ -175,6 +202,48 @@ def _extract_sources(contract: dict | None) -> list[dict]:
             "documentId": s.get("documentId") or "",
         })
     return result
+
+
+def _long_format_rows(utterances):
+    """Yield one row list per (utterance × dimension × source) cross-product.
+
+    Used by both results_csv_builder and results_xlsx_builder (Sheet 1) to
+    eliminate duplicated cross-product logic between the two builders.
+    """
+    for u in utterances:
+        result = u.evaluation_result
+        contract = result.normalized_contract if result else None
+        response_text = (
+            (contract.get("chatbotResponse") or {}).get("normalizedText") or ""
+            if contract else ""
+        )
+        overall_verdict = (result.evaluation_verdict if result else None) or ""
+        intent = (result.utterance_intent if result else None) or ""
+        scores = (result.evaluation_scores or []) if result else []
+        sources = _extract_sources(contract)
+
+        dim_rows: list[tuple] = []
+        for s in scores:
+            if isinstance(s, dict):
+                dim_rows.append((
+                    s.get("parameter_name", ""), s.get("score", ""),
+                    s.get("verdict") or "", s.get("reasoning", ""),
+                ))
+        if not dim_rows:
+            dim_rows = [("", "", "", "")]
+
+        src_rows = list(enumerate(sources, start=1)) if sources else [(0, None)]
+
+        for dim in dim_rows:
+            for idx, src in src_rows:
+                src_fields = (
+                    ["", "", "", "", "", ""] if src is None
+                    else [idx, src["title"], src["url"], src["documentId"], src["scope"], src["chunk"]]
+                )
+                yield [
+                    u.utterance_text, u.test_id or "", intent, response_text, overall_verdict,
+                    *dim, *src_fields,
+                ]
 
 
 def _score_cells(result, declared_dims: list[str]) -> list[dict]:
@@ -354,39 +423,8 @@ def results_csv_builder(job: Job, utterances: list) -> tuple[str, str]:
         "parameterName", "score", "verdict", "reasoning",
         "sourceIndex", "title", "url", "documentId", "scope", "chunk",
     )])
-    for u in utterances:
-        result = u.evaluation_result
-        contract = result.normalized_contract if result else None
-        response_text = ""
-        if contract:
-            response_text = (contract.get("chatbotResponse") or {}).get("normalizedText") or ""
-        overall_verdict = (result.evaluation_verdict if result else None) or ""
-        intent = (result.utterance_intent if result else None) or ""
-        scores = (result.evaluation_scores or []) if result else []
-        sources = _extract_sources(contract)
-
-        dim_rows: list[tuple] = []
-        for s in scores:
-            if isinstance(s, dict):
-                dim_rows.append((
-                    s.get("parameter_name", ""), s.get("score", ""),
-                    s.get("verdict") or "", s.get("reasoning", ""),
-                ))
-        if not dim_rows:
-            dim_rows = [("", "", "", "")]
-
-        src_rows = list(enumerate(sources, start=1)) if sources else [(0, None)]
-
-        for dim in dim_rows:
-            for idx, src in src_rows:
-                src_fields = (
-                    ["", "", "", "", "", ""] if src is None
-                    else [idx, src["title"], src["url"], src["documentId"], src["scope"], src["chunk"]]
-                )
-                writer.writerow([
-                    u.utterance_text, u.test_id or "", intent, response_text, overall_verdict,
-                    *dim, *src_fields,
-                ])
+    for row in _long_format_rows(utterances):
+        writer.writerow(row)
     return filename, buf.getvalue()
 
 
@@ -480,40 +518,27 @@ _DICT_S2 = [
 
 
 def _write_data_dictionary(ws) -> None:
-    _section_font = Font(bold=True, size=12)
-    _bold = Font(bold=True)
-    _fill = PatternFill("solid", fgColor="DDEEFF")
-
     def _section(title: str) -> None:
         c = WriteOnlyCell(ws, value=title)
-        c.font = _section_font
+        c.font = _SECTION_FONT
         ws.append([c])
-
-    def _col_header(values) -> None:
-        cells = []
-        for v in values:
-            c = WriteOnlyCell(ws, value=v)
-            c.font = _bold
-            c.fill = _fill
-            cells.append(c)
-        ws.append(cells)
 
     _section("Sheet 1 — Results: Column Definitions")
     ws.append([])
     for row in _DICT_S1:
-        _col_header(row) if row[0] == "Column" else ws.append(list(row))
+        _write_header_row(ws, row, fill=True) if row[0] == "Column" else ws.append(list(row))
 
     ws.append([])
     _section("Verdict Value Definitions")
     ws.append([])
     for row in _DICT_VERDICTS:
-        _col_header(row) if row[0] == "Verdict value" else ws.append(list(row))
+        _write_header_row(ws, row, fill=True) if row[0] == "Verdict value" else ws.append(list(row))
 
     ws.append([])
     _section("Sheet 2 — Retrieved Sources: Column Definitions")
     ws.append([])
     for row in _DICT_S2:
-        _col_header(row) if row[0] == "Column" else ws.append(list(row))
+        _write_header_row(ws, row, fill=True) if row[0] == "Column" else ws.append(list(row))
 
 
 def results_xlsx_builder(job: Job, utterances: list) -> tuple[str, bytes]:
@@ -522,31 +547,15 @@ def results_xlsx_builder(job: Job, utterances: list) -> tuple[str, bytes]:
     Uses openpyxl write_only=True so rows are streamed to the ZIP buffer without
     ever holding cell objects in RAM — safe for large jobs (2000+ utterances).
     """
-    from openpyxl.utils import get_column_letter
-
     base = (job.source_csv_filename or f"job-{job.job_id[:8]}").rsplit(".csv", 1)[0]
     filename = f"{base}-results.xlsx"
-
-    _bold = Font(bold=True)
-
-    def _header(ws, values: list[str]) -> None:
-        cells = []
-        for v in values:
-            c = WriteOnlyCell(ws, value=v)
-            c.font = _bold
-            cells.append(c)
-        ws.append(cells)
-
-    def _set_widths(ws, widths: list[int]) -> None:
-        for i, w in enumerate(widths, start=1):
-            ws.column_dimensions[get_column_letter(i)].width = w
 
     wb = openpyxl.Workbook(write_only=True)
 
     # ── Sheet 1: Results ──────────────────────────────────────────────────────
     ws1 = wb.create_sheet("Results")
-    _set_widths(ws1, [40, 15, 20, 40, 15, 20, 10, 12, 40, 12, 30, 40, 20, 15, 60])
-    _header(ws1, [_friendly(c) for c in (
+    _set_ws_widths(ws1, [40, 15, 20, 40, 15, 20, 10, 12, 40, 12, 30, 40, 20, 15, 60])
+    _write_header_row(ws1, [_friendly(c) for c in (
         "utteranceText", "testId", "utteranceIntent", "chatbotResponse", "overallVerdict",
         "parameterName", "score", "verdict", "reasoning",
         "sourceIndex", "title", "url", "documentId", "scope", "chunk",
@@ -554,47 +563,19 @@ def results_xlsx_builder(job: Job, utterances: list) -> tuple[str, bytes]:
 
     # ── Sheet 2: Retrieved Sources ────────────────────────────────────────────
     ws2 = wb.create_sheet("Retrieved Sources")
-    _set_widths(ws2, [20, 15, 40, 12, 30, 40, 20, 15, 60])
-    _header(ws2, [_friendly(c) for c in (
+    _set_ws_widths(ws2, [20, 15, 40, 12, 30, 40, 20, 15, 60])
+    _write_header_row(ws2, [_friendly(c) for c in (
         "utteranceId", "testId", "utteranceText",
         "sourceIndex", "title", "url", "documentId", "scope", "chunk",
     )])
 
+    for row in _long_format_rows(utterances):
+        ws1.append(row)
+
     for u in utterances:
         result = u.evaluation_result
         contract = result.normalized_contract if result else None
-        response_text = ""
-        if contract:
-            response_text = (contract.get("chatbotResponse") or {}).get("normalizedText") or ""
-        overall_verdict = (result.evaluation_verdict if result else None) or ""
-        intent = (result.utterance_intent if result else None) or ""
-        sources = _extract_sources(contract)
-        scores = (result.evaluation_scores or []) if result else []
-
-        dim_rows: list[tuple] = []
-        for s in scores:
-            if isinstance(s, dict):
-                dim_rows.append((
-                    s.get("parameter_name", ""), s.get("score", ""),
-                    s.get("verdict") or "", s.get("reasoning", ""),
-                ))
-        if not dim_rows:
-            dim_rows = [("", "", "", "")]
-
-        src_rows = list(enumerate(sources, start=1)) if sources else [(0, None)]
-
-        for dim in dim_rows:
-            for idx, src in src_rows:
-                src_fields = (
-                    ["", "", "", "", "", ""] if src is None
-                    else [idx, src["title"], src["url"], src["documentId"], src["scope"], src["chunk"]]
-                )
-                ws1.append([
-                    u.utterance_text, u.test_id or "", intent, response_text, overall_verdict,
-                    *dim, *src_fields,
-                ])
-
-        for idx, src in enumerate(sources, start=1):
+        for idx, src in enumerate(_extract_sources(contract), start=1):
             ws2.append([
                 str(u.utterance_id), u.test_id or "", u.utterance_text,
                 idx, src["title"], src["url"], src["documentId"], src["scope"], src["chunk"],
@@ -602,7 +583,7 @@ def results_xlsx_builder(job: Job, utterances: list) -> tuple[str, bytes]:
 
     # ── Sheet 3: Data Dictionary ──────────────────────────────────────────────
     ws3 = wb.create_sheet("Data Dictionary")
-    _set_widths(ws3, [35, 15, 65, 40])
+    _set_ws_widths(ws3, [35, 15, 65, 40])
     _write_data_dictionary(ws3)
 
     buf = io.BytesIO()
@@ -611,14 +592,15 @@ def results_xlsx_builder(job: Job, utterances: list) -> tuple[str, bytes]:
     return filename, buf.read()
 
 
-def _flat_schema(utterances: list) -> tuple[list[str], int]:
-    """Pass 1: collect ordered unique dimension names and max source count.
+def _flat_schema(utterances: list) -> tuple[list[str], int, list[list[dict]]]:
+    """Pass 1: collect ordered unique dimension names, max source count, and per-utterance sources.
 
-    Returns (dim_names, max_sources). Called by both flat builders so the
-    two-pass scan is not duplicated.
+    Returns (dim_names, max_sources, sources_cache) so flat builders avoid a
+    second call to _extract_sources per utterance.
     """
     dim_names: list[str] = []
     max_sources = 0
+    sources_cache: list[list[dict]] = []
     for u in utterances:
         result = u.evaluation_result
         scores = (result.evaluation_scores or []) if result else []
@@ -628,18 +610,20 @@ def _flat_schema(utterances: list) -> tuple[list[str], int]:
                 if name and name not in dim_names:
                     dim_names.append(name)
         contract = result.normalized_contract if result else None
-        n = len(_extract_sources(contract))
-        if n > max_sources:
-            max_sources = n
-    return dim_names, max_sources
+        srcs = _extract_sources(contract)
+        sources_cache.append(srcs)
+        if len(srcs) > max_sources:
+            max_sources = len(srcs)
+    return dim_names, max_sources, sources_cache
 
 
 def _flat_row(
     u,
     dim_names: list[str],
     max_sources: int,
+    sources: list[dict],
 ) -> list:
-    """Build a single flat row for one utterance."""
+    """Build a single flat row for one utterance. sources must be pre-extracted."""
     result = u.evaluation_result
     contract = result.normalized_contract if result else None
     response_text = ""
@@ -654,8 +638,6 @@ def _flat_row(
             name = s.get("parameter_name") or ""
             if name:
                 scores_by_dim[name] = s
-
-    sources = _extract_sources(contract)
 
     row: list = [u.utterance_text, u.test_id or "", intent, response_text, overall_verdict]
 
@@ -692,14 +674,14 @@ def results_flat_csv_builder(job: Job, utterances: list) -> tuple[str, str]:
     base = (job.source_csv_filename or f"job-{job.job_id[:8]}").rsplit(".csv", 1)[0]
     filename = f"{base}-results-flat.csv"
 
-    dim_names, max_sources = _flat_schema(utterances)
+    dim_names, max_sources, sources_cache = _flat_schema(utterances)
     header = _flat_header(dim_names, max_sources)
 
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow(header)
-    for u in utterances:
-        writer.writerow(_flat_row(u, dim_names, max_sources))
+    for u, sources in zip(utterances, sources_cache):
+        writer.writerow(_flat_row(u, dim_names, max_sources, sources))
     return filename, buf.getvalue()
 
 
@@ -731,29 +713,11 @@ _FLAT_DICT_SRCS = [
 
 def results_flat_xlsx_builder(job: Job, utterances: list) -> tuple[str, bytes]:
     """Two-sheet flat XLSX (write-only): Results (Flat) / Data Dictionary (BL-002)."""
-    from openpyxl.utils import get_column_letter
-
     base = (job.source_csv_filename or f"job-{job.job_id[:8]}").rsplit(".csv", 1)[0]
     filename = f"{base}-results-flat.xlsx"
 
-    dim_names, max_sources = _flat_schema(utterances)
+    dim_names, max_sources, sources_cache = _flat_schema(utterances)
     header = _flat_header(dim_names, max_sources)
-
-    _bold = Font(bold=True)
-    _fill = PatternFill("solid", fgColor="DDEEFF")
-    _section_font = Font(bold=True, size=12)
-
-    def _header_row(ws, values: list[str]) -> None:
-        cells = []
-        for v in values:
-            c = WriteOnlyCell(ws, value=v)
-            c.font = _bold
-            cells.append(c)
-        ws.append(cells)
-
-    def _set_widths(ws, widths: list[int]) -> None:
-        for i, w in enumerate(widths, start=1):
-            ws.column_dimensions[get_column_letter(i)].width = w
 
     wb = openpyxl.Workbook(write_only=True)
 
@@ -762,45 +726,36 @@ def results_flat_xlsx_builder(job: Job, utterances: list) -> tuple[str, bytes]:
     fixed_widths = [40, 15, 20, 40, 15]
     dim_widths = [10, 12, 40] * len(dim_names)
     src_widths = [30, 40, 20, 15, 60] * max_sources
-    _set_widths(ws1, fixed_widths + dim_widths + src_widths)
-    _header_row(ws1, header)
-    for u in utterances:
-        ws1.append(_flat_row(u, dim_names, max_sources))
+    _set_ws_widths(ws1, fixed_widths + dim_widths + src_widths)
+    _write_header_row(ws1, header)
+    for u, sources in zip(utterances, sources_cache):
+        ws1.append(_flat_row(u, dim_names, max_sources, sources))
 
     # ── Sheet 2: Data Dictionary ──────────────────────────────────────────────
     ws2 = wb.create_sheet("Data Dictionary")
-    _set_widths(ws2, [30, 15, 65])
+    _set_ws_widths(ws2, [30, 15, 65])
 
     def _section(title: str) -> None:
         c = WriteOnlyCell(ws2, value=title)
-        c.font = _section_font
+        c.font = _SECTION_FONT
         ws2.append([c])
-
-    def _col_header(values) -> None:
-        cells = []
-        for v in values:
-            c = WriteOnlyCell(ws2, value=v)
-            c.font = _bold
-            c.fill = _fill
-            cells.append(c)
-        ws2.append(cells)
 
     _section("Fixed Columns")
     ws2.append([])
     for row in _FLAT_DICT_FIXED:
-        _col_header(row) if row[0] == "Column" else ws2.append(list(row))
+        _write_header_row(ws2, row, fill=True) if row[0] == "Column" else ws2.append(list(row))
 
     ws2.append([])
     _section("Dimension Columns  —  one group per evaluated parameter: {name}_score / {name}_verdict / {name}_reasoning")
     ws2.append([])
     for row in _FLAT_DICT_DIMS:
-        _col_header(row) if row[0] == "Pattern" else ws2.append(list(row))
+        _write_header_row(ws2, row, fill=True) if row[0] == "Pattern" else ws2.append(list(row))
 
     ws2.append([])
     _section("Source Columns  —  one group per retrieved KB source: source{N}_title / source{N}_url / …")
     ws2.append([])
     for row in _FLAT_DICT_SRCS:
-        _col_header(row) if row[0] == "Pattern" else ws2.append(list(row))
+        _write_header_row(ws2, row, fill=True) if row[0] == "Pattern" else ws2.append(list(row))
 
     buf = io.BytesIO()
     wb.save(buf)

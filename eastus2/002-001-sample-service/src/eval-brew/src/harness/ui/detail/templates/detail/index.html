@@ -586,7 +586,8 @@
                     {% if r.error_status %}
                       <p class="text-danger small">Error: {{ r.error_status }} / {{ r.error_stage }}: {{ r.error_details }}</p>
                     {% endif %}
-                    <!-- Retrieved Context (BL-001) -->
+                    <!-- Retrieved Context (BL-001): only shown when sources were retrieved -->
+                    {% if r.source_count > 0 and not r.error_status %}
                     <div class="mb-3">
                       <strong class="small">Retrieved Context</strong>
                       <span class="badge bg-secondary ms-1" style="font-size:.7rem">
@@ -629,6 +630,7 @@
                       <p class="text-muted small mt-1 mb-0">No context retrieved</p>
                       {% endif %}
                     </div>
+                    {% endif %}
                     {% for label, artifact in [
                         ('Raw chatbot response', r.raw_chatbot_response),
                         ('Normalized contract', r.normalized_contract),
