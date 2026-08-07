@@ -1,0 +1,1179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EvalBrew — Design Documentation</title>
+<style>
+:root {
+  --color-purple-deep:  #460073;
+  --color-purple-dark:  #7500C0;
+  --color-primary:      #A100FF;
+  --color-purple-mid:   #C2A3FF;
+  --color-purple-light: #E6DCFF;
+  --color-black:        #000000;
+  --color-gray:         #818180;
+  --color-gray-light:   #CFCFCF;
+  --color-neutral-bg:   #F1F1EF;
+  --color-white:        #FFFFFF;
+  --color-primary-bg:   #E6DCFF;
+  --color-surface:      #FFFFFF;
+  --color-border:       #CFCFCF;
+  --color-text:         #000000;
+  --color-text-muted:   #818180;
+  --color-warning-bg:   #FEF3E2;
+  --color-warning:      #D97706;
+  --color-error-bg:     #FEF0EF;
+  --color-error:        #C0392B;
+  --space-xs:  8px;
+  --space-sm:  16px;
+  --space-md:  24px;
+  --space-lg:  40px;
+  --space-xl:  56px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; font-family: Arial, sans-serif; font-size: 14px; color: var(--color-text); background: var(--color-neutral-bg); }
+
+input[type="radio"] { display: none; }
+
+.banner {
+  background: var(--color-black);
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 3px solid var(--color-primary);
+  display: flex; align-items: center; gap: var(--space-sm);
+}
+.banner-arrow { color: var(--color-primary); font-size: 32px; font-weight: 700; line-height: 1; }
+.banner-text h1 { color: #ffffff; font-size: 22px; font-weight: 700; }
+.banner-text .subtitle { color: rgba(255,255,255,0.65); font-size: 13px; margin-top: 2px; }
+
+nav {
+  background: var(--color-white);
+  border-bottom: 1px solid var(--color-border);
+  display: flex; flex-wrap: wrap;
+  padding: 0 var(--space-lg);
+  position: sticky; top: 0; z-index: 10;
+}
+nav label {
+  cursor: pointer;
+  padding: 12px var(--space-sm);
+  font-size: 13px; font-weight: 400;
+  color: var(--color-gray);
+  border-bottom: 3px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.15s;
+}
+nav label:hover { color: var(--color-primary); }
+
+main { padding: var(--space-lg); max-width: 1200px; margin: 0 auto; }
+
+.tab-panel { display: none; }
+
+#tab-overview:checked  ~ nav label[for="tab-overview"],
+#tab-arch:checked      ~ nav label[for="tab-arch"],
+#tab-datamodel:checked ~ nav label[for="tab-datamodel"],
+#tab-dict:checked      ~ nav label[for="tab-dict"],
+#tab-api:checked       ~ nav label[for="tab-api"],
+#tab-config:checked    ~ nav label[for="tab-config"] {
+  color: var(--color-primary);
+  font-weight: 700;
+  border-bottom-color: var(--color-primary);
+}
+#tab-overview:checked  ~ main #panel-overview  { display: block; }
+#tab-arch:checked      ~ main #panel-arch      { display: block; }
+#tab-datamodel:checked ~ main #panel-datamodel { display: block; }
+#tab-dict:checked      ~ main #panel-dict      { display: block; }
+#tab-api:checked       ~ main #panel-api       { display: block; }
+#tab-config:checked    ~ main #panel-config    { display: block; }
+
+h2 { font-size: 17px; font-weight: 700; color: var(--color-purple-deep); margin-bottom: var(--space-sm); margin-top: var(--space-lg); }
+h2:first-child { margin-top: 0; }
+h3 { font-size: 14px; font-weight: 700; color: var(--color-purple-dark); margin-bottom: var(--space-xs); margin-top: var(--space-md); }
+
+p { line-height: 1.6; margin-bottom: var(--space-sm); }
+
+.card {
+  background: var(--color-white);
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  padding: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+.card--highlight {
+  background: var(--color-purple-light);
+  border-left: 4px solid var(--color-primary);
+  border-radius: 0 8px 8px 0;
+  box-shadow: none;
+  padding: var(--space-sm) var(--space-md);
+  margin-bottom: var(--space-md);
+}
+.card--warning {
+  background: var(--color-warning-bg);
+  border-left: 4px solid var(--color-warning);
+  border-radius: 0 8px 8px 0;
+  box-shadow: none;
+  padding: var(--space-sm) var(--color-md);
+  margin-bottom: var(--space-md);
+}
+
+table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: var(--space-md); }
+th { background: var(--color-primary-bg); color: var(--color-purple-deep); font-weight: 700; text-align: left; padding: var(--space-xs) var(--space-sm); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+td { padding: var(--space-xs) var(--space-sm); border-bottom: 1px solid var(--color-border); vertical-align: top; }
+tr:nth-child(even) td { background: var(--color-neutral-bg); }
+code { font-family: 'Courier New', monospace; font-size: 12px; background: var(--color-neutral-bg); padding: 1px 5px; border-radius: 3px; color: var(--color-purple-deep); }
+
+.badge {
+  display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 7px;
+  border-radius: 10px; letter-spacing: 0.03em;
+}
+.badge-pk  { background: var(--color-purple-light); color: var(--color-purple-deep); }
+.badge-fk  { background: #FEF3E2; color: #92400E; }
+.badge-uq  { background: #D1FAE5; color: #065F46; }
+.badge-idx { background: var(--color-neutral-bg); color: var(--color-gray); }
+
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md); }
+.three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--space-md); }
+
+.stat-block { background: var(--color-white); border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); padding: var(--space-md); }
+.stat-block .stat-num { font-size: 28px; font-weight: 700; color: var(--color-primary); line-height: 1; }
+.stat-block .stat-label { font-size: 12px; color: var(--color-gray); margin-top: 4px; }
+
+.tag { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 4px; margin: 2px; }
+.tag-method-get    { background: #DCFCE7; color: #14532D; font-weight: 700; }
+.tag-method-post   { background: #FEF9C3; color: #713F12; font-weight: 700; }
+.tag-method-delete { background: var(--color-error-bg); color: var(--color-error); font-weight: 700; }
+
+.endpoint-row { border-left: 3px solid var(--color-primary); padding: var(--space-sm); background: var(--color-white); border-radius: 0 6px 6px 0; margin-bottom: var(--space-sm); }
+.endpoint-path { font-family: 'Courier New', monospace; font-size: 13px; font-weight: 700; color: var(--color-purple-deep); }
+.endpoint-desc { font-size: 13px; color: var(--color-gray); margin-top: 4px; }
+
+.diagram-wrap { background: var(--color-white); border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); padding: var(--space-md); margin-bottom: var(--space-md); overflow-x: auto; }
+.diagram-title { font-size: 14px; font-weight: 700; color: var(--color-purple-deep); margin-bottom: var(--space-sm); }
+
+ul { padding-left: var(--space-md); margin-bottom: var(--space-sm); }
+li { line-height: 1.7; }
+
+.section-divider { border: none; border-top: 1px solid var(--color-border); margin: var(--space-lg) 0; }
+
+@media (max-width: 768px) {
+  .two-col, .three-col { grid-template-columns: 1fr; }
+  main { padding: var(--space-md); }
+}
+</style>
+</head>
+<body>
+
+<input type="radio" name="tab" id="tab-overview" checked>
+<input type="radio" name="tab" id="tab-arch">
+<input type="radio" name="tab" id="tab-datamodel">
+<input type="radio" name="tab" id="tab-dict">
+<input type="radio" name="tab" id="tab-api">
+<input type="radio" name="tab" id="tab-config">
+
+<div class="banner">
+  <div class="banner-arrow">&gt;</div>
+  <div class="banner-text">
+    <h1>EvalBrew — Design Documentation</h1>
+    <p class="subtitle">Automated AI chatbot regression testing harness. Architecture, data model, API reference, and configuration guide.</p>
+  </div>
+</div>
+
+<nav>
+  <label for="tab-overview">Overview</label>
+  <label for="tab-arch">Architecture</label>
+  <label for="tab-datamodel">Data Model</label>
+  <label for="tab-dict">Data Dictionary</label>
+  <label for="tab-api">API Reference</label>
+  <label for="tab-config">Configuration</label>
+</nav>
+
+<main>
+
+<!-- ═══════════════════════════════ OVERVIEW ═══════════════════════════════ -->
+<section class="tab-panel" id="panel-overview">
+
+  <div class="card--highlight">
+    <strong>EvalBrew</strong> is a Python web application that orchestrates automated regression test runs against AI chatbots and virtual assistants. Given a list of utterances, a registered connector, and a registered evaluator, it runs every test row, captures the full trace, and persists results for reporting and export.
+  </div>
+
+  <div class="three-col">
+    <div class="stat-block">
+      <div class="stat-num">10</div>
+      <div class="stat-label">ORM entities across 9 Alembic migrations</div>
+    </div>
+    <div class="stat-block">
+      <div class="stat-num">6</div>
+      <div class="stat-label">Headless REST + SSE endpoints</div>
+    </div>
+    <div class="stat-block">
+      <div class="stat-num">20</div>
+      <div class="stat-label">Spec-driven features (spec 001–020)</div>
+    </div>
+  </div>
+
+  <h2>Key concepts</h2>
+
+  <div class="two-col">
+    <div class="card">
+      <h3>Jobs</h3>
+      <p>A job is one regression test run. The operator uploads a CSV of utterances, selects a connector and evaluator, then starts the job. The harness processes every row sequentially and records the full connector→contract→evaluator trace per row. All connector and evaluator configuration is snapshotted onto the job at creation and frozen once the job leaves <code>draft</code> status, ensuring past results are immutable.</p>
+      <p>A job finishes in one of seven states: <code>draft</code>, <code>queued</code>, <code>running</code>, <code>cancelling</code>, <code>completed</code>, <code>failed</code>, or <code>cancelled</code>. A single failing row never aborts the run.</p>
+    </div>
+    <div class="card">
+      <h3>Connectors and evaluators</h3>
+      <p>A <strong>connector</strong> is any HTTP service that accepts a standard test request and returns a Standard Evaluation Contract. It is the bridge between the harness and the chatbot being tested. A <strong>evaluator</strong> is any HTTP service that receives the contract and returns a verdict (<code>pass</code>, <code>fail</code>, or <code>warn</code>) plus optional dimension scores.</p>
+      <p>Both are external services registered by URL. No harness code change is needed to add, swap, or update them. Credentials are encrypted at rest using Fernet symmetric encryption and never appear in exports or logs.</p>
+    </div>
+    <div class="card">
+      <h3>Standard Evaluation Contract</h3>
+      <p>The contract is the single shared data format between the harness, connectors, and evaluators. It is defined as a JSON Schema (draft 2020-12). The connector produces it, the harness validates it, and the evaluator consumes it. The current version is <code>"1"</code>. The contract is additive-only — new optional fields may be added without bumping the version number.</p>
+    </div>
+    <div class="card">
+      <h3>Headless API</h3>
+      <p>The headless API (<code>/api/headless/*</code>) allows external systems such as qual-brew to drive the full evaluation lifecycle programmatically, without a browser or wizard UI. It is authenticated via Azure AD machine-to-machine Bearer tokens (Client Credentials flow). It supports job submission, real-time SSE progress streaming, result polling, and cancellation. A maximum of two concurrent in-flight headless jobs per service principal is enforced.</p>
+    </div>
+    <div class="card">
+      <h3>Live chat evaluation</h3>
+      <p>In addition to batch regression jobs, the harness supports live conversational evaluation sessions (spec 017). A chat session sends individual user messages to a connector in real time, receives streaming evaluation events from the evaluator via SSE, and persists each turn with its full result. Sessions can be exported on completion.</p>
+    </div>
+    <div class="card">
+      <h3>Authentication model</h3>
+      <p>Two auth models operate in parallel. Browser users authenticate via Azure AD OAuth2 Authorization Code flow (MSAL). Authorized users must be pre-registered in the <code>user_registration</code> table with a role of <code>admin</code> or <code>user</code>. The headless API uses M2M Bearer tokens (RS256, validated against Azure AD JWKS). Auth can be disabled for local development via <code>HARNESS_AUTH_ENABLED=false</code>.</p>
+    </div>
+  </div>
+
+  <h2>Feature inventory</h2>
+  <div class="card">
+    <table>
+      <thead><tr><th>Feature</th><th>Spec</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>Job creation wizard</td><td>001</td><td>Multi-step guided flow for creating and starting a regression test run from a CSV upload.</td></tr>
+        <tr><td>Dashboard job listing</td><td>002</td><td>Live dashboard showing all jobs with status, progress, and submission metadata.</td></tr>
+        <tr><td>Connector Registry</td><td>003</td><td>CRUD UI for registering and managing connector services, including test-connection.</td></tr>
+        <tr><td>Evaluator Registry</td><td>004</td><td>CRUD UI for registering and managing evaluator services, including test-connection.</td></tr>
+        <tr><td>Job detail and analytics</td><td>005</td><td>Per-job detail view with per-row traceability, score breakdowns, and failure analysis.</td></tr>
+        <tr><td>Results export</td><td>006</td><td>Download full results as CSV, JSON, or both (zipped).</td></tr>
+        <tr><td>Role-based access</td><td>007</td><td>Admin and user roles enforced at route level via Azure AD identity.</td></tr>
+        <tr><td>Credential encryption</td><td>008</td><td>Fernet symmetric encryption for auth_descriptor credential fields at rest.</td></tr>
+        <tr><td>Per-row password support</td><td>009</td><td>Optional per-row passwords from CSV, held in-memory only (never persisted).</td></tr>
+        <tr><td>Tester identity</td><td>010</td><td>Attribution of jobs and results to the authenticated user's Azure OID.</td></tr>
+        <tr><td>CSV validation</td><td>011</td><td>Pre-flight validation of uploaded CSV format, required columns, and row content.</td></tr>
+        <tr><td>Contract validation</td><td>012</td><td>JSON Schema validation of the Standard Evaluation Contract returned by connectors.</td></tr>
+        <tr><td>Orphan recovery</td><td>013</td><td>At startup, fails any job left in running/cancelling state by a prior crash.</td></tr>
+        <tr><td>Job cancellation</td><td>014</td><td>Graceful cancellation of in-flight jobs with stub results for unprocessed rows.</td></tr>
+        <tr><td>Admin maintenance</td><td>015</td><td>Admin UI for bulk-deleting completed jobs and managing user registrations.</td></tr>
+        <tr><td>Documentation viewer</td><td>016</td><td>In-app documentation viewer rendering markdown docs from the docs/ directory.</td></tr>
+        <tr><td>Live chat evaluation</td><td>017</td><td>Real-time conversational evaluation sessions with SSE streaming evaluation events.</td></tr>
+        <tr><td>Token count tracking</td><td>018</td><td>Records connector and evaluator token counts per result row.</td></tr>
+        <tr><td>Job session duration</td><td>019</td><td>Tracks and displays job duration on the dashboard.</td></tr>
+        <tr><td>Headless Execution API</td><td>020</td><td>Programmatic REST + SSE API for external system integration, authenticated via M2M Bearer tokens.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</section>
+
+<!-- ═══════════════════════════════ ARCHITECTURE ═══════════════════════════════ -->
+<section class="tab-panel" id="panel-arch">
+
+  <h2>Solution architecture</h2>
+  <p>EvalBrew is a Python web application built on FastAPI, served by Uvicorn, and typically fronted by Nginx for TLS offload. It follows a hexagonal (ports-and-adapters) design: the harness core is completely neutral about any specific chatbot or evaluation technology. All chatbot-specific and evaluation-specific logic lives in external HTTP services (connectors and evaluators) registered by URL.</p>
+
+  <div class="diagram-wrap">
+    <div class="diagram-title">Runtime topology</div>
+    <svg viewBox="0 0 900 520" width="100%" font-family="Arial, sans-serif">
+      <defs>
+        <marker id="arr" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+          <polygon points="0 0, 7 3.5, 0 7" fill="#555555"/>
+        </marker>
+        <marker id="arr-purple" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+          <polygon points="0 0, 7 3.5, 0 7" fill="#460073"/>
+        </marker>
+        <marker id="arr-dashed" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+          <polygon points="0 0, 7 3.5, 0 7" fill="#818180"/>
+        </marker>
+      </defs>
+
+      <!-- Legend -->
+      <rect x="40" y="470" width="12" height="12" fill="#E6DCFF" stroke="#460073" stroke-width="1.5"/>
+      <text x="58" y="481" font-size="10" fill="#444">Internal component</text>
+      <rect x="160" y="470" width="12" height="12" fill="#F1F1EF" stroke="#818180" stroke-width="1.5" stroke-dasharray="4,2"/>
+      <text x="178" y="481" font-size="10" fill="#444">External system</text>
+      <rect x="280" y="470" width="30" height="12" fill="#F1F1EF" stroke="#460073" stroke-width="1.5" rx="6"/>
+      <text x="316" y="481" font-size="10" fill="#444">Storage</text>
+
+      <!-- ── External callers ── -->
+      <!-- Browser User -->
+      <rect x="20" y="80" width="120" height="36" rx="4" fill="#E6DCFF" stroke="#460073" stroke-width="1.5"/>
+      <text x="80" y="103" text-anchor="middle" font-size="12" font-weight="700" fill="#460073">Browser User</text>
+
+      <!-- qual-brew -->
+      <rect x="20" y="170" width="120" height="36" rx="4" fill="#F1F1EF" stroke="#818180" stroke-width="1.5" stroke-dasharray="5,3"/>
+      <text x="80" y="189" text-anchor="middle" font-size="11" font-weight="700" fill="#818180">qual-brew</text>
+      <text x="80" y="201" text-anchor="middle" font-size="10" fill="#818180">(external caller)</text>
+
+      <!-- Azure AD -->
+      <rect x="700" y="40" width="160" height="36" rx="4" fill="#F1F1EF" stroke="#818180" stroke-width="1.5" stroke-dasharray="5,3"/>
+      <text x="780" y="59" text-anchor="middle" font-size="11" font-weight="700" fill="#818180">Azure AD / Entra ID</text>
+      <text x="780" y="71" text-anchor="middle" font-size="10" fill="#818180">(JWKS endpoint)</text>
+
+      <!-- ── Nginx ── -->
+      <rect x="190" y="118" width="80" height="36" rx="4" fill="#E6DCFF" stroke="#460073" stroke-width="1.5"/>
+      <text x="230" y="137" text-anchor="middle" font-size="12" font-weight="700" fill="#460073">Nginx</text>
+      <text x="230" y="149" text-anchor="middle" font-size="10" fill="#460073">TLS / proxy</text>
+
+      <!-- ── Harness App container ── -->
+      <rect x="320" y="40" width="340" height="400" rx="8" fill="#FAFAFA" stroke="#CFCFCF" stroke-width="1.5" stroke-dasharray="6,3"/>
+      <text x="490" y="62" text-anchor="middle" font-size="11" font-weight="700" fill="#818180" letter-spacing="0.05em">HARNESS SERVER</text>
+      <text x="490" y="76" text-anchor="middle" font-size="10" fill="#818180">FastAPI + Uvicorn</text>
+
+      <!-- Auth Middleware -->
+      <rect x="340" y="90" width="300" height="36" rx="4" fill="#E6DCFF" stroke="#460073" stroke-width="1.5"/>
+      <text x="490" y="109" text-anchor="middle" font-size="12" font-weight="700" fill="#460073">Auth Middleware</text>
+      <text x="490" y="121" text-anchor="middle" font-size="10" fill="#460073">MSAL (browser SSO) + PyJWT (M2M Bearer)</text>
+
+      <!-- UI Routers -->
+      <rect x="340" y="150" width="140" height="56" rx="4" fill="#E6DCFF" stroke="#460073" stroke-width="1.5"/>
+      <text x="410" y="171" text-anchor="middle" font-size="12" font-weight="700" fill="#460073">UI Routers</text>
+      <text x="410" y="184" text-anchor="middle" font-size="10" fill="#460073">Jinja2 server-rendered</text>
+      <text x="410" y="197" text-anchor="middle" font-size="10" fill="#460073">HTML (Bootstrap 5)</text>
+
+      <!-- Headless API -->
+      <rect x="500" y="150" width="140" height="56" rx="4" fill="#E6DCFF" stroke="#460073" stroke-width="1.5"/>
+      <text x="570" y="171" text-anchor="middle" font-size="12" font-weight="700" fill="#460073">Headless API</text>
+      <text x="570" y="184" text-anchor="middle" font-size="10" fill="#460073">/api/headless/*</text>
+      <text x="570" y="197" text-anchor="middle" font-size="10" fill="#460073">REST + SSE</text>
+
+      <!-- Orchestrator Engine -->
+      <rect x="340" y="230" width="300" height="46" rx="4" fill="#E6DCFF" stroke="#460073" stroke-width="1.5"/>
+      <text x="490" y="251" text-anchor="middle" font-size="12" font-weight="700" fill="#460073">Orchestrator Engine</text>
+      <text x="490" y="267" text-anchor="middle" font-size="10" fill="#460073">BoundedSemaphore(4) · daemon threads · sequential rows</text>
+
+      <!-- Job Event Bus -->
+      <rect x="340" y="300" width="140" height="46" rx="4" fill="#E6DCFF" stroke="#460073" stroke-width="1.5"/>
+      <text x="410" y="321" text-anchor="middle" font-size="12" font-weight="700" fill="#460073">Job Event Bus</text>
+      <text x="410" y="334" text-anchor="middle" font-size="10" fill="#460073">SSE (headless jobs)</text>
+
+      <!-- Chat Event Bus -->
+      <rect x="500" y="300" width="140" height="46" rx="4" fill="#E6DCFF" stroke="#460073" stroke-width="1.5"/>
+      <text x="570" y="321" text-anchor="middle" font-size="12" font-weight="700" fill="#460073">Chat Event Bus</text>
+      <text x="570" y="334" text-anchor="middle" font-size="10" fill="#460073">SSE (chat sessions)</text>
+
+      <!-- Persistence Layer -->
+      <rect x="340" y="370" width="300" height="46" rx="4" fill="#E6DCFF" stroke="#460073" stroke-width="1.5"/>
+      <text x="490" y="391" text-anchor="middle" font-size="12" font-weight="700" fill="#460073">Persistence Layer</text>
+      <text x="490" y="406" text-anchor="middle" font-size="10" fill="#460073">SQLAlchemy 2.0 ORM + Alembic migrations</text>
+
+      <!-- ── External services ── -->
+      <!-- PostgreSQL -->
+      <ellipse cx="760" cy="220" rx="60" ry="14" fill="#E6DCFF" stroke="#460073" stroke-width="1.5"/>
+      <rect x="700" y="220" width="120" height="56" fill="#E6DCFF" stroke="#460073" stroke-width="1.5"/>
+      <ellipse cx="760" cy="276" rx="60" ry="14" fill="#E6DCFF" stroke="#460073" stroke-width="1.5"/>
+      <text x="760" y="252" text-anchor="middle" font-size="12" font-weight="700" fill="#460073">PostgreSQL</text>
+      <text x="760" y="265" text-anchor="middle" font-size="10" fill="#460073">Azure PaaS</text>
+
+      <!-- Connector -->
+      <rect x="700" y="320" width="160" height="44" rx="4" fill="#F1F1EF" stroke="#818180" stroke-width="1.5" stroke-dasharray="5,3"/>
+      <text x="780" y="339" text-anchor="middle" font-size="11" font-weight="700" fill="#818180">Your Connector</text>
+      <text x="780" y="355" text-anchor="middle" font-size="10" fill="#818180">HTTP · any env · any language</text>
+
+      <!-- Evaluator -->
+      <rect x="700" y="390" width="160" height="44" rx="4" fill="#F1F1EF" stroke="#818180" stroke-width="1.5" stroke-dasharray="5,3"/>
+      <text x="780" y="409" text-anchor="middle" font-size="11" font-weight="700" fill="#818180">Your Evaluator</text>
+      <text x="780" y="425" text-anchor="middle" font-size="10" fill="#818180">HTTP · any env · any language</text>
+
+      <!-- ── Arrows ── -->
+      <!-- Browser → Nginx -->
+      <line x1="140" y1="98" x2="190" y2="130" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+      <text x="162" y="107" font-size="10" fill="#555">HTTPS/SSO</text>
+
+      <!-- qual-brew → Nginx -->
+      <line x1="140" y1="188" x2="190" y2="148" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+      <text x="144" y="183" font-size="10" fill="#555">Bearer</text>
+
+      <!-- Nginx → Auth Middleware -->
+      <line x1="270" y1="136" x2="340" y2="108" stroke="#460073" stroke-width="2" marker-end="url(#arr-purple)"/>
+
+      <!-- Auth MW → Azure AD (dashed) -->
+      <line x1="640" y1="95" x2="700" y2="65" stroke="#818180" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arr-dashed)"/>
+      <text x="660" y="72" font-size="10" fill="#818180">JWKS</text>
+
+      <!-- Orchestrator → Connector -->
+      <path d="M 640,253 L 680,253 L 680,342 L 700,342" stroke="#555" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+      <text x="645" y="248" font-size="10" fill="#555">HTTP</text>
+
+      <!-- Orchestrator → Evaluator -->
+      <path d="M 640,253 L 680,253 L 680,412 L 700,412" stroke="#555" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+
+      <!-- Persistence → PostgreSQL -->
+      <line x1="640" y1="393" x2="700" y2="265" stroke="#460073" stroke-width="2" marker-end="url(#arr-purple)"/>
+    </svg>
+  </div>
+
+  <h2>Core data flow — one test row</h2>
+  <div class="card">
+    <ol style="padding-left:var(--space-md); line-height:2;">
+      <li>Orchestrator reads the next <code>utterance</code> row from the database.</li>
+      <li>Connector client POSTs <code>{testId, utteranceText, password?}</code> to the registered connector URL.</li>
+      <li>Connector validates the HTTP response and parses the Standard Evaluation Contract from the body.</li>
+      <li>Contract validation (jsonschema Draft 2020-12) checks envelope shape and <code>contractVersion</code>.</li>
+      <li>Evaluator client POSTs the full contract to the registered evaluator URL.</li>
+      <li>Evaluator validates the HTTP response and parses the <code>EvaluationResult</code> (verdict + scores).</li>
+      <li>Row result — verdict, dimension scores, full trace — is persisted to <code>evaluation_result</code>.</li>
+      <li>Progress callbacks fire. For headless jobs, <code>loop.call_soon_threadsafe(bus.push, ...)</code> bridges the daemon thread into the async event loop, and an SSE <code>progress</code> event is emitted.</li>
+      <li>Dashboard and detail views update via JS polling (browser UI) or SSE stream (headless API).</li>
+    </ol>
+    <div class="card--highlight" style="margin-top:var(--space-sm);">
+      Any failure at steps 2–7 is isolated to the row. It is recorded with a stage label (<code>connector_transport</code>, <code>connector_response</code>, <code>connector_normalization</code>, <code>evaluator_transport</code>, <code>evaluator_response</code>, <code>evaluator_result</code>, etc.) and processing continues at step 1 for the next row.
+    </div>
+  </div>
+
+  <h2>Technology stack</h2>
+  <div class="card">
+    <table>
+      <thead><tr><th>Layer</th><th>Technology</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Web framework</td><td><code>FastAPI 0.115+</code></td><td>ASGI, dependency injection, automatic OpenAPI schema</td></tr>
+        <tr><td>ASGI server</td><td><code>Uvicorn 0.30+</code></td><td>Factory mode (<code>--factory</code>); no separate worker process</td></tr>
+        <tr><td>Reverse proxy</td><td>Nginx</td><td>TLS offload; optional in dev</td></tr>
+        <tr><td>Templating</td><td>Jinja2</td><td>Multi-directory search; server-rendered HTML</td></tr>
+        <tr><td>Frontend</td><td>Bootstrap 5.3.3</td><td>CDN; plain HTML/JS. No build step.</td></tr>
+        <tr><td>ORM</td><td><code>SQLAlchemy 2.0</code></td><td>Declarative mapped_column style; sync sessions</td></tr>
+        <tr><td>Migrations</td><td>Alembic</td><td>9 numbered revisions (0001–0009); applied at startup</td></tr>
+        <tr><td>Database</td><td>PostgreSQL</td><td>Azure PostgreSQL Flexible Server in production</td></tr>
+        <tr><td>HTTP client</td><td><code>httpx</code> (sync)</td><td>Connector and evaluator calls; MockTransport in tests</td></tr>
+        <tr><td>Browser auth</td><td>MSAL Python SDK</td><td>Azure AD Authorization Code flow</td></tr>
+        <tr><td>API auth</td><td><code>PyJWT[crypto]</code></td><td>RS256 Bearer token validation against Azure AD JWKS</td></tr>
+        <tr><td>Encryption</td><td><code>cryptography</code> (Fernet)</td><td>Credential fields encrypted at rest</td></tr>
+        <tr><td>Session</td><td>Starlette SessionMiddleware</td><td>Signed cookie; no server-side session store</td></tr>
+        <tr><td>Contract validation</td><td><code>jsonschema</code></td><td>Draft 2020-12; bundled schema file</td></tr>
+        <tr><td>Logging</td><td><code>structlog</code></td><td>Structured JSON log output</td></tr>
+        <tr><td>CLI</td><td><code>Click</code></td><td><code>harness serve</code>, <code>harness users</code>, mock services</td></tr>
+        <tr><td>Python</td><td>3.11+ (Docker: 3.13)</td><td>Deployed on AKS via multi-stage Docker build</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Source package layout</h2>
+  <div class="card">
+    <table>
+      <thead><tr><th>Package</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td><code>harness/auth/</code></td><td>Azure AD auth config, session management, role guards</td></tr>
+        <tr><td><code>harness/chat/</code></td><td>Live chat evaluation domain — event bus, session service, turn service, stream orchestrator</td></tr>
+        <tr><td><code>harness/cli/</code></td><td>Click CLI entry points: serve, users, mock-connector, mock-evaluator</td></tr>
+        <tr><td><code>harness/connector/</code></td><td>Connector HTTP client and mock server</td></tr>
+        <tr><td><code>harness/connector_registry/</code></td><td>Connector CRUD service and test-connection logic</td></tr>
+        <tr><td><code>harness/contract/</code></td><td>Standard Evaluation Contract JSON Schema loader and Draft202012Validator</td></tr>
+        <tr><td><code>harness/csv_upload/</code></td><td>CSV parser and row validation service</td></tr>
+        <tr><td><code>harness/evaluator/</code></td><td>Evaluator HTTP client and mock server</td></tr>
+        <tr><td><code>harness/evaluator_registry/</code></td><td>Evaluator CRUD service and test-connection logic</td></tr>
+        <tr><td><code>harness/export/</code></td><td>Results export builder (CSV + JSON)</td></tr>
+        <tr><td><code>harness/identity/</code></td><td>Tester identity context singleton</td></tr>
+        <tr><td><code>harness/orchestrator/engine.py</code></td><td>Job enqueue, run, callback hook wiring; BoundedSemaphore(4) pool</td></tr>
+        <tr><td><code>harness/orchestrator/pipeline.py</code></td><td>Per-row connector → contract → evaluator → persistence pipeline</td></tr>
+        <tr><td><code>harness/persistence/</code></td><td>ORM models, repository classes, Alembic migrations, Fernet encryption helpers</td></tr>
+        <tr><td><code>harness/ui/__init__.py</code></td><td><code>create_app()</code> FastAPI application factory</td></tr>
+        <tr><td><code>harness/ui/api/</code></td><td>Headless REST + SSE API (spec 020): auth, schemas, event bus, service, routes</td></tr>
+        <tr><td><code>harness/ui/dashboard/</code></td><td>Dashboard and job listing UI</td></tr>
+        <tr><td><code>harness/ui/wizard/</code></td><td>Multi-step new job creation wizard</td></tr>
+        <tr><td><code>harness/ui/detail/</code></td><td>Job detail, traceability, and analytics view</td></tr>
+        <tr><td><code>harness/ui/chat_session/</code></td><td>Live chat evaluation UI</td></tr>
+        <tr><td><code>harness/ui/admin/</code></td><td>Admin routes — user management and job maintenance</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</section>
+
+<!-- ═══════════════════════════════ DATA MODEL ═══════════════════════════════ -->
+<section class="tab-panel" id="panel-datamodel">
+
+  <h2>Data model overview</h2>
+  <p>EvalBrew's schema is managed by Alembic and comprises 10 ORM entities across two logical domains: the <strong>regression testing domain</strong> (jobs, utterances, results, registries, users) and the <strong>live chat domain</strong> (sessions, turns, turn results, evaluation events). All primary keys are UUID strings (36 characters). No ORM event listeners are used — all business rules are enforced in repository methods.</p>
+
+  <div class="diagram-wrap">
+    <div class="diagram-title">Diagram 1 — Regression testing domain</div>
+    <svg viewBox="0 0 900 520" width="100%" font-family="Arial, sans-serif">
+      <defs>
+        <marker id="arr2" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+          <polygon points="0 0, 7 3.5, 0 7" fill="#460073"/>
+        </marker>
+        <marker id="arr2d" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+          <polygon points="0 0, 7 3.5, 0 7" fill="#818180"/>
+        </marker>
+        <clipPath id="clip-conn"><rect width="162" height="142" rx="4"/></clipPath>
+        <clipPath id="clip-job"><rect width="172" height="212" rx="4"/></clipPath>
+        <clipPath id="clip-eval-agent"><rect width="172" height="152" rx="4"/></clipPath>
+        <clipPath id="clip-utt"><rect width="162" height="122" rx="4"/></clipPath>
+        <clipPath id="clip-er"><rect width="172" height="162" rx="4"/></clipPath>
+        <clipPath id="clip-user"><rect width="162" height="122" rx="4"/></clipPath>
+      </defs>
+
+      <!-- ── connector_registration ── x=20 y=80 w=162 h=142 -->
+      <g transform="translate(20,80)">
+        <rect width="162" height="142" rx="4" fill="#FFFFFF" stroke="#460073" stroke-width="1.5"/>
+        <rect width="162" height="28" fill="#E6DCFF" clip-path="url(#clip-conn)"/>
+        <line x1="0" y1="28" x2="162" y2="28" stroke="#C2A3FF" stroke-width="1"/>
+        <text x="81" y="19" text-anchor="middle" font-size="10" font-weight="700" fill="#460073">connector_registration</text>
+        <text x="8" y="47" font-size="10" fill="#000" text-decoration="underline">connector_id (PK)</text>
+        <text x="8" y="65" font-size="10" fill="#333">display_name</text>
+        <text x="8" y="83" font-size="10" fill="#333">endpoint_url</text>
+        <text x="8" y="101" font-size="10" fill="#333">auth_descriptor (JSON, enc.)</text>
+        <text x="8" y="119" font-size="10" fill="#333">supports_sse · archived</text>
+        <text x="8" y="137" font-size="10" fill="#818180" font-style="italic">timeout_seconds, ...</text>
+      </g>
+
+      <!-- ── job ── x=258 y=30 w=172 h=212 -->
+      <g transform="translate(258,30)">
+        <rect width="172" height="212" rx="4" fill="#FFFFFF" stroke="#460073" stroke-width="2"/>
+        <rect width="172" height="28" fill="#460073" clip-path="url(#clip-job)"/>
+        <line x1="0" y1="28" x2="172" y2="28" stroke="#C2A3FF" stroke-width="1"/>
+        <text x="86" y="19" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">job</text>
+        <text x="8" y="47" font-size="10" fill="#000" text-decoration="underline">job_id (PK)</text>
+        <text x="8" y="65" font-size="10" fill="#333">job_name · description</text>
+        <text x="8" y="83" font-size="10" fill="#333">status (draft→completed)</text>
+        <text x="8" y="101" font-size="10" fill="#333">created_by (Azure OID)</text>
+        <text x="8" y="119" font-size="10" fill="#000" font-style="italic">connector_id (FK·snapshot)</text>
+        <text x="8" y="137" font-size="10" fill="#000" font-style="italic">evaluation_agent_id (FK·snap)</text>
+        <text x="8" y="155" font-size="10" fill="#333">submission_source</text>
+        <text x="8" y="173" font-size="10" fill="#333">processed_count · failed_count</text>
+        <text x="8" y="191" font-size="10" fill="#333">source_system · product_name</text>
+        <text x="8" y="209" font-size="10" fill="#818180" font-style="italic">+15 snapshot columns, ...</text>
+      </g>
+
+      <!-- ── evaluation_agent_registration ── x=510 y=80 w=172 h=152 -->
+      <g transform="translate(510,80)">
+        <rect width="172" height="152" rx="4" fill="#FFFFFF" stroke="#460073" stroke-width="1.5"/>
+        <rect width="172" height="28" fill="#E6DCFF" clip-path="url(#clip-eval-agent)"/>
+        <line x1="0" y1="28" x2="172" y2="28" stroke="#C2A3FF" stroke-width="1"/>
+        <text x="86" y="19" text-anchor="middle" font-size="10" font-weight="700" fill="#460073">evaluation_agent_registration</text>
+        <text x="8" y="47" font-size="10" fill="#000" text-decoration="underline">evaluation_agent_id (PK)</text>
+        <text x="8" y="65" font-size="10" fill="#333">display_name</text>
+        <text x="8" y="83" font-size="10" fill="#333">endpoint_url</text>
+        <text x="8" y="101" font-size="10" fill="#333">auth_descriptor (JSON, enc.)</text>
+        <text x="8" y="119" font-size="10" fill="#333">declared_scoring_dimensions</text>
+        <text x="8" y="137" font-size="10" fill="#333">supports_sse · archived</text>
+        <text x="8" y="151" font-size="10" fill="#818180" font-style="italic">timeout_seconds, ...</text>
+      </g>
+
+      <!-- ── utterance ── x=258 y=320 w=162 h=122 -->
+      <g transform="translate(258,320)">
+        <rect width="162" height="122" rx="4" fill="#FFFFFF" stroke="#460073" stroke-width="1.5"/>
+        <rect width="162" height="28" fill="#E6DCFF" clip-path="url(#clip-utt)"/>
+        <line x1="0" y1="28" x2="162" y2="28" stroke="#C2A3FF" stroke-width="1"/>
+        <text x="81" y="19" text-anchor="middle" font-size="11" font-weight="700" fill="#460073">utterance</text>
+        <text x="8" y="47" font-size="10" fill="#000" text-decoration="underline">utterance_id (PK)</text>
+        <text x="8" y="65" font-size="10" fill="#000" font-style="italic">job_id (FK → job)</text>
+        <text x="8" y="83" font-size="10" fill="#333">utterance_text · test_id</text>
+        <text x="8" y="101" font-size="10" fill="#333">row_index</text>
+        <text x="8" y="117" font-size="10" fill="#818180" font-style="italic">extra_metadata (JSON), ...</text>
+      </g>
+
+      <!-- ── evaluation_result ── x=490 y=310 w=172 h=162 -->
+      <g transform="translate(490,310)">
+        <rect width="172" height="162" rx="4" fill="#FFFFFF" stroke="#460073" stroke-width="1.5"/>
+        <rect width="172" height="28" fill="#E6DCFF" clip-path="url(#clip-er)"/>
+        <line x1="0" y1="28" x2="172" y2="28" stroke="#C2A3FF" stroke-width="1"/>
+        <text x="86" y="19" text-anchor="middle" font-size="11" font-weight="700" fill="#460073">evaluation_result</text>
+        <text x="8" y="47" font-size="10" fill="#000" text-decoration="underline">result_id (PK)</text>
+        <text x="8" y="65" font-size="10" fill="#000" font-style="italic">utterance_id (FK UNIQUE)</text>
+        <text x="8" y="83" font-size="10" fill="#333">evaluation_verdict (pass/fail/warn)</text>
+        <text x="8" y="101" font-size="10" fill="#333">evaluation_scores (JSON)</text>
+        <text x="8" y="119" font-size="10" fill="#333">normalized_contract (JSON)</text>
+        <text x="8" y="137" font-size="10" fill="#333">error_status · error_stage</text>
+        <text x="8" y="155" font-size="10" fill="#818180" font-style="italic">token counts, ...</text>
+      </g>
+
+      <!-- ── user_registration ── x=710 y=310 w=162 h=122 -->
+      <g transform="translate(710,310)">
+        <rect width="162" height="122" rx="4" fill="#FFFFFF" stroke="#460073" stroke-width="1.5"/>
+        <rect width="162" height="28" fill="#E6DCFF" clip-path="url(#clip-user)"/>
+        <line x1="0" y1="28" x2="162" y2="28" stroke="#C2A3FF" stroke-width="1"/>
+        <text x="81" y="19" text-anchor="middle" font-size="11" font-weight="700" fill="#460073">user_registration</text>
+        <text x="8" y="47" font-size="10" fill="#000" text-decoration="underline">id (PK)</text>
+        <text x="8" y="65" font-size="10" fill="#333">email (UNIQUE)</text>
+        <text x="8" y="83" font-size="10" fill="#333">azure_oid (idx) · role</text>
+        <text x="8" y="101" font-size="10" fill="#333">display_name</text>
+        <text x="8" y="117" font-size="10" fill="#818180" font-style="italic">registered_at, last_login_at</text>
+      </g>
+
+      <!-- ── Relationship arrows ── -->
+      <!-- connector_registration →snapshot→ job -->
+      <line x1="182" y1="151" x2="258" y2="151" stroke="#460073" stroke-width="1.5" marker-end="url(#arr2)"/>
+      <text x="192" y="147" font-size="10" fill="#460073">snapshot</text>
+      <text x="244" y="147" font-size="10" fill="#460073">N:1</text>
+
+      <!-- job ←snapshot← evaluation_agent_registration -->
+      <line x1="510" y1="151" x2="430" y2="151" stroke="#460073" stroke-width="1.5" marker-end="url(#arr2)"/>
+      <text x="443" y="147" font-size="10" fill="#460073">snapshot</text>
+      <text x="511" y="147" font-size="10" fill="#460073">N:1</text>
+
+      <!-- job 1→N utterance (vertical) -->
+      <line x1="344" y1="242" x2="344" y2="320" stroke="#460073" stroke-width="1.5" marker-end="url(#arr2)"/>
+      <text x="348" y="275" font-size="10" fill="#460073">1</text>
+      <text x="348" y="315" font-size="10" fill="#460073">N</text>
+
+      <!-- utterance 1→1 evaluation_result -->
+      <line x1="420" y1="381" x2="490" y2="381" stroke="#460073" stroke-width="1.5" marker-end="url(#arr2)"/>
+      <text x="428" y="375" font-size="10" fill="#460073">1:1</text>
+
+      <!-- user_registration ..creates.. job (dashed) -->
+      <path d="M 710,371 L 680,371 L 680,136 L 430,136" stroke="#818180" stroke-width="1.5" stroke-dasharray="5,3" fill="none" marker-end="url(#arr2d)"/>
+      <text x="690" y="250" font-size="10" fill="#818180" transform="rotate(-90,690,250)">creates</text>
+
+      <!-- Cardinality labels -->
+      <text x="36" y="490" font-size="10" fill="#818180" font-style="italic">Underlined = primary key. Italic = foreign key / snapshot reference. Dashed line = logical ownership.</text>
+    </svg>
+  </div>
+
+  <div class="diagram-wrap">
+    <div class="diagram-title">Diagram 2 — Live chat evaluation domain (spec 017)</div>
+    <svg viewBox="0 0 900 340" width="100%" font-family="Arial, sans-serif">
+      <defs>
+        <marker id="arr3" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+          <polygon points="0 0, 7 3.5, 0 7" fill="#460073"/>
+        </marker>
+        <clipPath id="clip-cs"><rect width="172" height="202" rx="4"/></clipPath>
+        <clipPath id="clip-ct"><rect width="162" height="122" rx="4"/></clipPath>
+        <clipPath id="clip-ctr"><rect width="172" height="132" rx="4"/></clipPath>
+        <clipPath id="clip-ee"><rect width="162" height="122" rx="4"/></clipPath>
+      </defs>
+
+      <!-- ── chat_session ── x=20 y=60 w=172 h=202 -->
+      <g transform="translate(20,60)">
+        <rect width="172" height="202" rx="4" fill="#FFFFFF" stroke="#460073" stroke-width="1.5"/>
+        <rect width="172" height="28" fill="#E6DCFF" clip-path="url(#clip-cs)"/>
+        <line x1="0" y1="28" x2="172" y2="28" stroke="#C2A3FF" stroke-width="1"/>
+        <text x="86" y="19" text-anchor="middle" font-size="11" font-weight="700" fill="#460073">chat_session</text>
+        <text x="8" y="47" font-size="10" fill="#000" text-decoration="underline">chat_session_id (PK)</text>
+        <text x="8" y="65" font-size="10" fill="#333">session_name · owner_oid</text>
+        <text x="8" y="83" font-size="10" fill="#000" font-style="italic">connector_id (snapshot)</text>
+        <text x="8" y="101" font-size="10" fill="#000" font-style="italic">evaluator_id (snapshot)</text>
+        <text x="8" y="119" font-size="10" fill="#333">connector_name</text>
+        <text x="8" y="137" font-size="10" fill="#333">connector_endpoint_url</text>
+        <text x="8" y="155" font-size="10" fill="#333">evaluator_endpoint_url</text>
+        <text x="8" y="173" font-size="10" fill="#333">active_conversation_id</text>
+        <text x="8" y="191" font-size="10" fill="#818180" font-style="italic">auth descriptors, ...</text>
+      </g>
+
+      <!-- ── chat_turn ── x=260 y=60 w=162 h=122 -->
+      <g transform="translate(260,60)">
+        <rect width="162" height="122" rx="4" fill="#FFFFFF" stroke="#460073" stroke-width="1.5"/>
+        <rect width="162" height="28" fill="#E6DCFF" clip-path="url(#clip-ct)"/>
+        <line x1="0" y1="28" x2="162" y2="28" stroke="#C2A3FF" stroke-width="1"/>
+        <text x="81" y="19" text-anchor="middle" font-size="11" font-weight="700" fill="#460073">chat_turn</text>
+        <text x="8" y="47" font-size="10" fill="#000" text-decoration="underline">turn_id (PK)</text>
+        <text x="8" y="65" font-size="10" fill="#000" font-style="italic">session_id (FK, idx)</text>
+        <text x="8" y="83" font-size="10" fill="#333">user_message (Text)</text>
+        <text x="8" y="101" font-size="10" fill="#333">status · created_at</text>
+        <text x="8" y="117" font-size="10" fill="#818180" font-style="italic">completed_at</text>
+      </g>
+
+      <!-- ── chat_turn_result ── x=490 y=60 w=172 h=132 -->
+      <g transform="translate(490,60)">
+        <rect width="172" height="132" rx="4" fill="#FFFFFF" stroke="#460073" stroke-width="1.5"/>
+        <rect width="172" height="28" fill="#E6DCFF" clip-path="url(#clip-ctr)"/>
+        <line x1="0" y1="28" x2="172" y2="28" stroke="#C2A3FF" stroke-width="1"/>
+        <text x="86" y="19" text-anchor="middle" font-size="11" font-weight="700" fill="#460073">chat_turn_result</text>
+        <text x="8" y="47" font-size="10" fill="#000" text-decoration="underline">turn_result_id (PK)</text>
+        <text x="8" y="65" font-size="10" fill="#000" font-style="italic">turn_id (FK UNIQUE)</text>
+        <text x="8" y="83" font-size="10" fill="#333">assembled_response (Text)</text>
+        <text x="8" y="101" font-size="10" fill="#333">normalized_contract (JSON)</text>
+        <text x="8" y="119" font-size="10" fill="#333">final_evaluation_result (JSON)</text>
+        <text x="8" y="131" font-size="10" fill="#818180" font-style="italic">error_stage, error_details</text>
+      </g>
+
+      <!-- ── evaluation_event ── x=260 y=230 w=162 h=100 -->
+      <g transform="translate(260,230)">
+        <rect width="162" height="100" rx="4" fill="#FFFFFF" stroke="#460073" stroke-width="1.5"/>
+        <rect width="162" height="28" fill="#E6DCFF" clip-path="url(#clip-ee)"/>
+        <line x1="0" y1="28" x2="162" y2="28" stroke="#C2A3FF" stroke-width="1"/>
+        <text x="81" y="19" text-anchor="middle" font-size="11" font-weight="700" fill="#460073">evaluation_event</text>
+        <text x="8" y="47" font-size="10" fill="#000" text-decoration="underline">event_id (PK)</text>
+        <text x="8" y="65" font-size="10" fill="#000" font-style="italic">turn_id (FK, idx)</text>
+        <text x="8" y="83" font-size="10" fill="#333">event_type · payload (JSON)</text>
+        <text x="8" y="99" font-size="10" fill="#818180" font-style="italic">sequence_number, created_at</text>
+      </g>
+
+      <!-- chat_session 1→N chat_turn -->
+      <line x1="192" y1="161" x2="260" y2="121" stroke="#460073" stroke-width="1.5" marker-end="url(#arr3)"/>
+      <text x="196" y="148" font-size="10" fill="#460073">1</text>
+      <text x="244" y="116" font-size="10" fill="#460073">N</text>
+
+      <!-- chat_turn 1→1 chat_turn_result -->
+      <line x1="422" y1="121" x2="490" y2="121" stroke="#460073" stroke-width="1.5" marker-end="url(#arr3)"/>
+      <text x="428" y="115" font-size="10" fill="#460073">1:1</text>
+
+      <!-- chat_turn 1→N evaluation_event -->
+      <line x1="341" y1="182" x2="341" y2="230" stroke="#460073" stroke-width="1.5" marker-end="url(#arr3)"/>
+      <text x="345" y="205" font-size="10" fill="#460073">1:N</text>
+    </svg>
+  </div>
+
+  <h2>Migration history</h2>
+  <div class="card">
+    <table>
+      <thead><tr><th>Revision</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>0001</code></td><td>Initial schema — <code>job</code>, <code>utterance</code>, <code>evaluation_result</code>, <code>connector_registration</code>, <code>evaluation_agent_registration</code></td></tr>
+        <tr><td><code>0002</code></td><td>Optional columns — error details fields and aggregate counters (<code>processed_count</code>, <code>failed_count</code>)</td></tr>
+        <tr><td><code>0003</code></td><td>Job owner fields — <code>created_by</code> (Azure OID) and <code>harness_version</code> snapshot</td></tr>
+        <tr><td><code>0004</code></td><td><code>user_registration</code> table — pre-registered Azure AD users with roles</td></tr>
+        <tr><td><code>0005</code></td><td>Live chat models — <code>chat_session</code>, <code>chat_turn</code>, <code>chat_turn_result</code>, <code>evaluation_event</code></td></tr>
+        <tr><td><code>0006</code></td><td>Utterance intent field — <code>utterance.utterance_intent</code></td></tr>
+        <tr><td><code>0007</code></td><td>Headless job metadata — <code>submission_source</code>, <code>source_system</code>, <code>product_name</code>, <code>feature_name</code> on <code>job</code></td></tr>
+        <tr><td><code>0008</code></td><td>Token counts — <code>connector_token_count</code>, <code>evaluator_token_count</code>, <code>total_token_count</code> on <code>evaluation_result</code></td></tr>
+        <tr><td><code>0009</code></td><td><code>active_conversation_id</code> on <code>chat_session</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</section>
+
+<!-- ═══════════════════════════════ DATA DICTIONARY ═══════════════════════════════ -->
+<section class="tab-panel" id="panel-dict">
+
+  <h2>Data dictionary</h2>
+  <p>All primary keys are <code>String(36)</code> UUID values. DateTime columns store UTC values. JSON columns use the database native JSON type. Credentials within JSON columns are encrypted using Fernet symmetric encryption before storage.</p>
+
+  <h3>job</h3>
+  <p>Central entity. One regression test run. Snapshot columns (prefixed <em>connector_</em> and <em>evaluator_</em>) are frozen once the job leaves <code>draft</code> status.</p>
+  <div class="card">
+    <table>
+      <thead><tr><th>Column</th><th>Type</th><th>Constraints</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>job_id</code></td><td>String(36)</td><td><span class="badge badge-pk">PK</span></td><td>UUID primary key.</td></tr>
+        <tr><td><code>job_name</code></td><td>String</td><td>NOT NULL</td><td>Human-readable name for the job.</td></tr>
+        <tr><td><code>description</code></td><td>String</td><td>Nullable</td><td>Optional description provided by the creator.</td></tr>
+        <tr><td><code>status</code></td><td>String(20)</td><td>NOT NULL</td><td>Job lifecycle state: <code>draft</code>, <code>queued</code>, <code>running</code>, <code>cancelling</code>, <code>completed</code>, <code>failed</code>, <code>cancelled</code>.</td></tr>
+        <tr><td><code>created_by</code></td><td>String</td><td>NOT NULL</td><td>Azure AD OID of the user or service principal who created the job.</td></tr>
+        <tr><td><code>created_at</code></td><td>DateTime</td><td>NOT NULL</td><td>Immutable creation timestamp (UTC).</td></tr>
+        <tr><td><code>started_at</code></td><td>DateTime</td><td>Nullable</td><td>Set when the job transitions from <code>queued</code> to <code>running</code>.</td></tr>
+        <tr><td><code>completed_at</code></td><td>DateTime</td><td>Nullable</td><td>Set on transition to <code>completed</code>, <code>failed</code>, or <code>cancelled</code>.</td></tr>
+        <tr><td><code>harness_version</code></td><td>String</td><td>Nullable</td><td>Version of the harness package at the time of job creation.</td></tr>
+        <tr><td><code>source_csv_filename</code></td><td>String</td><td>Nullable</td><td>Original filename of the uploaded CSV for wizard-submitted jobs.</td></tr>
+        <tr><td><code>error_details</code></td><td>String</td><td>Nullable</td><td>Populated when <code>status = failed</code>. Describes the failure cause.</td></tr>
+        <tr><td><code>connector_id</code></td><td>String(36)</td><td>Snapshot</td><td>Snapshot of the selected connector's ID at job creation.</td></tr>
+        <tr><td><code>connector_name</code></td><td>String</td><td>Snapshot</td><td>Snapshot of the connector display name.</td></tr>
+        <tr><td><code>connector_endpoint_url</code></td><td>String</td><td>Snapshot</td><td>Snapshot of the connector endpoint URL.</td></tr>
+        <tr><td><code>connector_auth_descriptor</code></td><td>JSON</td><td>Snapshot, encrypted</td><td>Snapshot of connector auth config. Credential subfields are Fernet-encrypted.</td></tr>
+        <tr><td><code>connector_timeout_seconds</code></td><td>Integer</td><td>Snapshot</td><td>Snapshot of the connector request timeout.</td></tr>
+        <tr><td><code>connector_expects_per_row_password</code></td><td>Boolean</td><td>Snapshot</td><td>Whether the connector requires a per-row password from the CSV.</td></tr>
+        <tr><td><code>evaluation_agent_id</code></td><td>String(36)</td><td>Snapshot</td><td>Snapshot of the selected evaluator's ID.</td></tr>
+        <tr><td><code>evaluation_agent_name</code></td><td>String</td><td>Snapshot</td><td>Snapshot of the evaluator display name.</td></tr>
+        <tr><td><code>evaluator_endpoint_url</code></td><td>String</td><td>Snapshot</td><td>Snapshot of the evaluator endpoint URL.</td></tr>
+        <tr><td><code>evaluator_auth_descriptor</code></td><td>JSON</td><td>Snapshot, encrypted</td><td>Snapshot of evaluator auth config. Credential subfields are Fernet-encrypted.</td></tr>
+        <tr><td><code>evaluator_timeout_seconds</code></td><td>Integer</td><td>Snapshot</td><td>Snapshot of the evaluator request timeout.</td></tr>
+        <tr><td><code>evaluator_declared_scoring_dimensions</code></td><td>JSON</td><td>Snapshot</td><td>Ordered list of dimension names the evaluator will score.</td></tr>
+        <tr><td><code>submission_source</code></td><td>String(20)</td><td>Default: <code>'wizard'</code></td><td>How the job was submitted. Values: <code>wizard</code> (browser UI) or <code>api</code> (headless API).</td></tr>
+        <tr><td><code>source_system</code></td><td>String(255)</td><td>Nullable</td><td>Caller system identifier for API-submitted jobs (e.g. <code>"qual-brew"</code>).</td></tr>
+        <tr><td><code>product_name</code></td><td>String(255)</td><td>Nullable</td><td>Product name metadata for API-submitted jobs.</td></tr>
+        <tr><td><code>feature_name</code></td><td>String(255)</td><td>Nullable</td><td>Feature name metadata for API-submitted jobs.</td></tr>
+        <tr><td><code>total_utterance_count</code></td><td>Integer</td><td>Snapshot, frozen past draft</td><td>Number of test rows in the job. Frozen once job leaves draft.</td></tr>
+        <tr><td><code>processed_count</code></td><td>Integer</td><td>Default 0</td><td>Rows that have completed processing (regardless of verdict).</td></tr>
+        <tr><td><code>failed_count</code></td><td>Integer</td><td>Default 0</td><td>Rows that encountered an error during processing.</td></tr>
+      </tbody>
+    </table>
+    <p style="font-size:12px;color:var(--color-gray);">Relationship: <code>utterances</code> → list[Utterance] (cascade all, delete-orphan).</p>
+  </div>
+
+  <h3>utterance</h3>
+  <p>One CSV row belonging to a job. Per-row passwords are never persisted — they are held in-memory only and evicted immediately after the connector call returns.</p>
+  <div class="card">
+    <table>
+      <thead><tr><th>Column</th><th>Type</th><th>Constraints</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>utterance_id</code></td><td>String(36)</td><td><span class="badge badge-pk">PK</span></td><td>UUID primary key.</td></tr>
+        <tr><td><code>job_id</code></td><td>String(36)</td><td><span class="badge badge-fk">FK</span> → job.job_id, CASCADE</td><td>Parent job. Deleted when the job is deleted.</td></tr>
+        <tr><td><code>utterance_text</code></td><td>String</td><td>NOT NULL</td><td>The test question or input message.</td></tr>
+        <tr><td><code>row_index</code></td><td>Integer</td><td>NOT NULL</td><td>Zero-based row position from the original CSV. Used for ordered retrieval.</td></tr>
+        <tr><td><code>test_id</code></td><td>String</td><td>NOT NULL</td><td>Test identifier from the CSV <code>test_id</code> column. Echoed through the contract to the evaluator.</td></tr>
+        <tr><td><code>utterance_intent</code></td><td>String(255)</td><td>Nullable</td><td>Optional intent label from the CSV.</td></tr>
+        <tr><td><code>extra_metadata</code></td><td>JSON</td><td>Nullable</td><td>Any extra columns from the CSV beyond the required fields, preserved as key-value pairs.</td></tr>
+      </tbody>
+    </table>
+    <p style="font-size:12px;color:var(--color-gray);">Relationship: <code>evaluation_result</code> → EvaluationResult (one-to-one, cascade all, delete-orphan).</p>
+  </div>
+
+  <h3>evaluation_result</h3>
+  <p>Per-row outcome and full trace. At most one record per utterance (UNIQUE constraint on <code>utterance_id</code>).</p>
+  <div class="card">
+    <table>
+      <thead><tr><th>Column</th><th>Type</th><th>Constraints</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>result_id</code></td><td>String(36)</td><td><span class="badge badge-pk">PK</span></td><td>UUID primary key.</td></tr>
+        <tr><td><code>utterance_id</code></td><td>String(36)</td><td><span class="badge badge-fk">FK</span> <span class="badge badge-uq">UNIQUE</span></td><td>Parent utterance. Enforces one result per row.</td></tr>
+        <tr><td><code>test_id</code></td><td>String</td><td>NOT NULL</td><td>Echoed from the parent utterance for convenience in queries.</td></tr>
+        <tr><td><code>raw_chatbot_response</code></td><td>JSON</td><td>Nullable</td><td>The connector's raw HTTP response body, as received.</td></tr>
+        <tr><td><code>normalized_contract</code></td><td>JSON</td><td>Nullable</td><td>The full Standard Evaluation Contract produced by the connector and validated by the harness.</td></tr>
+        <tr><td><code>evaluation_agent_id</code></td><td>String(36)</td><td>Nullable</td><td>Evaluator ID that scored this row (snapshotted from the job).</td></tr>
+        <tr><td><code>evaluation_verdict</code></td><td>String(10)</td><td>Nullable</td><td>Evaluator verdict: <code>pass</code>, <code>fail</code>, or <code>warn</code>. Null if the row errored before evaluation.</td></tr>
+        <tr><td><code>evaluation_scores</code></td><td>JSON</td><td>Nullable</td><td>List of dimension score objects: <code>[{dimension, score, maxScore, rationale?}]</code>.</td></tr>
+        <tr><td><code>result_metadata</code></td><td>JSON</td><td>Nullable</td><td>Evaluator-supplied metadata (stored as column <code>metadata</code>; renamed in ORM to avoid Base class collision).</td></tr>
+        <tr><td><code>harness_annotations</code></td><td>JSON</td><td>Nullable</td><td>Internal harness-level annotations added during processing.</td></tr>
+        <tr><td><code>utterance_intent</code></td><td>String(255)</td><td>Nullable</td><td>Echoed intent label from the utterance.</td></tr>
+        <tr><td><code>error_status</code></td><td>String(20)</td><td>Nullable</td><td>Set when the row errored: <code>failed</code> or <code>cancelled</code>.</td></tr>
+        <tr><td><code>error_stage</code></td><td>String(30)</td><td>Nullable</td><td>One of nine canonical error stages (see below). Set alongside <code>error_status</code>.</td></tr>
+        <tr><td><code>error_details</code></td><td>String</td><td>Nullable</td><td>Human-readable error description for the failed stage.</td></tr>
+        <tr><td><code>evaluation_timestamp</code></td><td>DateTime</td><td>NOT NULL</td><td>UTC timestamp when this result record was created.</td></tr>
+        <tr><td><code>connector_token_count</code></td><td>Integer</td><td>Nullable</td><td>Token count reported by the connector (if available).</td></tr>
+        <tr><td><code>evaluator_token_count</code></td><td>Integer</td><td>Nullable</td><td>Token count reported by the evaluator (if available).</td></tr>
+        <tr><td><code>total_token_count</code></td><td>Integer</td><td>Nullable</td><td>Sum of connector and evaluator token counts.</td></tr>
+      </tbody>
+    </table>
+    <div class="card--highlight" style="margin-top:var(--space-sm);">
+      <strong>Error stages:</strong> <code>connector_transport</code>, <code>connector_response</code>, <code>connector_normalization</code>, <code>connector_auth</code>, <code>evaluator_transport</code>, <code>evaluator_response</code>, <code>evaluator_result</code>, <code>evaluator_auth</code>, <code>password_lookup</code>.
+    </div>
+  </div>
+
+  <h3>connector_registration</h3>
+  <div class="card">
+    <table>
+      <thead><tr><th>Column</th><th>Type</th><th>Constraints</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>connector_id</code></td><td>String(36)</td><td><span class="badge badge-pk">PK</span></td><td>UUID primary key.</td></tr>
+        <tr><td><code>display_name</code></td><td>String</td><td>NOT NULL</td><td>Human-readable name shown in the wizard dropdown and dashboard.</td></tr>
+        <tr><td><code>description</code></td><td>String</td><td>Nullable</td><td>Optional description for the Connector Registry UI.</td></tr>
+        <tr><td><code>endpoint_url</code></td><td>String</td><td>NOT NULL</td><td>Full URL of the connector's POST endpoint.</td></tr>
+        <tr><td><code>auth_descriptor</code></td><td>JSON</td><td>Encrypted</td><td>Authentication configuration object. Credential subfields (<code>credential</code>, <code>password</code>, <code>clientSecret</code>) are Fernet-encrypted at rest.</td></tr>
+        <tr><td><code>timeout_seconds</code></td><td>Integer</td><td>Default: 30</td><td>HTTP request timeout for connector calls.</td></tr>
+        <tr><td><code>expects_per_row_password</code></td><td>Boolean</td><td>Default: False</td><td>If true, the harness will look up a per-row password from the uploaded CSV and send it in the connector request body.</td></tr>
+        <tr><td><code>supports_sse</code></td><td>Boolean</td><td>Default: False</td><td>Reserved. Indicates the connector supports SSE streaming responses.</td></tr>
+        <tr><td><code>archived</code></td><td>Boolean</td><td>Default: False</td><td>Archived connectors are hidden from the wizard dropdown but their data is retained.</td></tr>
+        <tr><td><code>created_at</code></td><td>DateTime</td><td>NOT NULL</td><td>Registration timestamp (UTC).</td></tr>
+        <tr><td><code>updated_at</code></td><td>DateTime</td><td>NOT NULL</td><td>Last modification timestamp (UTC).</td></tr>
+        <tr><td><code>archived_at</code></td><td>DateTime</td><td>Nullable</td><td>Set when the connector is archived.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>evaluation_agent_registration</h3>
+  <div class="card">
+    <table>
+      <thead><tr><th>Column</th><th>Type</th><th>Constraints</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>evaluation_agent_id</code></td><td>String(36)</td><td><span class="badge badge-pk">PK</span></td><td>UUID primary key.</td></tr>
+        <tr><td><code>display_name</code></td><td>String</td><td>NOT NULL</td><td>Human-readable name shown in wizard dropdowns and the dashboard.</td></tr>
+        <tr><td><code>description</code></td><td>String</td><td>Default: ""</td><td>Optional description for the Evaluator Registry UI.</td></tr>
+        <tr><td><code>endpoint_url</code></td><td>String</td><td>NOT NULL</td><td>Full URL of the evaluator's POST endpoint.</td></tr>
+        <tr><td><code>auth_descriptor</code></td><td>JSON</td><td>Encrypted</td><td>Authentication configuration. Credential subfields Fernet-encrypted at rest.</td></tr>
+        <tr><td><code>timeout_seconds</code></td><td>Integer</td><td>Default: 60</td><td>HTTP request timeout for evaluator calls.</td></tr>
+        <tr><td><code>declared_scoring_dimensions</code></td><td>JSON</td><td>Nullable</td><td>Ordered list of dimension name strings this evaluator will score (e.g. <code>["relevance","accuracy","tone"]</code>).</td></tr>
+        <tr><td><code>supports_sse</code></td><td>Boolean</td><td>Default: False</td><td>If true, the evaluator supports SSE streaming evaluation events (used in live chat sessions).</td></tr>
+        <tr><td><code>archived</code></td><td>Boolean</td><td>Default: False</td><td>Archived evaluators are hidden from wizard dropdowns but data is retained.</td></tr>
+        <tr><td><code>created_at</code></td><td>DateTime</td><td>NOT NULL</td><td>Registration timestamp (UTC).</td></tr>
+        <tr><td><code>updated_at</code></td><td>DateTime</td><td>NOT NULL</td><td>Last modification timestamp (UTC).</td></tr>
+        <tr><td><code>archived_at</code></td><td>DateTime</td><td>Nullable</td><td>Set when the evaluator is archived.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>user_registration</h3>
+  <div class="card">
+    <table>
+      <thead><tr><th>Column</th><th>Type</th><th>Constraints</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>id</code></td><td>String(36)</td><td><span class="badge badge-pk">PK</span></td><td>UUID primary key.</td></tr>
+        <tr><td><code>azure_oid</code></td><td>String</td><td>Nullable, <span class="badge badge-idx">IDX</span></td><td>Azure AD Object ID. Linked at first successful login. Null until the user has logged in.</td></tr>
+        <tr><td><code>email</code></td><td>String</td><td>NOT NULL, <span class="badge badge-uq">UNIQUE</span></td><td>User email address. Used as the registration key. Must match the Azure AD UPN.</td></tr>
+        <tr><td><code>display_name</code></td><td>String</td><td>Nullable</td><td>Display name from Azure AD token claims, populated at first login.</td></tr>
+        <tr><td><code>role</code></td><td>String(10)</td><td>NOT NULL</td><td><code>admin</code> — full access including user management. <code>user</code> — create jobs, view results, export.</td></tr>
+        <tr><td><code>registered_at</code></td><td>DateTime</td><td>NOT NULL</td><td>When the admin pre-registered this user.</td></tr>
+        <tr><td><code>last_login_at</code></td><td>DateTime</td><td>Nullable</td><td>Updated on each successful authentication.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>chat_session</h3>
+  <div class="card">
+    <table>
+      <thead><tr><th>Column</th><th>Type</th><th>Constraints</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>chat_session_id</code></td><td>String(36)</td><td><span class="badge badge-pk">PK</span></td><td>UUID primary key.</td></tr>
+        <tr><td><code>session_name</code></td><td>String(255)</td><td>NOT NULL</td><td>Human-readable session name.</td></tr>
+        <tr><td><code>owner_oid</code></td><td>String(255)</td><td>NOT NULL, <span class="badge badge-idx">IDX</span></td><td>Azure OID of the user who owns this session.</td></tr>
+        <tr><td><code>created_at</code></td><td>DateTime</td><td>NOT NULL</td><td>Session creation timestamp (UTC).</td></tr>
+        <tr><td><code>test_id_enc</code></td><td>Text</td><td>Fernet-encrypted</td><td>Encrypted test ID for per-row authentication.</td></tr>
+        <tr><td><code>test_password_enc</code></td><td>Text</td><td>Fernet-encrypted</td><td>Encrypted test password.</td></tr>
+        <tr><td><code>connector_id</code> … <code>connector_auth_descriptor</code></td><td>Various</td><td>Snapshot, Nullable</td><td>Snapshot of the selected connector's configuration at session creation.</td></tr>
+        <tr><td><code>evaluator_id</code> … <code>evaluator_auth_descriptor</code></td><td>Various</td><td>Snapshot, Nullable</td><td>Snapshot of the selected evaluator's configuration at session creation.</td></tr>
+        <tr><td><code>active_conversation_id</code></td><td>String(255)</td><td>Nullable</td><td>Mutable. Updated from connector response metadata to maintain conversation context across turns.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>chat_turn, chat_turn_result, evaluation_event</h3>
+  <div class="card">
+    <table>
+      <thead><tr><th>Table</th><th>Key columns</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>chat_turn</code></td><td><code>turn_id</code> PK, <code>session_id</code> FK+IDX, <code>user_message</code> (Text), <code>status</code> (in_progress/completed/failed)</td><td>One user message and its connector response within a live chat session.</td></tr>
+        <tr><td><code>chat_turn_result</code></td><td><code>turn_result_id</code> PK, <code>turn_id</code> FK+UNIQUE, <code>assembled_response</code> (Text), <code>normalized_contract</code> (JSON), <code>final_evaluation_result</code> (JSON), <code>error_stage</code></td><td>One-to-one outcome record for a completed or failed chat turn.</td></tr>
+        <tr><td><code>evaluation_event</code></td><td><code>event_id</code> PK, <code>turn_id</code> FK+IDX, <code>event_type</code> (score_update/warning/insight/diagnostic/final), <code>payload</code> (JSON), <code>sequence_number</code></td><td>One structured SSE event emitted by the evaluator during a streaming live chat turn. Events are ordered by <code>sequence_number</code>.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</section>
+
+<!-- ═══════════════════════════════ API REFERENCE ═══════════════════════════════ -->
+<section class="tab-panel" id="panel-api">
+
+  <h2>Headless Execution API</h2>
+  <div class="card--highlight">
+    Base path: <code>/api/headless</code>. All endpoints require an Azure AD M2M Bearer token in the <code>Authorization: Bearer &lt;token&gt;</code> header. The token must be acquired via the OAuth2 Client Credentials flow against the harness's Azure AD app registration.
+  </div>
+
+  <h3>Discovery endpoints</h3>
+
+  <div class="endpoint-row">
+    <span class="tag tag-method-get">GET</span>
+    <span class="endpoint-path">/api/headless/connectors</span>
+    <div class="endpoint-desc">List all active (non-archived) connectors available for job submission.</div>
+  </div>
+  <div class="card">
+    <table>
+      <thead><tr><th>Response 200</th><th>Schema</th></tr></thead>
+      <tbody>
+        <tr><td>Success</td><td><code>ConnectorListItem[]</code> — <code>[{id, name, description}]</code></td></tr>
+      </tbody>
+    </table>
+    <p>Connectors with <code>supports_sse = true</code> are excluded from this list, as they are not compatible with the headless batch execution model.</p>
+  </div>
+
+  <div class="endpoint-row">
+    <span class="tag tag-method-get">GET</span>
+    <span class="endpoint-path">/api/headless/evaluators</span>
+    <div class="endpoint-desc">List all active (non-archived) evaluators available for job submission.</div>
+  </div>
+  <div class="card">
+    <table>
+      <thead><tr><th>Response 200</th><th>Schema</th></tr></thead>
+      <tbody>
+        <tr><td>Success</td><td><code>EvaluatorListItem[]</code> — <code>[{id, name, description, scoring_dimensions}]</code></td></tr>
+      </tbody>
+    </table>
+    <p>Evaluators with <code>supports_sse = true</code> are excluded from this list.</p>
+  </div>
+
+  <h3>Job lifecycle endpoints</h3>
+
+  <div class="endpoint-row">
+    <span class="tag tag-method-post">POST</span>
+    <span class="endpoint-path">/api/headless/jobs</span>
+    <div class="endpoint-desc">Submit a set of test cases as a new evaluation job.</div>
+  </div>
+  <div class="card">
+    <h3>Request body — <code>HeadlessJobSubmission</code></h3>
+    <table>
+      <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>connector_id</code></td><td>String (UUID)</td><td>Yes</td><td>ID of the connector to use. Must be active and non-SSE.</td></tr>
+        <tr><td><code>evaluator_id</code></td><td>String (UUID)</td><td>Yes</td><td>ID of the evaluator to use. Must be active and non-SSE.</td></tr>
+        <tr><td><code>test_cases</code></td><td>HeadlessTestCase[]</td><td>Yes</td><td>1–100 test cases. Each must have <code>id</code> (unique within the submission) and <code>input_message</code> (non-empty). Extra fields are passed through as metadata.</td></tr>
+        <tr><td><code>source_system</code></td><td>String</td><td>No</td><td>Identifier of the calling system (e.g. <code>"qual-brew"</code>). Stored on the job and surfaced in the dashboard.</td></tr>
+        <tr><td><code>product_name</code></td><td>String</td><td>No</td><td>Product label for the dashboard.</td></tr>
+        <tr><td><code>feature_name</code></td><td>String</td><td>No</td><td>Feature label for the dashboard.</td></tr>
+      </tbody>
+    </table>
+    <h3>Response 201 — <code>HeadlessJobSubmissionResponse</code></h3>
+    <table>
+      <thead><tr><th>Field</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>job_id</code></td><td>UUID of the newly created job.</td></tr>
+        <tr><td><code>stream_url</code></td><td>URL to connect to for the SSE live progress stream.</td></tr>
+        <tr><td><code>result_url</code></td><td>URL to poll for current status and final results.</td></tr>
+      </tbody>
+    </table>
+    <h3>Error responses</h3>
+    <table>
+      <thead><tr><th>Status</th><th>Condition</th></tr></thead>
+      <tbody>
+        <tr><td>400</td><td>Validation failure — empty <code>test_cases</code>, more than 100 cases, duplicate case IDs, empty <code>input_message</code>, or invalid connector/evaluator ID.</td></tr>
+        <tr><td>401</td><td>Missing or invalid Bearer token.</td></tr>
+        <tr><td>429</td><td>Caller already has 2 non-terminal headless jobs in flight. The limit is per service principal (<code>oid</code> claim).</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="endpoint-row">
+    <span class="tag tag-method-get">GET</span>
+    <span class="endpoint-path">/api/headless/jobs/{job_id}/stream</span>
+    <div class="endpoint-desc">Open an SSE stream for live per-case progress events. Replays the full event history immediately for late-connecting clients.</div>
+  </div>
+  <div class="card">
+    <p>Response: <code>Content-Type: text/event-stream</code>. The stream closes automatically after the terminal event (<code>job_complete</code> or <code>job_failed</code>) is consumed. Clients that connect after the job has already finished receive the full replayed history and then an immediate close.</p>
+    <h3>SSE event types</h3>
+    <table>
+      <thead><tr><th>Event type</th><th>Payload</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>job_started</code></td><td><code>{}</code></td><td>Emitted once when the job transitions from queued to running.</td></tr>
+        <tr><td><code>progress</code></td><td><code>{cases_completed: N, cases_failed: N}</code></td><td>Emitted after each test case completes. Both counts are cumulative totals.</td></tr>
+        <tr><td><code>job_complete</code></td><td><code>{results_url, summary: {total, passed, failed, top_failures[]}}</code></td><td>Terminal event. Emitted once when all rows finish. <code>top_failures</code> lists the first 5 failed cases with their ID and input message.</td></tr>
+        <tr><td><code>job_failed</code></td><td><code>{error: "...", summary: {...}}</code></td><td>Terminal event. Emitted when the job itself fails (not a row-level failure — a fatal error such as DB unavailability).</td></tr>
+      </tbody>
+    </table>
+    <div class="card--highlight" style="margin-top:var(--space-sm);">
+      Thread-to-async bridging: the orchestrator engine runs in synchronous daemon threads. Progress callbacks use <code>loop.call_soon_threadsafe(bus.push, event)</code> to push events from the engine thread into the asyncio event loop that owns the SSE response.
+    </div>
+  </div>
+
+  <div class="endpoint-row">
+    <span class="tag tag-method-get">GET</span>
+    <span class="endpoint-path">/api/headless/jobs/{job_id}/result</span>
+    <div class="endpoint-desc">Polling fallback. Returns current job status and, once terminal, the full summary.</div>
+  </div>
+  <div class="card">
+    <p>Response: <code>HeadlessJobResult</code> — <code>{job_id, status, results_url?, summary?}</code>. The <code>summary</code> field is null while the job is in a non-terminal state. <code>results_url</code> points to the harness results export or detail page. Performance target: response within 5 seconds of job completion.</p>
+  </div>
+
+  <div class="endpoint-row">
+    <span class="tag tag-method-delete">DELETE</span>
+    <span class="endpoint-path">/api/headless/jobs/{job_id}</span>
+    <div class="endpoint-desc">Cancel a non-terminal job. Only the job owner (matched by <code>oid</code> claim) may cancel their own jobs.</div>
+  </div>
+  <div class="card">
+    <table>
+      <thead><tr><th>Status</th><th>Condition</th></tr></thead>
+      <tbody>
+        <tr><td>204</td><td>Cancellation accepted. The job transitions to <code>cancelling</code> and will move to <code>cancelled</code> after the current row finishes.</td></tr>
+        <tr><td>404</td><td>Job not found, or does not belong to the caller.</td></tr>
+        <tr><td>409</td><td>Job is already in a terminal state (<code>completed</code>, <code>failed</code>, or <code>cancelled</code>).</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Standard Evaluation Contract</h2>
+  <div class="card">
+    <p>The contract is the single shared format between the harness, connectors, and evaluators. Connectors produce it; the harness validates it; evaluators consume it. Current version: <code>"1"</code>. Additive-only — new optional fields can be added without a version bump.</p>
+    <table>
+      <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>contractVersion</code></td><td>String</td><td>Must be <code>"1"</code>. A higher version is rejected by the harness.</td></tr>
+        <tr><td><code>utteranceId</code></td><td>String (UUID)</td><td>Correlation key. The evaluator must echo this in its response for result matching.</td></tr>
+        <tr><td><code>utteranceText</code></td><td>String</td><td>The original test question sent to the connector.</td></tr>
+        <tr><td><code>testId</code></td><td>String</td><td>The test identifier from the CSV row.</td></tr>
+        <tr><td><code>conversationContext</code></td><td>null</td><td>Reserved for future multi-turn support. Must be null in version 1.</td></tr>
+        <tr><td><code>connectorId</code></td><td>String</td><td>The registered connector ID that produced this contract.</td></tr>
+        <tr><td><code>timestamp</code></td><td>ISO 8601 DateTime</td><td>UTC timestamp when the connector produced this contract.</td></tr>
+        <tr><td><code>chatbotResponse.rawPayload</code></td><td>Object</td><td>Raw chatbot response payload in its native format. Any shape is accepted.</td></tr>
+        <tr><td><code>chatbotResponse.normalizedText</code></td><td>String</td><td>Plain-text rendering of the chatbot response.</td></tr>
+        <tr><td><code>chatbotResponse.agentChain</code></td><td>Array</td><td>Ordered list of agent identifiers if the response traversed multiple agents.</td></tr>
+        <tr><td><code>chatbotResponse.metadata</code></td><td>Object</td><td>Connector-specific metadata (e.g. conversation ID, latency, model name).</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</section>
+
+<!-- ═══════════════════════════════ CONFIGURATION ═══════════════════════════════ -->
+<section class="tab-panel" id="panel-config">
+
+  <h2>Environment configuration</h2>
+  <p>All configuration is environment-variable-driven. There is no settings file. Variables are read at startup; no hot-reload. The application refuses to start if required variables are absent.</p>
+
+  <div class="card">
+    <table>
+      <thead><tr><th>Variable</th><th>Required</th><th>Default</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>DATABASE_URL</code></td><td>Yes</td><td>—</td><td>Full SQLAlchemy connection URL for PostgreSQL. Example: <code>postgresql://user:pass@host/db</code>. SQLite is supported for tests only.</td></tr>
+        <tr><td><code>HARNESS_MASTER_KEY</code></td><td>Either this or KEY_FILE</td><td>—</td><td>Fernet encryption key bytes, URL-safe base64. Preferred for container/PaaS deployments. Takes priority over <code>HARNESS_KEY_FILE</code>.</td></tr>
+        <tr><td><code>HARNESS_KEY_FILE</code></td><td>Either this or MASTER_KEY</td><td><code>~/.harness/master.key</code></td><td>Path to a Fernet key file. Auto-created with mode <code>0600</code> on first use if absent.</td></tr>
+        <tr><td><code>HARNESS_SESSION_SECRET</code></td><td>When auth enabled</td><td>—</td><td>Session cookie signing key. Must be at least 32 characters. Required when <code>HARNESS_AUTH_ENABLED=true</code>.</td></tr>
+        <tr><td><code>HARNESS_AUTH_ENABLED</code></td><td>No</td><td><code>false</code></td><td>Set to <code>true</code> to enable Azure AD authentication. When false, synthetic identities are injected and all routes are open.</td></tr>
+        <tr><td><code>HARNESS_AZURE_TENANT_ID</code></td><td>When auth enabled</td><td>—</td><td>Azure AD tenant GUID.</td></tr>
+        <tr><td><code>HARNESS_AZURE_CLIENT_ID</code></td><td>When auth enabled</td><td>—</td><td>App registration client ID for the eval-brew application.</td></tr>
+        <tr><td><code>HARNESS_AZURE_CLIENT_SECRET</code></td><td>When auth enabled</td><td>—</td><td>App registration client secret.</td></tr>
+        <tr><td><code>HARNESS_REDIRECT_URI</code></td><td>When auth enabled</td><td>—</td><td>OAuth2 browser callback URL. Example: <code>https://host/auth/callback</code>.</td></tr>
+        <tr><td><code>HARNESS_AZURE_API_AUDIENCE</code></td><td>No</td><td><code>HARNESS_AZURE_CLIENT_ID</code></td><td>Expected <code>aud</code> claim in M2M Bearer tokens. Set explicitly when the app's Application ID URI uses a custom scheme (e.g. <code>api://your-client-id</code>). The caller's <code>resource</code> value must match this exactly.</td></tr>
+        <tr><td><code>HARNESS_PUBLIC_URL</code></td><td>No</td><td>—</td><td>External base URL of eval-brew (no trailing slash). When set, <code>results_url</code> in headless API responses is fully qualified.</td></tr>
+        <tr><td><code>HARNESS_MAX_UPLOAD_BYTES</code></td><td>No</td><td><code>52428800</code></td><td>Maximum CSV upload size in bytes (default: 50 MiB).</td></tr>
+        <tr><td><code>HARNESS_SESSION_HTTPS_ONLY</code></td><td>No</td><td><code>true</code></td><td>Cookie <code>https_only</code> flag. Set to <code>false</code> in local HTTP development.</td></tr>
+        <tr><td><code>HARNESS_MOCK_MODE</code></td><td>No</td><td><code>ok</code></td><td>Mock connector/evaluator response mode for development: <code>ok</code>, <code>nonconformant</code>, <code>status500</code>, <code>slow</code>.</td></tr>
+        <tr><td><code>LOG_LEVEL</code></td><td>No</td><td><code>debug</code></td><td>Log verbosity level passed to structlog.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Deployment</h2>
+
+  <div class="two-col">
+    <div class="card">
+      <h3>Recommended production setup</h3>
+      <p>The application runs as a Docker container on Azure Kubernetes Service (AKS), backed by Azure PostgreSQL Flexible Server (PaaS).</p>
+      <p>Start command (within the container):</p>
+      <p><code>uvicorn harness.ui:create_app --factory --host 0.0.0.0 --port 8000</code></p>
+      <p>Nginx handles TLS termination and proxies to Uvicorn on localhost. Static files can be served directly by Nginx for efficiency. The Fernet master key should be supplied via <code>HARNESS_MASTER_KEY</code> as a container environment variable or Kubernetes secret — no key file management is needed in this mode.</p>
+    </div>
+    <div class="card">
+      <h3>Bootstrap — first admin user</h3>
+      <p>Before the web UI is accessible, the first admin must be registered via the CLI:</p>
+      <p><code>harness users add --email admin@example.com --role admin</code></p>
+      <p>Other CLI commands:</p>
+      <ul>
+        <li><code>harness users list</code> — list all registered users</li>
+        <li><code>harness users remove</code> — remove a registration</li>
+        <li><code>harness users set-role</code> — change a user's role</li>
+        <li><code>harness mock-connector</code> — start a reference connector for dev/testing</li>
+        <li><code>harness mock-evaluator</code> — start a reference evaluator for dev/testing</li>
+        <li><code>harness serve</code> — start the web server directly</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>M2M token acquisition (headless API callers)</h2>
+  <div class="card">
+    <p>External systems integrating with the headless API must acquire a Bearer token using the OAuth2 Client Credentials flow before calling any <code>/api/headless/*</code> endpoint.</p>
+    <table>
+      <thead><tr><th>Parameter</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>Token URL</td><td><code>https://login.microsoftonline.com/{HARNESS_AZURE_TENANT_ID}/oauth2/token</code></td></tr>
+        <tr><td><code>grant_type</code></td><td><code>client_credentials</code></td></tr>
+        <tr><td><code>client_id</code></td><td>The caller's own Azure AD app registration client ID</td></tr>
+        <tr><td><code>client_secret</code></td><td>The caller's own app registration secret</td></tr>
+        <tr><td><code>resource</code></td><td>The value of <code>HARNESS_AZURE_API_AUDIENCE</code> configured in eval-brew</td></tr>
+      </tbody>
+    </table>
+    <div class="card--highlight" style="margin-top:var(--space-sm);">
+      The <code>resource</code> value sent by the caller must match <code>HARNESS_AZURE_API_AUDIENCE</code> exactly. Tokens with a mismatched <code>aud</code> claim are rejected with HTTP 401.
+    </div>
+  </div>
+
+  <h2>Concurrency and performance</h2>
+  <div class="card">
+    <table>
+      <thead><tr><th>Constraint</th><th>Value</th><th>Mechanism</th></tr></thead>
+      <tbody>
+        <tr><td>Max concurrent jobs (total)</td><td>4</td><td><code>BoundedSemaphore(MAX_CONCURRENT_JOBS=4)</code> in <code>orchestrator/engine.py</code></td></tr>
+        <tr><td>Max headless jobs per service principal</td><td>2 (non-terminal)</td><td>DB count query at submission time via <code>JobRepository.count_headless_non_terminal_by_user()</code></td></tr>
+        <tr><td>Max test cases per headless submission</td><td>100</td><td>Pydantic validator on <code>HeadlessJobSubmission.test_cases</code></td></tr>
+        <tr><td>Max CSV upload size</td><td>50 MiB</td><td><code>HARNESS_MAX_UPLOAD_BYTES</code> env var</td></tr>
+        <tr><td>DB connection pool</td><td>size=2, overflow=3</td><td>SQLAlchemy engine config in <code>persistence/engine.py</code></td></tr>
+        <tr><td>First SSE progress event</td><td>Target: within 10s of submission</td><td>First <code>progress</code> event after the first row completes</td></tr>
+        <tr><td>Result re-fetch</td><td>Target: within 5s of completion</td><td><code>GET /api/headless/jobs/{id}/result</code> polling endpoint</td></tr>
+        <tr><td>Validation rejections</td><td>Target: within 2s</td><td>Pydantic validation before any DB access</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Security notes</h2>
+  <div class="card">
+    <ul style="line-height:2;">
+      <li><strong>Credential encryption:</strong> All <code>auth_descriptor</code> credential subfields (<code>credential</code>, <code>password</code>, <code>clientSecret</code>) are Fernet-encrypted before being written to the database. The master key must be present across redeployments. If the key changes, all stored credentials become unreadable.</li>
+      <li><strong>Per-row passwords:</strong> CSV per-row passwords are never persisted. They are held in-memory in a per-job password store and evicted immediately after the connector call returns.</li>
+      <li><strong>Security headers:</strong> A <code>SecurityHeadersMiddleware</code> is attached to the FastAPI app and injects standard security response headers on every response. Header names and values are fixed and must not be modified.</li>
+      <li><strong>Session cookie:</strong> The browser session cookie is signed (Starlette <code>SessionMiddleware</code>). The <code>https_only</code> flag is <code>true</code> by default and must not be disabled in production.</li>
+      <li><strong>Auth bypass:</strong> <code>HARNESS_AUTH_ENABLED=false</code> must never be set in production. It is intended for local development only.</li>
+    </ul>
+  </div>
+
+</section>
+
+</main>
+
+<footer style="text-align:center; padding:var(--space-lg); font-size:12px; color:var(--color-gray); border-top:1px solid var(--color-border); background:var(--color-white); margin-top:var(--space-lg);">
+  EvalBrew Design Documentation &nbsp;|&nbsp; Author: Siddhartha Dhamankar &nbsp;|&nbsp; Branch: foundation &nbsp;|&nbsp; Generated: 2026-08-05
+</footer>
+
+</body>
+</html>

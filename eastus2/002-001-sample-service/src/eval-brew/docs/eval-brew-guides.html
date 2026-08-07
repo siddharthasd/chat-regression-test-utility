@@ -1,0 +1,1237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Eval-Brew Guides</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --color-purple-deep:  #460073;
+  --color-purple-dark:  #7500C0;
+  --color-primary:      #A100FF;
+  --color-purple-mid:   #C2A3FF;
+  --color-purple-light: #E6DCFF;
+  --color-black:        #000000;
+  --color-gray:         #818180;
+  --color-gray-light:   #CFCFCF;
+  --color-neutral-bg:   #F1F1EF;
+  --color-white:        #FFFFFF;
+  --color-primary-bg:   #E6DCFF;
+  --color-surface:      #FFFFFF;
+  --color-border:       #CFCFCF;
+  --color-text:         #000000;
+  --color-text-muted:   #818180;
+  --color-warning-bg:   #FEF3E2;
+  --color-warning:      #D97706;
+  --color-error-bg:     #FEF0EF;
+  --color-error:        #C0392B;
+  --space-xs: 8px;
+  --space-sm: 16px;
+  --space-md: 24px;
+  --space-lg: 40px;
+  --space-xl: 56px;
+}
+
+html, body { width: 100%; }
+body {
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--color-text);
+  background: var(--color-neutral-bg);
+  line-height: 1.6;
+}
+
+input[type="radio"] { display: none; }
+
+/* ── Banner ── */
+.banner {
+  background: #000000;
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 3px solid var(--color-primary);
+}
+.banner-inner { display: flex; align-items: center; gap: 16px; max-width: 1100px; margin: 0 auto; }
+.banner-arrow { color: var(--color-primary); font-size: 32px; font-weight: 700; flex-shrink: 0; }
+.banner-text h1 { color: #ffffff; font-size: 22px; font-weight: 700; }
+.banner-text .subtitle { color: rgba(255,255,255,0.65); font-size: 13px; margin-top: 2px; }
+
+/* ── Tab navigation ── */
+.tab-nav {
+  background: var(--color-white);
+  border-bottom: 1px solid var(--color-gray-light);
+  display: flex;
+  flex-wrap: wrap;
+  padding: 0 var(--space-lg);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.tab-nav label {
+  cursor: pointer;
+  padding: 12px 20px;
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--color-gray);
+  border-bottom: 3px solid transparent;
+  margin-bottom: -1px;
+  white-space: nowrap;
+  display: inline-block;
+}
+.tab-nav label:hover { color: var(--color-purple-dark); }
+
+#tab-user:checked     ~ .tab-nav label[for="tab-user"],
+#tab-evaluator:checked ~ .tab-nav label[for="tab-evaluator"],
+#tab-connector:checked ~ .tab-nav label[for="tab-connector"],
+#tab-csv:checked      ~ .tab-nav label[for="tab-csv"] {
+  color: var(--color-primary);
+  font-weight: 700;
+  border-bottom-color: var(--color-primary);
+}
+
+/* ── Main / panels ── */
+main { max-width: 1100px; margin: 0 auto; padding: var(--space-lg); }
+
+.tab-panel { display: none; }
+
+#tab-user:checked     ~ main #panel-user      { display: block; }
+#tab-evaluator:checked ~ main #panel-evaluator { display: block; }
+#tab-connector:checked ~ main #panel-connector { display: block; }
+#tab-csv:checked      ~ main #panel-csv       { display: block; }
+
+.panel-content {
+  background: var(--color-white);
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  padding: var(--space-lg);
+}
+
+/* ── Typography ── */
+h2 {
+  font-size: 17px; font-weight: 700; color: var(--color-text);
+  margin-top: var(--space-lg); margin-bottom: var(--space-sm);
+  border-bottom: 2px solid var(--color-purple-light); padding-bottom: 6px;
+}
+h2:first-child { margin-top: 0; }
+h3 { font-size: 14px; font-weight: 700; color: var(--color-text); margin-top: var(--space-md); margin-bottom: 8px; }
+h4 { font-size: 14px; font-weight: 700; color: var(--color-purple-dark); margin-top: var(--space-sm); margin-bottom: 6px; }
+
+p { margin-bottom: var(--space-sm); }
+p:last-child { margin-bottom: 0; }
+
+ul, ol { margin-bottom: var(--space-sm); padding-left: 24px; }
+li { margin-bottom: 4px; }
+li > ul, li > ol { margin-top: 4px; margin-bottom: 4px; }
+li > pre { margin-top: 8px; }
+
+strong { font-weight: 700; }
+em { font-style: italic; }
+
+code {
+  background: var(--color-purple-light);
+  color: var(--color-purple-deep);
+  padding: 2px 5px;
+  border-radius: 3px;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 12px;
+}
+
+pre {
+  background: #1e1e2e;
+  border-radius: 6px;
+  padding: var(--space-sm);
+  margin-bottom: var(--space-md);
+  overflow-x: auto;
+}
+pre code {
+  background: transparent;
+  color: #d4d4d4;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  border-radius: 0;
+}
+
+/* ── Tables ── */
+table { width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: var(--space-md); }
+th { background: var(--color-purple-light); color: var(--color-text); font-weight: 700; text-align: left; padding: var(--space-xs) var(--space-sm); }
+td { padding: var(--space-xs) var(--space-sm); border-bottom: 1px solid var(--color-border); vertical-align: top; }
+tr:nth-child(even) td { background: var(--color-neutral-bg); }
+
+/* ── Notes / warnings ── */
+.note {
+  background: var(--color-purple-light);
+  border-left: 4px solid var(--color-primary);
+  border-radius: 0 8px 8px 0;
+  padding: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+.note p:last-child { margin-bottom: 0; }
+.note code { background: rgba(161,0,255,0.15); }
+
+.warning {
+  background: var(--color-warning-bg);
+  border-left: 4px solid var(--color-warning);
+  border-radius: 0 8px 8px 0;
+  padding: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+.warning p:last-child { margin-bottom: 0; }
+
+/* ── Checklist ── */
+.checklist { list-style: none; padding-left: 0; }
+.checklist li { padding-left: 26px; position: relative; margin-bottom: 6px; }
+.checklist li::before { content: '☐'; position: absolute; left: 0; color: var(--color-purple-dark); font-size: 15px; line-height: 1.4; }
+
+/* ── Appendix block ── */
+.appendix {
+  background: var(--color-neutral-bg);
+  border-radius: 6px;
+  padding: var(--space-md);
+  margin-top: var(--space-lg);
+  border: 1px solid var(--color-gray-light);
+}
+.appendix h2 { border-bottom-color: var(--color-gray-light); color: var(--color-gray); }
+
+/* ── Guide intro ── */
+.guide-intro {
+  color: var(--color-gray);
+  font-size: 14px;
+  margin-bottom: var(--space-lg);
+  padding-bottom: var(--space-md);
+  border-bottom: 1px solid var(--color-gray-light);
+}
+
+/* ── Divider ── */
+hr { border: none; border-top: 1px solid var(--color-gray-light); margin: var(--space-md) 0; }
+
+/* ── Responsive ── */
+@media (max-width: 720px) {
+  .banner { padding: var(--space-sm); }
+  .tab-nav { padding: 0 var(--space-sm); }
+  .tab-nav label { padding: 10px 12px; font-size: 13px; }
+  main { padding: var(--space-sm); }
+  .panel-content { padding: var(--space-sm); }
+}
+</style>
+</head>
+<body>
+
+<!-- ── Radio inputs: must precede banner, nav, and main as body siblings ── -->
+<input type="radio" name="guide" id="tab-user" checked>
+<input type="radio" name="guide" id="tab-evaluator">
+<input type="radio" name="guide" id="tab-connector">
+<input type="radio" name="guide" id="tab-csv">
+
+<!-- ── Banner ── -->
+<header>
+  <div class="banner">
+    <div class="banner-inner">
+      <div class="banner-arrow">&gt;</div>
+      <div class="banner-text">
+        <h1>Eval-Brew Guides</h1>
+        <p class="subtitle">Developer and user documentation for the eval-brew regression harness.</p>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ── Tab navigation ── -->
+<nav class="tab-nav">
+  <label for="tab-user">User Management</label>
+  <label for="tab-evaluator">Evaluator Guide</label>
+  <label for="tab-connector">Connector Guide</label>
+  <label for="tab-csv">CSV Upload Guide</label>
+</nav>
+
+<!-- ── Content ── -->
+<main>
+
+  <!-- ════════════════════════════════════════════
+       TAB 1 — USER MANAGEMENT
+       ════════════════════════════════════════════ -->
+  <section class="tab-panel" id="panel-user">
+    <div class="panel-content">
+
+      <p class="guide-intro">This guide covers how to manage who can access the harness when Azure AD authentication is enabled (<code>HARNESS_AUTH_ENABLED=true</code>).</p>
+
+      <h2>How access works</h2>
+      <p>The harness uses a <strong>two-step access model</strong>:</p>
+      <ol>
+        <li><strong>Azure AD authenticates</strong> the user — it verifies their identity via Microsoft login, or validates a Bearer token for API callers.</li>
+        <li><strong>The harness authorises</strong> the user by checking that their email exists in the harness user registry and reading their assigned role.</li>
+      </ol>
+      <p>A valid Azure AD account is not enough on its own. The user must also be pre-registered in the harness registry. If they log in and are not registered, they are shown an "Access Denied" page.</p>
+
+      <h3>Roles</h3>
+      <table>
+        <thead><tr><th>Role</th><th>What they can do</th></tr></thead>
+        <tbody>
+          <tr><td><code>admin</code></td><td>Full access: run jobs, view all jobs, manage connectors and evaluators, manage the user registry.</td></tr>
+          <tr><td><code>user</code></td><td>Run jobs and view their own jobs. Cannot manage connectors, evaluators, or users.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Access methods</h3>
+      <table>
+        <thead><tr><th>Method</th><th>Who uses it</th><th>How identity is verified</th></tr></thead>
+        <tbody>
+          <tr><td>Browser login</td><td>Human users</td><td>Azure AD OAuth2 (Microsoft login page)</td></tr>
+          <tr><td>Bearer token</td><td>External systems using the headless API</td><td>Azure AD JWT validated on each request</td></tr>
+        </tbody>
+      </table>
+      <p>Both methods require the caller to be pre-registered in the harness user registry.</p>
+
+      <h2>Managing users via the Admin UI</h2>
+      <p>Navigate to <strong>Users</strong> in the top navigation bar (visible to admins only).</p>
+
+      <h3>Register a new user</h3>
+      <ol>
+        <li>Go to <strong>Users &#8594; Register New User</strong>.</li>
+        <li>Enter the user's Accenture email address, an optional display name, and choose a role.</li>
+        <li>Click <strong>Register</strong>.</li>
+      </ol>
+      <p>The user can now log in with their Microsoft account. On first login the harness automatically links their Azure AD identity to their registration record.</p>
+
+      <h3>Change a user's role</h3>
+      <p>On the <strong>Users</strong> page, find the user's row, select a new role from the dropdown, and click <strong>Change</strong>.</p>
+
+      <h3>Remove a user</h3>
+      <p>On the <strong>Users</strong> page, click <strong>Remove</strong> next to the user's row. You cannot remove your own account — this prevents accidental lockout.</p>
+
+      <h2>Managing users via the CLI</h2>
+      <p>The <code>harness users</code> command group lets you manage the registry from a terminal, which is useful for initial bootstrap and scripted provisioning. Run commands in the project directory so the harness can locate the correct database.</p>
+
+      <h3>Add a user</h3>
+      <pre><code>harness users add &lt;email&gt; [--role admin|user] [--name "Display Name"]</code></pre>
+      <p>Examples:</p>
+      <pre><code># Register a regular user
+harness users add alice@accenture.com
+
+# Register an admin
+harness users add bob@accenture.com --role admin --name "Bob Smith"</code></pre>
+      <p>The default role is <code>user</code> if <code>--role</code> is not specified.</p>
+
+      <h3>List all users</h3>
+      <pre><code>harness users list</code></pre>
+      <p>Output shows email, role, whether the Azure AD account has been linked (i.e. whether the user has logged in at least once), and display name.</p>
+
+      <h3>Change a user's role</h3>
+      <pre><code>harness users change-role &lt;email&gt; &lt;admin|user&gt;</code></pre>
+      <p>Example:</p>
+      <pre><code>harness users change-role alice@accenture.com admin</code></pre>
+
+      <h3>Remove a user</h3>
+      <pre><code>harness users remove &lt;email&gt; [--yes]</code></pre>
+      <p>You will be prompted to confirm unless <code>--yes</code> is passed.</p>
+      <pre><code>harness users remove alice@accenture.com
+harness users remove alice@accenture.com --yes   # skip prompt</code></pre>
+
+      <h2>Bootstrap: adding the first admin</h2>
+      <p>Before anyone can manage users via the UI, at least one admin must exist in the registry. Use the CLI on the server immediately after the first <code>harness serve</code>:</p>
+      <pre><code>harness users add you@accenture.com --role admin</code></pre>
+      <p>Then navigate to the harness URL and log in with your Microsoft account. You will land on the dashboard with an <strong>admin</strong> badge in the navbar and the <strong>Users</strong> link visible.</p>
+
+      <h2>Headless API access</h2>
+      <p>The harness exposes a headless API at <code>/api/headless/</code> for external systems such as qual-brew to submit and run evaluation jobs programmatically. API callers authenticate with an Azure AD Bearer token instead of the browser login flow, but they are subject to the same user registry requirement as human users.</p>
+      <p>To grant an external system access:</p>
+      <ol>
+        <li>Ensure the system has an Azure AD identity (a service principal or a user account that will obtain tokens on its behalf).</li>
+        <li>Register its email address in the harness user registry:
+          <pre><code>harness users add system@accenture.com --role user --name "qual-brew"</code></pre>
+        </li>
+        <li>On the first authenticated API call the harness links the Azure AD OID from the Bearer token to the registration record automatically, the same way it does for human users on first browser login.</li>
+      </ol>
+      <p>The <code>user</code> role is sufficient for all headless API operations.</p>
+
+      <h2>Common scenarios</h2>
+
+      <h3>A new team member needs access</h3>
+      <p>Register them via the UI (Users &#8594; Register New User) or the CLI:</p>
+      <pre><code>harness users add newperson@accenture.com</code></pre>
+      <p>They can log in immediately using their existing Microsoft account. No further Azure AD configuration is needed.</p>
+
+      <h3>A user leaves the team</h3>
+      <p>Remove them via the UI or the CLI:</p>
+      <pre><code>harness users remove ex-employee@accenture.com --yes</code></pre>
+      <p>Their Azure AD account is unaffected. Only the harness registry entry is removed. They will be shown "Access Denied" on their next login attempt. For API callers, the next request receives HTTP 403.</p>
+
+      <h3>A user should become an admin</h3>
+      <pre><code>harness users change-role user@accenture.com admin</code></pre>
+      <p>The change takes effect on the user's next login (the role is written into the session at login time, not re-read on every request).</p>
+
+      <h3>A user registered but cannot log in</h3>
+      <p>Check the <strong>Linked</strong> column in <code>harness users list</code>. If it shows <code>no</code>, the user has not logged in yet — their Azure AD OID has not been matched to the registration. Have them attempt to log in; the link is created automatically on first successful authentication.</p>
+      <p>If it still shows <code>no</code> after a login attempt, confirm the email address in the registry exactly matches the <code>preferred_username</code> in their Azure AD account (usually their UPN, e.g. <code>firstname.lastname@accenture.com</code>).</p>
+
+      <h3>An API caller receives HTTP 403</h3>
+      <p>Check that the service account's email is registered (<code>harness users list</code>) and that the <strong>Linked</strong> column shows <code>yes</code>. If it shows <code>no</code>, the OID in the Bearer token has never matched the registration. Verify the email used at registration matches the identity in the token, then have the caller make one authenticated request to trigger the link.</p>
+
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════
+       TAB 2 — EVALUATOR DEVELOPER GUIDE
+       ════════════════════════════════════════════ -->
+  <section class="tab-panel" id="panel-evaluator">
+    <div class="panel-content">
+
+      <p class="guide-intro">This guide is for developers building an <strong>evaluation agent</strong> (an "evaluator"): an HTTP service that scores a chatbot's response. You deploy it in your own environment, then register it in the harness by entering its metadata (URL, auth, timeout, scoring dimensions).</p>
+
+      <h2>1. What an evaluator is</h2>
+      <p>After a connector turns a chatbot's reply into a <strong>Standard Evaluation Contract</strong>, the harness makes <strong>one HTTP <code>POST</code></strong> to your evaluator with that contract as the body. Your evaluator inspects the utterance and the chatbot's response and returns an <strong>EvaluationResult</strong>: a verdict plus per-dimension scores. The harness validates and persists that result.</p>
+      <pre><code>connector ──Standard Evaluation Contract──▶ harness ──POST (same contract)──▶ YOUR EVALUATOR
+harness ◀──────────── EvaluationResult (JSON) ───────────────────────────────┘</code></pre>
+      <p>Key idea: <strong>the connector's output and your evaluator's input are the same shape</strong> (the Standard Evaluation Contract). <strong>Your output is a different shape</strong> (the EvaluationResult). Your evaluator is stateless from the harness's point of view — every row is an independent request; there is no session.</p>
+      <p>Your evaluator may be non-deterministic (e.g. an LLM judge). The harness never caches or deduplicates — every call is fresh.</p>
+
+      <div class="note"><p>It is the mirror image of the <strong>Connector Guide</strong>. The request the harness sends you is the very contract a connector produced.</p></div>
+
+      <h2>2. The request the harness sends you — the Standard Evaluation Contract</h2>
+      <table>
+        <thead><tr><th>Aspect</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>Method</td><td><code>POST</code></td></tr>
+          <tr><td>URL</td><td>Your registered <code>endpointUrl</code> (called verbatim for every row)</td></tr>
+          <tr><td><code>Content-Type</code></td><td><code>application/json</code></td></tr>
+          <tr><td>Auth header</td><td>Added by the harness per your registered auth mode (see §6)</td></tr>
+          <tr><td>Body</td><td>A <strong>Standard Evaluation Contract</strong> instance (the connector's output, unchanged)</td></tr>
+          <tr><td>Timeout</td><td>The harness aborts the call after your registered <code>timeoutSeconds</code>; it does <strong>not</strong> retry</td></tr>
+        </tbody>
+      </table>
+      <p>The fields you'll typically read:</p>
+      <table>
+        <thead><tr><th>Field</th><th>Why you care</th></tr></thead>
+        <tbody>
+          <tr><td><code>utteranceId</code></td><td><strong>You must echo this back</strong> in your result — it's the correlation key (see §3).</td></tr>
+          <tr><td><code>utteranceText</code></td><td>The original user input being tested.</td></tr>
+          <tr><td><code>testId</code></td><td>The test-case id (for your own logging/grouping if useful).</td></tr>
+          <tr><td><code>chatbotResponse.normalizedText</code></td><td>The chatbot's reply as plain text — usually what you score.</td></tr>
+          <tr><td><code>chatbotResponse.rawPayload</code></td><td>The raw chatbot response, if you need structure beyond the text.</td></tr>
+          <tr><td><code>chatbotResponse.agentChain</code> / <code>.metadata</code></td><td>Optional signal (agents invoked, latency, etc.).</td></tr>
+          <tr><td><code>conversationContext</code></td><td><code>null</code> in v1; don't depend on its shape.</td></tr>
+          <tr><td><code>tokenUsage</code></td><td>LLM token counts from the connector call, if reported. Present only when the connector included it; absent for non-LLM connectors.</td></tr>
+        </tbody>
+      </table>
+      <p>The full contract schema is documented in the <strong>Connector Guide</strong> — the connector produces it, you consume it. Treat unknown fields leniently; the contract is additive.</p>
+
+      <h2>3. The response you must return — EvaluationResult</h2>
+      <p>Return HTTP <strong><code>200</code></strong> with a JSON object containing <strong>all</strong> of the following fields.</p>
+      <table>
+        <thead><tr><th>Field</th><th>Type</th><th>Rules</th></tr></thead>
+        <tbody>
+          <tr><td><code>utteranceId</code></td><td>string</td><td><strong>Must equal the <code>utteranceId</code> from the request contract.</strong> A mismatch fails the row.</td></tr>
+          <tr><td><code>evaluationAgentId</code></td><td>string</td><td>An identifier for your evaluator.</td></tr>
+          <tr><td><code>evaluationTimestamp</code></td><td>string</td><td>RFC 3339 / ISO-8601 datetime, e.g. <code>2026-06-05T14:32:05Z</code>.</td></tr>
+          <tr><td><code>evaluationVerdict</code></td><td>string</td><td><strong>Exactly one of <code>pass</code> / <code>fail</code> / <code>warn</code>.</strong> Any other value fails the row.</td></tr>
+          <tr><td><code>evaluationScores</code></td><td>array</td><td>Zero or more score entries; see below. <code>[]</code> is allowed.</td></tr>
+          <tr><td><code>utteranceIntent</code></td><td>string | omitted</td><td><strong>Optional.</strong> An intent category your evaluator assigns (e.g. <code>"account inquiry"</code>). Omit entirely when you do not classify intents.</td></tr>
+          <tr><td><code>tokenUsage</code></td><td>object | omitted</td><td><strong>Optional.</strong> LLM token counts for this evaluation call; see below. Omit for non-LLM evaluators.</td></tr>
+          <tr><td><code>metadata</code></td><td>object</td><td>Free-form evaluator metadata. <strong><code>{}</code> is valid.</strong></td></tr>
+        </tbody>
+      </table>
+
+      <h3>Each <code>evaluationScores</code> entry</h3>
+      <p>Two shapes are accepted. Both are valid and the harness stores them transparently.</p>
+      <p><strong>v1 — without per-parameter verdict:</strong></p>
+      <pre><code>{ "parameter_name": "relevance", "score": 0.92, "reasoning": "Directly answers the question." }</code></pre>
+      <p><strong>v2 — with optional per-parameter verdict:</strong></p>
+      <pre><code>{ "parameter_name": "relevance", "score": 0.92, "verdict": "pass", "reasoning": "Directly answers the question." }</code></pre>
+      <table>
+        <thead><tr><th>Field</th><th>Type</th><th>Rules</th></tr></thead>
+        <tbody>
+          <tr><td><code>parameter_name</code></td><td>string</td><td>The scoring dimension's name. Align with your declared dimensions (§7).</td></tr>
+          <tr><td><code>score</code></td><td>number or string</td><td>A numeric score or a label (e.g. <code>0.92</code>, <code>4</code>, <code>"high"</code>). <strong>Booleans are rejected.</strong></td></tr>
+          <tr><td><code>verdict</code></td><td>string | omitted</td><td><strong>Optional.</strong> A per-parameter verdict (e.g. <code>"pass"</code>, <code>"fail"</code>, <code>"warn"</code>). Omitting is not an error.</td></tr>
+          <tr><td><code>reasoning</code></td><td>string</td><td>Why this score. Empty string is allowed, but a real explanation surfaces in the detail view and exports.</td></tr>
+        </tbody>
+      </table>
+
+      <h3><code>tokenUsage</code> object (optional)</h3>
+      <table>
+        <thead><tr><th>Field</th><th>Type</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td><code>promptTokens</code></td><td>integer &#8805; 0</td><td>Tokens consumed by the prompt / input.</td></tr>
+          <tr><td><code>completionTokens</code></td><td>integer &#8805; 0</td><td>Tokens consumed by the completion / output.</td></tr>
+          <tr><td><code>totalTokens</code></td><td>integer &#8805; 0</td><td><strong>The harness uses this value for per-row and job-level token aggregation.</strong></td></tr>
+        </tbody>
+      </table>
+
+      <h3>Complete example response</h3>
+      <pre><code>{
+  "utteranceId": "a3f1c2de-9b44-4e7a-8c11-2b6f0d9e1234",
+  "evaluationAgentId": "acme-llm-judge",
+  "evaluationTimestamp": "2026-06-05T14:32:05Z",
+  "evaluationVerdict": "pass",
+  "utteranceIntent": "account inquiry",
+  "evaluationScores": [
+    { "parameter_name": "relevance",    "score": 0.92, "verdict": "pass", "reasoning": "Directly answers the question." },
+    { "parameter_name": "tone",         "score": "appropriate", "reasoning": "Polite and concise." },
+    { "parameter_name": "groundedness", "score": 0.80, "verdict": "pass", "reasoning": "Matches the knowledge base." }
+  ],
+  "tokenUsage": { "promptTokens": 318, "completionTokens": 47, "totalTokens": 365 },
+  "metadata": { "model": "acme-judge-v2" }
+}</code></pre>
+      <div class="note">
+        <p>There is <strong>no</strong> top-level <code>reasoning</code> field — per-score reasoning lives inside each <code>evaluationScores</code> entry. Both <code>utteranceIntent</code> and per-entry <code>verdict</code> are <strong>optional</strong> — existing evaluators that omit them continue to work without any changes.</p>
+      </div>
+
+      <h2>4. Reference implementation (Python/Flask sketch)</h2>
+      <pre><code>from datetime import datetime, timezone
+from flask import Flask, request, jsonify
+
+app = Flask(__name__)
+AGENT_ID = "acme-llm-judge"
+
+@app.post("/evaluate")
+def evaluate():
+    contract = request.get_json(force=True)
+    utterance = contract["utteranceText"]
+    answer = contract["chatbotResponse"]["normalizedText"]
+
+    verdict, scores, intent, usage = run_my_judge(utterance, answer)   # &lt;- your scoring logic
+
+    return jsonify({
+        "utteranceId": contract["utteranceId"],          # echo it back
+        "evaluationAgentId": AGENT_ID,
+        "evaluationTimestamp": datetime.now(timezone.utc).isoformat(),
+        "evaluationVerdict": verdict,                    # "pass" | "fail" | "warn"
+        "evaluationScores": scores,                      # [{parameter_name, score, reasoning}, ...]
+        "utteranceIntent": intent,                       # e.g. "account inquiry"
+        "tokenUsage": {
+            "promptTokens": usage.prompt_tokens,
+            "completionTokens": usage.completion_tokens,
+            "totalTokens": usage.total_tokens,
+        },
+        "metadata": {},
+    }), 200</code></pre>
+      <p>The harness ships a <strong>bundled mock evaluator</strong> you can read and run as a worked reference — see §8.</p>
+
+      <h2>5. How the harness grades your response — error categories</h2>
+      <p>The harness records one of these per-row outcomes. The four <code>evaluator_*</code> stages are the ones your service influences.</p>
+      <table>
+        <thead><tr><th>Stage</th><th>When it happens</th><th>How to avoid it</th></tr></thead>
+        <tbody>
+          <tr><td><em>(success)</em></td><td>You returned <code>200</code> with a valid EvaluationResult</td><td>—</td></tr>
+          <tr><td><code>evaluator_transport</code></td><td>The harness couldn't reach you, the connection failed, or your response exceeded <code>timeoutSeconds</code></td><td>Be reachable; respond within the timeout; the harness will <strong>not</strong> retry</td></tr>
+          <tr><td><code>evaluator_response</code></td><td>You returned a <strong>non-2xx</strong> HTTP status</td><td>Return <code>200</code></td></tr>
+          <tr><td><code>evaluator_result</code></td><td>You returned <code>2xx</code> but the body <strong>isn't valid JSON</strong> or <strong>fails result validation</strong> (missing/mis-typed field, verdict not in <code>pass</code>/<code>fail</code>/<code>warn</code>, <code>utteranceId</code> doesn't match, bad score entry, non-ISO timestamp)</td><td>Match §3 exactly: echo <code>utteranceId</code>, use a closed-enum verdict, include all required fields with correct types</td></tr>
+          <tr><td><code>evaluator_auth</code></td><td>The harness couldn't obtain the service credential — decrypt failure or, for <code>client-credentials</code>, the token request failed</td><td>Decrypt failures are a harness-side config issue (re-register the credential); token failures mean checking the token URL / client id / client secret / scope you registered</td></tr>
+        </tbody>
+      </table>
+      <p>Per-row failures are <strong>isolated</strong>: a failing row is recorded with its stage and detail, and the run continues. One bad row never aborts the job.</p>
+
+      <h2>6. Authentication</h2>
+      <p>Your endpoint can require auth. The harness attaches the header based on the <strong>auth mode</strong> chosen at registration; you implement the matching check.</p>
+      <table>
+        <thead><tr><th>Auth mode</th><th>Header the harness sends</th><th>You implement</th></tr></thead>
+        <tbody>
+          <tr><td><code>none</code></td><td><em>(none)</em></td><td>Open endpoint (use network controls instead)</td></tr>
+          <tr><td><code>bearer</code></td><td><code>Authorization: Bearer &lt;token&gt;</code></td><td>Validate the bearer token</td></tr>
+          <tr><td><code>api-key-header</code></td><td><code>&lt;your-header-name&gt;: &lt;value&gt;</code></td><td>Validate a custom header (e.g. <code>X-API-Key</code>)</td></tr>
+          <tr><td><code>basic</code></td><td><code>Authorization: Basic base64(user:pass)</code></td><td>Validate HTTP Basic credentials</td></tr>
+          <tr><td><code>client-credentials</code></td><td><code>Authorization: Bearer &lt;fetched-token&gt;</code></td><td>Validate the bearer token your gateway/IdP issued</td></tr>
+        </tbody>
+      </table>
+      <p>The credential is entered once at registration and <strong>encrypted at rest</strong>; it is decrypted only in memory when building each request and is never logged, exported, or shown in the UI.</p>
+      <p>For <code>client-credentials</code>, the harness runs the OAuth2 <strong>client-credentials grant</strong> itself: before each call it POSTs <code>grant_type=client_credentials</code> (plus your client id, client secret, and optional scope/audience) to your registered <strong>token URL</strong>, reads <code>access_token</code> from the JSON response, and attaches it as <code>Authorization: Bearer &lt;token&gt;</code>. Tokens are cached in memory and reused until shortly before <code>expires_in</code>, then re-fetched. A failed token request records the row under <code>evaluator_auth</code> and your endpoint is never called.</p>
+
+      <h2>7. Declared scoring dimensions</h2>
+      <p>At registration you declare an <strong>ordered list of scoring dimensions</strong> (e.g. <code>relevance</code>, <code>groundedness</code>, <code>tone</code>). These are metadata about what your evaluator measures, and they shape how results are displayed — they do <strong>not</strong> constrain what you return at runtime:</p>
+      <ul>
+        <li><strong>Emit scores for your declared dimensions.</strong> Their order drives the column order in the detail view and exports.</li>
+        <li><strong>Emitting an <em>undeclared</em> <code>parameter_name</code> is allowed</strong> — it's recorded and shown, but the harness flags it as a soft warning (<code>harnessAnnotations.unexpected_score_dimensions</code>). It does <strong>not</strong> fail the row or change the verdict.</li>
+        <li><strong>Omitting a declared dimension is allowed</strong> — downstream it simply shows as unevaluated (<code>—</code>) for that row. No failure.</li>
+      </ul>
+
+      <h2>8. Build and test locally before registering</h2>
+      <p><strong>Run the bundled mock evaluator</strong> to see a conformant service:</p>
+      <pre><code>harness mock-evaluator --port 8901 --dimensions "relevance,groundedness"
+# → mock evaluator listening on http://127.0.0.1:8901 (mode=ok)</code></pre>
+      <p>Send it a sample contract (it echoes <code>utteranceId</code> and returns a well-formed result):</p>
+      <pre><code>curl -s -X POST http://localhost:8901 \
+  -H "Content-Type: application/json" \
+  -d '{"contractVersion":"1","utteranceId":"u-1","utteranceText":"hi","testId":"t1",
+       "conversationContext":null,"connectorId":"c","timestamp":"2026-06-05T00:00:00Z",
+       "chatbotResponse":{"rawPayload":{},"normalizedText":"hello","agentChain":[],"metadata":{}}}' | jq .</code></pre>
+      <p>The mock also supports failure modes — <code>--mode status500</code>, <code>nonconformant</code>, <code>slow</code>, and <code>unexpected_dims</code> — useful for seeing how the harness records each error stage.</p>
+
+      <h2>9. Registering your evaluator in the harness</h2>
+      <p>Evaluators are registered through the <strong>Evaluator Registry</strong> UI. Open the registry, choose <strong>Register new evaluator</strong>, and provide the metadata:</p>
+      <table>
+        <thead><tr><th>Field</th><th>Required</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Display name</strong></td><td>Yes</td><td>Human-readable label shown in the job wizard, detail view, and exports. Snapshotted onto each job at creation time.</td></tr>
+          <tr><td><strong>Description</strong></td><td>Yes</td><td>What this evaluator measures / how it judges. Required for evaluators.</td></tr>
+          <tr><td><strong>Endpoint URL</strong></td><td>Yes</td><td>Full <code>http://</code> or <code>https://</code> URL the harness POSTs the contract to.</td></tr>
+          <tr><td><strong>Auth mode</strong></td><td>Yes</td><td><code>none</code> / <code>bearer</code> / <code>api-key-header</code> / <code>basic</code> / <code>client-credentials</code> (§6), plus the credential for non-<code>none</code> modes.</td></tr>
+          <tr><td><strong>Timeout (seconds)</strong></td><td>Yes</td><td>1–600, default 60. The harness aborts a row's call after this. Size this for your model.</td></tr>
+          <tr><td><strong>Scoring dimensions</strong></td><td>No</td><td>One dimension name per line (ordered). Blank lines are ignored; an empty list is allowed (§7).</td></tr>
+          <tr><td><strong>Supports Streaming (SSE)</strong></td><td>Yes (toggle)</td><td>Enable only if your evaluator implements the SSE protocol (§11). SSE evaluators appear in the <strong>Chat Sessions wizard only</strong> — excluded from the batch job creation wizard.</td></tr>
+        </tbody>
+      </table>
+      <p>The registration form has a <strong>Test connection</strong> button that sends a sample contract and reports whether the response is a valid EvaluationResult. Use it to confirm your service before saving.</p>
+      <p>After registering: the credential is encrypted at rest immediately. Testers select your evaluator by display name in the job wizard. At job creation the full configuration is <strong>snapshotted</strong> onto the job — later edits do <strong>not</strong> change existing jobs. You can <strong>edit</strong>, <strong>archive</strong>, or <strong>restore</strong> the registration. One referenced by historical jobs cannot be hard-deleted.</p>
+
+      <h2>10. Requirements checklist</h2>
+      <p>Your evaluator is ready to register when it:</p>
+      <ul class="checklist">
+        <li>Accepts <code>POST</code> with a Standard Evaluation Contract JSON body.</li>
+        <li>Returns HTTP <strong><code>200</code></strong> on success.</li>
+        <li>Returns an EvaluationResult (§3): <code>utteranceId</code> (echoed), <code>evaluationAgentId</code>, <code>evaluationTimestamp</code> (ISO-8601), <code>evaluationVerdict</code> (<code>pass</code>/<code>fail</code>/<code>warn</code>), <code>evaluationScores</code> (array), <code>metadata</code> (object), and optionally <code>utteranceIntent</code> and <code>tokenUsage</code>.</li>
+        <li>Uses a number or string <code>score</code> (never a boolean) in each score entry.</li>
+        <li>Emits <code>parameter_name</code>s aligned with its declared dimensions (extras are warned, not failed).</li>
+        <li>Responds within the timeout you'll register (no retries on the harness side).</li>
+        <li>Enforces whatever auth mode you'll register (or <code>none</code>).</li>
+        <li>Is reachable from the harness host at the URL you'll register.</li>
+      </ul>
+      <p><strong>Additional requirements for SSE (live chat) evaluators:</strong></p>
+      <ul class="checklist">
+        <li>Responds with <code>Content-Type: text/event-stream</code>.</li>
+        <li>Ends the stream with exactly one <code>final</code> event.</li>
+        <li>The <code>final</code> payload uses <code>overallVerdict</code> (not <code>evaluationVerdict</code>) and <code>parameters[]</code> (not <code>evaluationScores[]</code>), with <code>parameter_name</code> (snake_case) in each entry.</li>
+        <li>Uses lowercase <code>pass</code>, <code>fail</code>, or <code>warn</code> for <code>overallVerdict</code>.</li>
+        <li>Registered with <strong>Supports Streaming (SSE)</strong> toggled on in the Evaluator Registry.</li>
+      </ul>
+
+      <h2>11. Live chat mode — SSE evaluator protocol</h2>
+      <p>When an evaluator is registered with the <strong>Supports Streaming (SSE)</strong> toggle enabled, it can be selected in the <strong>Chat Sessions</strong> wizard. The harness POSTs the Standard Evaluation Contract to your endpoint and expects an SSE stream of evaluation events in return.</p>
+
+      <h3>What changes in SSE mode</h3>
+      <p>The <strong>request</strong> is nearly identical to batch mode (§2), with one additional header:</p>
+      <table>
+        <thead><tr><th>Aspect</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>Method</td><td><code>POST</code></td></tr>
+          <tr><td><code>Content-Type</code></td><td><code>application/json</code></td></tr>
+          <tr><td><code>Accept</code></td><td><code>text/event-stream</code></td></tr>
+          <tr><td>Body</td><td>The Standard Evaluation Contract (same as batch mode)</td></tr>
+          <tr><td>Timeout</td><td>Stall-based: the harness fails the turn if no new SSE chunk arrives within <code>timeoutSeconds</code> of the previous one</td></tr>
+        </tbody>
+      </table>
+      <p>Only the <strong>response</strong> changes: respond with <code>Content-Type: text/event-stream</code>, emit zero or more intermediate events, and end with exactly one <code>final</code> event.</p>
+      <div class="warning"><p><strong>The SSE <code>final</code> payload uses a different shape from the batch-mode EvaluationResult.</strong> The batch-mode fields <code>evaluationVerdict</code>, <code>evaluationScores</code>, and <code>utteranceId</code> are <strong>not</strong> read in SSE mode. Use <code>overallVerdict</code> and <code>parameters[]</code> instead.</p></div>
+
+      <h3>Intermediate event types</h3>
+      <table>
+        <thead><tr><th>Event type</th><th>Example payload</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td><code>score_update</code></td><td><code>{"dimension": "relevance", "score": 0.82, "partial": true}</code></td><td>Stream a partial score as it is computed</td></tr>
+          <tr><td><code>warning</code></td><td><code>{"message": "Response contains an ambiguous claim"}</code></td><td>Flag a non-fatal quality concern</td></tr>
+          <tr><td><code>insight</code></td><td><code>{"message": "Response correctly cites source Y"}</code></td><td>Surface a positive observation</td></tr>
+          <tr><td><code>diagnostic</code></td><td><code>{"stage": "embedding", "latency_ms": 142}</code></td><td>Internal evaluator timing or debug info</td></tr>
+        </tbody>
+      </table>
+
+      <h3>The <code>final</code> event</h3>
+      <p>The last event in the stream must have type <code>final</code>. The analytics engine reads <code>overallVerdict</code> and <code>parameters[].parameter_name</code> from it.</p>
+      <table>
+        <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td><code>overallVerdict</code></td><td>string</td><td><strong>Yes</strong></td><td>Use lowercase <code>pass</code>, <code>fail</code>, or <code>warn</code>.</td></tr>
+          <tr><td><code>parameters</code></td><td>array</td><td><strong>Yes</strong></td><td>Per-dimension score entries. <code>[]</code> is valid.</td></tr>
+          <tr><td><code>evaluatorId</code></td><td>string</td><td>No</td><td>Identifier for your evaluator (stored verbatim).</td></tr>
+          <tr><td><code>evaluatorName</code></td><td>string</td><td>No</td><td>Human-readable evaluator name (stored verbatim).</td></tr>
+          <tr><td><code>evaluatorVersion</code></td><td>string</td><td>No</td><td>Version string (stored verbatim).</td></tr>
+          <tr><td><code>overallScore</code></td><td>number</td><td>No</td><td>Aggregate numeric score (stored verbatim).</td></tr>
+          <tr><td><code>tokenUsage</code></td><td>object</td><td>No</td><td>Same shape as batch mode. Include to surface per-turn token counts in the chat analytics UI.</td></tr>
+        </tbody>
+      </table>
+      <p>Each <code>parameters</code> entry uses the same key names as the batch-mode <code>evaluationScores</code> entry: <code>parameter_name</code> (snake_case, required), <code>score</code> (required), <code>reasoning</code> (required), <code>verdict</code> (optional).</p>
+
+      <h3>Complete SSE example</h3>
+      <pre><code>event: diagnostic
+data: {"stage": "start", "latency_ms": 0}
+
+event: score_update
+data: {"dimension": "relevance", "score": 0.92, "partial": false}
+
+event: final
+data: {"overallVerdict":"pass","evaluatorId":"acme-llm-judge","parameters":[{"parameter_name":"relevance","score":0.92,"verdict":"pass","reasoning":"Directly answers the question."},{"parameter_name":"groundedness","score":0.85,"verdict":"pass","reasoning":"Matches the knowledge base."}]}
+</code></pre>
+
+      <h3>SSE error stages</h3>
+      <table>
+        <thead><tr><th>Stage</th><th>When it happens</th></tr></thead>
+        <tbody>
+          <tr><td><code>evaluator_stream</code></td><td>Harness could not connect, received HTTP non-2xx, stream closed before <code>final</code>, or no new chunk arrived within <code>timeoutSeconds</code></td></tr>
+        </tbody>
+      </table>
+      <p>Validation errors on the <code>final</code> payload (wrong verdict value, malformed JSON) are recorded under the existing <code>evaluator_result</code> stage.</p>
+
+      <h3>Reference SSE evaluator (Python / FastAPI)</h3>
+      <pre><code>import json
+from fastapi import FastAPI
+from fastapi.responses import StreamingResponse
+
+app = FastAPI()
+AGENT_ID = "acme-llm-judge"
+
+@app.post("/sse-evaluate")
+async def sse_evaluate(contract: dict):
+    utterance = contract["utteranceText"]
+    answer = contract["chatbotResponse"]["normalizedText"]
+
+    async def event_stream():
+        yield f"event: diagnostic\ndata: {json.dumps({'stage': 'start'})}\n\n"
+
+        verdict, scores = await run_my_judge(utterance, answer)
+
+        result = {
+            "overallVerdict": verdict,   # NOT evaluationVerdict
+            "evaluatorId": AGENT_ID,
+            "parameters": scores,        # uses parameter_name — NOT evaluationScores
+        }
+        yield f"event: final\ndata: {json.dumps(result)}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")</code></pre>
+
+      <div class="appendix">
+        <h2>Appendix — field quick reference</h2>
+        <p><strong>Request &#8594; evaluator (both modes):</strong> a Standard Evaluation Contract — <code>utteranceId</code>, <code>utteranceText</code>, <code>testId</code>, <code>chatbotResponse</code>{ <code>rawPayload</code>, <code>normalizedText</code>, <code>agentChain</code>, <code>metadata</code> }, <code>conversationContext</code>, <code>connectorId</code>, <code>timestamp</code>, <code>contractVersion</code>. SSE mode additionally sends <code>Accept: text/event-stream</code>.</p>
+        <p><strong>Batch mode — evaluator &#8594; harness (EvaluationResult):</strong> <code>utteranceId</code> (echoed), <code>evaluationAgentId</code>, <code>evaluationTimestamp</code> (ISO-8601), <code>evaluationVerdict</code> (<code>pass</code>|<code>fail</code>|<code>warn</code>), <code>evaluationScores</code> [{ <code>parameter_name</code>, <code>score</code>, <code>reasoning</code>, <code>verdict?</code> }], <code>utteranceIntent?</code>, <code>tokenUsage?</code>{ <code>promptTokens?</code>, <code>completionTokens?</code>, <code>totalTokens?</code> }, <code>metadata</code>.</p>
+        <p><strong>SSE mode — <code>final</code> event payload:</strong> <code>overallVerdict</code> (<code>pass</code>|<code>fail</code>|<code>warn</code>), <code>parameters</code> [{ <code>parameter_name</code>, <code>score</code>, <code>reasoning</code>, <code>verdict?</code> }], plus optional <code>evaluatorId</code>, <code>evaluatorName</code>, <code>evaluatorVersion</code>, <code>overallScore</code>, <code>tokenUsage?</code>. Note: <code>overallVerdict</code>/<code>parameters</code> are <strong>different key names</strong> from the batch-mode <code>evaluationVerdict</code>/<code>evaluationScores</code>.</p>
+        <p><strong>SSE intermediate event types:</strong> <code>score_update</code>, <code>warning</code>, <code>insight</code>, <code>diagnostic</code>. Unknown types are forwarded and persisted without error.</p>
+        <p><strong>Evaluator error stages (batch):</strong> <code>evaluator_transport</code>, <code>evaluator_response</code>, <code>evaluator_result</code>, <code>evaluator_auth</code>.</p>
+        <p><strong>Evaluator error stage (SSE):</strong> <code>evaluator_stream</code> (connection failure, non-2xx, stall timeout, or stream closed before <code>final</code>). Malformed <code>final</code> payload &#8594; <code>evaluator_result</code>.</p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════
+       TAB 3 — CONNECTOR DEVELOPER GUIDE
+       ════════════════════════════════════════════ -->
+  <section class="tab-panel" id="panel-connector">
+    <div class="panel-content">
+
+      <p class="guide-intro">This guide is for developers building a <strong>connector</strong>: an HTTP service that sits between the regression harness and your chatbot. You deploy the connector in your own environment, then register it in the harness by entering its metadata (URL, auth, timeout).</p>
+
+      <h2>1. What a connector is</h2>
+      <p>For each test row, the harness makes <strong>one HTTP <code>POST</code></strong> to your connector with the utterance to test. Your connector calls your chatbot however it needs to, then returns a <strong>Standard Evaluation Contract</strong> — a normalized JSON envelope describing the chatbot's response. The harness validates that envelope and hands it to the evaluation agent.</p>
+      <pre><code>harness ──POST {testId, utteranceText, password?}──▶ YOUR CONNECTOR ──▶ your chatbot
+harness ◀──── Standard Evaluation Contract (JSON) ───┘</code></pre>
+      <p>Your connector must:</p>
+      <ol>
+        <li>Accept the harness's <code>POST</code> request.</li>
+        <li>Call your chatbot.</li>
+        <li>Return a contract-conformant JSON body with HTTP <code>200</code>.</li>
+      </ol>
+      <p>Connectors are <strong>stateless</strong> from the harness's point of view: every row is an independent request. There is no session, no connect/disconnect.</p>
+
+      <h2>2. The request the harness sends you</h2>
+      <table>
+        <thead><tr><th>Aspect</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>Method</td><td><code>POST</code></td></tr>
+          <tr><td>URL</td><td>Your registered <code>endpointUrl</code> (called verbatim for every row)</td></tr>
+          <tr><td><code>Content-Type</code></td><td><code>application/json</code></td></tr>
+          <tr><td>Auth header</td><td>Added by the harness per your registered auth mode (see §6)</td></tr>
+          <tr><td>Timeout</td><td>The harness aborts the call after your registered <code>timeoutSeconds</code>; it does <strong>not</strong> retry</td></tr>
+        </tbody>
+      </table>
+      <p><strong>Body:</strong></p>
+      <pre><code>{
+  "testId": "hours-001",
+  "utteranceText": "What are your opening hours?",
+  "password": "hunter2"
+}</code></pre>
+      <ul>
+        <li><code>testId</code> <em>(string)</em> — the test-case id from the CSV row. Echo it back in your response.</li>
+        <li><code>utteranceText</code> <em>(string)</em> — the message to send to the chatbot. Echo it back.</li>
+        <li><code>password</code> <em>(string, optional)</em> — present <strong>only if</strong> your registration has <em>expects-per-row-password</em> enabled (see §7). Use it to authenticate to your chatbot; do <strong>not</strong> echo it back anywhere in your response.</li>
+      </ul>
+
+      <h2>3. The response you must return — Standard Evaluation Contract</h2>
+      <p>Return HTTP <strong><code>200</code></strong> with a JSON body matching the contract below. Additional properties are allowed at every level, but the required ones must be present and well-typed.</p>
+
+      <h3>Top-level fields</h3>
+      <table>
+        <thead><tr><th>Field</th><th>Type</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td><code>contractVersion</code></td><td>string</td><td>Integer-as-string. <strong>Use <code>"1"</code>.</strong> A value ahead of the harness's bundled version is rejected.</td></tr>
+          <tr><td><code>utteranceId</code></td><td>string</td><td>A globally-unique id you generate per response (UUID v4 recommended). Used to correlate this row through to the evaluator, which must echo it back.</td></tr>
+          <tr><td><code>utteranceText</code></td><td>string</td><td>Echo the request's <code>utteranceText</code>.</td></tr>
+          <tr><td><code>testId</code></td><td>string</td><td>Echo the request's <code>testId</code>.</td></tr>
+          <tr><td><code>conversationContext</code></td><td>object | null</td><td><strong>Must be <code>null</code> in v1</strong> (reserved for future multi-turn).</td></tr>
+          <tr><td><code>connectorId</code></td><td>string</td><td>A stable identifier for your connector service (any non-empty string).</td></tr>
+          <tr><td><code>timestamp</code></td><td>string</td><td>RFC 3339 / ISO-8601 datetime, e.g. <code>2026-06-05T14:32:00Z</code>.</td></tr>
+          <tr><td><code>chatbotResponse</code></td><td>object</td><td>The chatbot's answer; see below.</td></tr>
+          <tr><td><code>tokenUsage</code></td><td>object | omitted</td><td><strong>Optional.</strong> LLM token counts for this chatbot call; see below. Omit entirely for non-LLM connectors.</td></tr>
+        </tbody>
+      </table>
+
+      <h3><code>chatbotResponse</code> object (all four sub-fields required)</h3>
+      <table>
+        <thead><tr><th>Field</th><th>Type</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td><code>rawPayload</code></td><td>any</td><td>The raw chatbot response exactly as you received it. Shape is unconstrained. Preserved for diagnosis.</td></tr>
+          <tr><td><code>normalizedText</code></td><td>string</td><td>Your best plain-text rendering of what the chatbot said. <strong>Empty string is allowed.</strong></td></tr>
+          <tr><td><code>agentChain</code></td><td>array of strings</td><td>Ordered agent identifiers invoked. <strong><code>[]</code> is valid</strong> for non-agentic bots.</td></tr>
+          <tr><td><code>metadata</code></td><td>object</td><td>Connector-supplied metadata — model name, latency, retrieval sources, tool calls, etc. <strong><code>{}</code> is valid.</strong></td></tr>
+        </tbody>
+      </table>
+
+      <h3><code>tokenUsage</code> object (optional)</h3>
+      <table>
+        <thead><tr><th>Field</th><th>Type</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td><code>promptTokens</code></td><td>integer &#8805; 0</td><td>Tokens consumed by the prompt / input.</td></tr>
+          <tr><td><code>completionTokens</code></td><td>integer &#8805; 0</td><td>Tokens consumed by the completion / output.</td></tr>
+          <tr><td><code>totalTokens</code></td><td>integer &#8805; 0</td><td><strong>The harness uses this value for per-row and job-level token aggregation.</strong></td></tr>
+        </tbody>
+      </table>
+      <div class="warning"><p>Do <strong>not</strong> put the per-row <code>password</code> anywhere in the response — not in <code>rawPayload</code>, <code>metadata</code>, or any other field. The harness asserts connectors don't echo credentials.</p></div>
+
+      <h3><code>chatbotResponse.metadata</code> — well-known keys</h3>
+      <p><code>metadata</code> is stored as-is and forwarded verbatim to the evaluator. Its shape is unconstrained. The keys below are <strong>recommended conventions</strong>:</p>
+      <table>
+        <thead><tr><th>Key</th><th>Type</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td><code>latencyMs</code></td><td>integer &#8805; 0</td><td>End-to-end time in milliseconds your connector spent waiting for the chatbot.</td></tr>
+          <tr><td><code>model</code></td><td>string</td><td>Model identifier or version that generated the response (e.g. <code>"gpt-4o"</code>, <code>"claude-sonnet-5"</code>).</td></tr>
+          <tr><td><code>sources</code></td><td>array of source objects</td><td><strong>Retrieval provenance.</strong> Documents, chunks, or pages the chatbot used to produce its answer. Evaluators can use this to verify grounding.</td></tr>
+          <tr><td><code>toolCalls</code></td><td>array of tool-call objects</td><td>Tool or function calls the chatbot made during generation.</td></tr>
+          <tr><td><code>conversationId</code></td><td>string</td><td><strong>SSE / live-chat only.</strong> An opaque handle your chatbot assigned to this conversation. When present, the harness caches it and forwards it back to your connector on every subsequent turn.</td></tr>
+        </tbody>
+      </table>
+
+      <h4><code>sources</code> item shape</h4>
+      <pre><code>{
+  "url":        "https://docs.example.com/pricing",
+  "title":      "Pricing — Example Corp Help Centre",
+  "chunk":      "The Standard plan costs $49 per month and includes up to 10 seats.",
+  "score":      0.93,
+  "documentId": "doc-pricing-v4"
+}</code></pre>
+      <table>
+        <thead><tr><th>Sub-field</th><th>Type</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td><code>url</code></td><td>string</td><td>Public link to the source document or page.</td></tr>
+          <tr><td><code>title</code></td><td>string</td><td>Human-readable label for the source.</td></tr>
+          <tr><td><code>chunk</code></td><td>string</td><td>The retrieved text snippet used in the prompt context.</td></tr>
+          <tr><td><code>score</code></td><td>number 0–1</td><td>Similarity or relevance score from your retrieval system.</td></tr>
+          <tr><td><code>documentId</code></td><td>string</td><td>Internal document identifier in your knowledge base.</td></tr>
+        </tbody>
+      </table>
+
+      <h4><code>toolCalls</code> item shape</h4>
+      <pre><code>{
+  "name":   "search_kb",
+  "input":  { "query": "opening hours" },
+  "output": { "hits": 3, "topResult": "Mon–Fri 09:00–17:00" }
+}</code></pre>
+
+      <h3>Complete example response</h3>
+      <pre><code>{
+  "contractVersion": "1",
+  "utteranceId": "a3f1c2de-9b44-4e7a-8c11-2b6f0d9e1234",
+  "utteranceText": "What are your opening hours?",
+  "testId": "hours-001",
+  "conversationContext": null,
+  "connectorId": "acme-support-bot",
+  "timestamp": "2026-06-05T14:32:00Z",
+  "chatbotResponse": {
+    "rawPayload": { "answer": "We're open 9–5, Mon–Fri.", "intent": "store_hours", "confidence": 0.97 },
+    "normalizedText": "We're open 9 to 5, Monday through Friday.",
+    "agentChain": ["intent-classifier", "kb-retriever"],
+    "metadata": {
+      "latencyMs": 412,
+      "model": "acme-llm-v3",
+      "sources": [
+        {
+          "url":        "https://docs.acme.com/store-hours",
+          "title":      "Store Hours — Acme Help Centre",
+          "chunk":      "Our retail locations are open Monday through Friday, 9 am to 5 pm.",
+          "score":      0.95,
+          "documentId": "doc-store-hours-v2"
+        }
+      ]
+    }
+  },
+  "tokenUsage": { "promptTokens": 412, "completionTokens": 78, "totalTokens": 490 }
+}</code></pre>
+
+      <h2>4. Reference implementation (Python/Flask sketch)</h2>
+      <pre><code>import uuid
+from datetime import datetime, timezone
+from flask import Flask, request, jsonify
+
+app = Flask(__name__)
+
+@app.post("/connect")
+def connect():
+    body = request.get_json(force=True)
+    test_id = body["testId"]
+    utterance = body["utteranceText"]
+    password = body.get("password")
+
+    raw = call_my_chatbot(utterance, password)   # &lt;- your integration
+
+    usage = getattr(raw, "usage", None)
+
+    return jsonify({
+        "contractVersion": "1",
+        "utteranceId": str(uuid.uuid4()),
+        "utteranceText": utterance,
+        "testId": test_id,
+        "conversationContext": None,
+        "connectorId": "acme-support-bot",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "chatbotResponse": {
+            "rawPayload": raw,
+            "normalizedText": extract_text(raw),
+            "agentChain": [],
+            "metadata": {
+                "latencyMs": getattr(raw, "latency_ms", None),
+                "model":     getattr(raw, "model", None),
+                "sources": [
+                    {"url": s.url, "title": s.title, "chunk": s.text, "score": s.score}
+                    for s in getattr(raw, "sources", [])
+                ] or None,
+            },
+        },
+        **({"tokenUsage": {
+            "promptTokens": usage.prompt_tokens,
+            "completionTokens": usage.completion_tokens,
+            "totalTokens": usage.total_tokens,
+        }} if usage else {}),
+    }), 200</code></pre>
+      <p>The harness ships a <strong>bundled mock connector</strong> you can read and run as a worked reference — see §8.</p>
+
+      <h2>5. How the harness grades your response — error categories</h2>
+      <table>
+        <thead><tr><th>Stage</th><th>When it happens</th><th>How to avoid it</th></tr></thead>
+        <tbody>
+          <tr><td><em>(success)</em></td><td>You returned <code>200</code> with a schema-valid contract</td><td>—</td></tr>
+          <tr><td><code>connector_transport</code></td><td>The harness couldn't reach you, the connection failed (DNS/refused/TLS), or your response took longer than <code>timeoutSeconds</code></td><td>Be reachable; respond within the configured timeout; the harness will <strong>not</strong> retry</td></tr>
+          <tr><td><code>connector_response</code></td><td>You returned a <strong>non-2xx</strong> HTTP status</td><td>Return <code>200</code>; put diagnostic info in the body if you must fail</td></tr>
+          <tr><td><code>connector_normalization</code></td><td>You returned <code>2xx</code> but the body <strong>isn't valid JSON</strong>, or it <strong>fails contract validation</strong> (missing/mis-typed required field, <code>contractVersion</code> too high)</td><td>Match the schema in §3 exactly; send <code>contractVersion: "1"</code>; ensure <code>conversationContext</code> is <code>null</code> and <code>chatbotResponse</code> has all four sub-fields</td></tr>
+          <tr><td><code>connector_auth</code></td><td>The harness couldn't obtain the service credential — decrypt failure or, for <code>client-credentials</code>, the token request failed</td><td>Decrypt failures are a harness-side config issue (re-register the credential); token failures mean checking the token URL / client id / client secret / scope you registered</td></tr>
+        </tbody>
+      </table>
+      <p>Per-row failures are <strong>isolated</strong>: a failing row is recorded with its stage and detail, and the run continues. One bad row never aborts the job.</p>
+
+      <h2>6. Authentication</h2>
+      <table>
+        <thead><tr><th>Auth mode</th><th>Header the harness sends</th><th>You implement</th></tr></thead>
+        <tbody>
+          <tr><td><code>none</code></td><td><em>(none)</em></td><td>Open endpoint (use network controls instead)</td></tr>
+          <tr><td><code>bearer</code></td><td><code>Authorization: Bearer &lt;token&gt;</code></td><td>Validate the bearer token</td></tr>
+          <tr><td><code>api-key-header</code></td><td><code>&lt;your-header-name&gt;: &lt;value&gt;</code></td><td>Validate a custom header (e.g. <code>X-API-Key</code>)</td></tr>
+          <tr><td><code>basic</code></td><td><code>Authorization: Basic base64(user:pass)</code></td><td>Validate HTTP Basic credentials</td></tr>
+          <tr><td><code>client-credentials</code></td><td><code>Authorization: Bearer &lt;fetched-token&gt;</code></td><td>Validate the bearer token your gateway/IdP issued</td></tr>
+        </tbody>
+      </table>
+      <p>The credential is entered once at registration and <strong>encrypted at rest</strong> by the harness; it is decrypted only in memory when building each request and never logged, exported, or shown in the UI. This auth is <strong>service-level</strong> (how the harness authenticates to your connector) and is distinct from the optional <strong>per-row <code>password</code></strong> (§7).</p>
+      <p>For <code>client-credentials</code>, the harness performs the OAuth2 <strong>client-credentials grant</strong> itself before calling your endpoint. Tokens are cached in memory and reused until shortly before their <code>expires_in</code>, then re-fetched — your endpoint validates a normal bearer token.</p>
+      <div class="note">
+        <p><strong>This token is service-level — one token, the same for every row.</strong> If your backend needs a <strong>per-employee / per-end-user</strong> token, do not try to drive it from this credential. Instead, key it off the per-row <strong><code>testId</code></strong> that every connector request already carries in its body (§2), and mint the per-user token <strong>inside your connector</strong>. In other words: the harness uses one service token to reach you; your connector uses <code>testId</code> to obtain whatever per-user token it needs to call the chatbot. If the per-user secret is a password rather than a derived identity, use the per-row <code>password</code> in §7 instead.</p>
+      </div>
+
+      <h2>7. Per-row password (optional)</h2>
+      <p>If your chatbot needs a <strong>different credential per test row</strong> (e.g. impersonating different end-user accounts), enable <em>expects-per-row-password</em> on the registration. Then:</p>
+      <ul>
+        <li>The CSV uploaded for the job <strong>must</strong> include a <code>password</code> column with a value on every row (the harness enforces this).</li>
+        <li>The harness forwards each row's password as the <code>"password"</code> field in the request body (§2).</li>
+        <li>Passwords are held in memory only, forwarded one row at a time, and never persisted.</li>
+      </ul>
+      <p>If your chatbot uses a single shared credential (or none), leave this <strong>off</strong> and handle auth inside your connector however you like; the CSV then needs no <code>password</code> column.</p>
+      <div class="warning">
+        <p><strong>Headless API limitation.</strong> The headless API (v1) does <strong>not</strong> support per-row passwords. Submitting a job against a connector that has <em>expects-per-row-password</em> enabled is rejected with HTTP 422. If you need to invoke your connector from the headless API, disable per-row passwords and handle per-user auth inside your connector using the <code>testId</code> field instead (see the note in §6).</p>
+      </div>
+
+      <h2>8. Build and test locally before registering</h2>
+      <p><strong>Run the bundled mock connector</strong> to see a conformant service and to model yours on it:</p>
+      <pre><code>harness mock-connector --port 8900
+# → mock connector listening on http://127.0.0.1:8900 (mode=ok)</code></pre>
+      <p>Point a curl at it to confirm the shape:</p>
+      <pre><code>curl -s -X POST http://localhost:8900 \
+  -H "Content-Type: application/json" \
+  -d '{"testId":"t1","utteranceText":"hello"}' | jq .</code></pre>
+      <p>You should get back a valid Standard Evaluation Contract. The mock also supports failure modes — <code>--mode status500</code>, <code>nonconformant</code>, <code>slow</code> — useful for seeing how the harness records each error stage.</p>
+
+      <h2>9. Registering your connector in the harness</h2>
+      <p>Connectors are registered through the <strong>Connector Registry</strong> UI. Open the registry, choose <strong>Register new connector</strong>, and provide the metadata:</p>
+      <table>
+        <thead><tr><th>Field</th><th>Required</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Display name</strong></td><td>Yes</td><td>Human-readable label shown in the job wizard, dashboard, detail view, and exports. Snapshotted onto each job at creation time.</td></tr>
+          <tr><td><strong>Description</strong></td><td>No</td><td>Free text.</td></tr>
+          <tr><td><strong>Endpoint URL</strong></td><td>Yes</td><td>Full <code>http://</code> or <code>https://</code> URL the harness will <code>POST</code> to.</td></tr>
+          <tr><td><strong>Auth mode</strong></td><td>Yes</td><td><code>none</code> / <code>bearer</code> / <code>api-key-header</code> / <code>basic</code> / <code>client-credentials</code> (§6). For <code>client-credentials</code> you enter a <strong>token URL</strong>, <strong>client ID</strong>, <strong>client secret</strong>, and optional <strong>scope</strong> + <strong>audience</strong>; only the client secret is stored encrypted.</td></tr>
+          <tr><td><strong>Timeout (seconds)</strong></td><td>Yes</td><td>1–300, default 30. The harness aborts a row's call after this.</td></tr>
+          <tr><td><strong>Expects per-row password</strong></td><td>Yes (toggle)</td><td>Enable only if your chatbot needs a per-row credential (§7). Connectors with this on are rejected by the headless API in v1.</td></tr>
+          <tr><td><strong>Supports Streaming (SSE)</strong></td><td>Yes (toggle)</td><td>Enable only if your connector implements the SSE protocol (§11). SSE connectors appear in the <strong>Chat Sessions wizard only</strong> — excluded from the batch job creation wizard.</td></tr>
+        </tbody>
+      </table>
+      <p>The registration form has a <strong>Test connection</strong> button that sends a sample request and reports whether the response is a conformant contract. Use it to confirm your service before saving.</p>
+      <p>After registering: the credential is encrypted at rest immediately. The full configuration is <strong>snapshotted</strong> onto each job at creation — later edits do <strong>not</strong> change existing jobs. You can <strong>edit</strong>, <strong>archive</strong>, or <strong>restore</strong> the registration. A registration referenced by historical jobs cannot be hard-deleted.</p>
+
+      <h2>10. Requirements checklist</h2>
+      <p>Your connector is ready to register when it:</p>
+      <ul class="checklist">
+        <li>Accepts <code>POST</code> with a JSON body <code>{testId, utteranceText, password?}</code>.</li>
+        <li>Returns HTTP <strong><code>200</code></strong> on success.</li>
+        <li>Returns a body matching the Standard Evaluation Contract (§3): all top-level required fields, <code>contractVersion: "1"</code>, <code>conversationContext: null</code>, and a <code>chatbotResponse</code> with <code>rawPayload</code> / <code>normalizedText</code> / <code>agentChain</code> / <code>metadata</code>.</li>
+        <li>Generates a unique <code>utteranceId</code> per response and echoes <code>testId</code> and <code>utteranceText</code>.</li>
+        <li>Responds within the timeout you'll register (no long polling; the harness won't retry).</li>
+        <li>Never includes the per-row <code>password</code> in its response.</li>
+        <li>Enforces whatever auth mode you'll register (or <code>none</code>).</li>
+        <li>Is reachable from the harness host at the URL you'll register.</li>
+      </ul>
+
+      <h2>11. Live chat mode — SSE connector protocol</h2>
+      <p>When a connector is registered with the <strong>Supports Streaming (SSE)</strong> toggle enabled, testers can select it in the <strong>Chat Sessions</strong> wizard. In this mode the harness streams turns one-by-one through your connector instead of batching the whole CSV.</p>
+
+      <h3>What changes in SSE mode</h3>
+      <p>The harness sends the <strong>same HTTP <code>POST</code></strong> to your <code>endpointUrl</code>, but the request body uses a different shape, and you must respond with <code>Content-Type: text/event-stream</code> instead of a single JSON object. You stream <strong>token events</strong> as the chatbot replies, followed by a single <strong>contract event</strong>.</p>
+
+      <h3>Request the harness sends (SSE mode)</h3>
+      <pre><code>{
+  "auth": {
+    "test_id": "hours-001",
+    "password": "hunter2"
+  },
+  "message": "What are your opening hours?",
+  "conversationId": "conv-abc123"
+}</code></pre>
+      <table>
+        <thead><tr><th>Field</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td><code>auth.test_id</code></td><td>The test ID configured at chat session creation.</td></tr>
+          <tr><td><code>auth.password</code></td><td>The password configured at session creation (empty string if not set).</td></tr>
+          <tr><td><code>message</code></td><td>The user's chat message for this turn.</td></tr>
+          <tr><td><code>conversationId</code></td><td><strong>Optional.</strong> Present only when a previous turn's <code>chatbotResponse.metadata.conversationId</code> was cached by the harness. Use this to resume the existing conversation in your chatbot.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Response you must return (SSE stream)</h3>
+      <p>Return HTTP <strong><code>200</code></strong> with <code>Content-Type: text/event-stream</code>. Send events in this order:</p>
+      <p><strong>1 — Zero or more <code>token</code> events</strong> (streaming chunks of the chatbot's reply):</p>
+      <pre><code>event: token
+data: {"content": "We're open "}
+
+event: token
+data: {"content": "9 to 5, Monday through Friday."}
+</code></pre>
+      <p><strong>2 — Exactly one <code>contract</code> event</strong> (the completed Standard Evaluation Contract — same schema as §3):</p>
+      <pre><code>event: contract
+data: {"contractVersion":"1","utteranceId":"a3f1...","utteranceText":"What are your opening hours?","testId":"hours-001","conversationContext":null,"connectorId":"acme-support-bot","timestamp":"2026-06-05T14:32:00Z","chatbotResponse":{"rawPayload":{},"normalizedText":"We're open 9 to 5, Monday through Friday.","agentChain":[],"metadata":{}},"tokenUsage":{"promptTokens":210,"completionTokens":38,"totalTokens":248}}
+</code></pre>
+      <p>The harness streams <code>token</code> events live to the tester's browser. After receiving the <code>contract</code> event it closes the SSE connection and proceeds to the evaluator. <strong>The <code>contract</code> event must be the last event you emit.</strong></p>
+
+      <h3>SSE error stages</h3>
+      <table>
+        <thead><tr><th>Stage</th><th>When it happens</th></tr></thead>
+        <tbody>
+          <tr><td><code>connector_stream</code></td><td>Harness could not connect, received HTTP non-2xx, or the stream stalled for longer than <code>timeoutSeconds</code> without a new chunk</td></tr>
+          <tr><td><code>connector_normalization</code></td><td>The <code>contract</code> event data was not valid JSON or failed Standard Evaluation Contract validation (§3)</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Reference SSE connector (Python / FastAPI)</h3>
+      <pre><code>import asyncio
+import json
+import uuid
+from datetime import datetime, timezone
+from fastapi import FastAPI
+from fastapi.responses import StreamingResponse
+
+app = FastAPI()
+
+@app.post("/sse-connect")
+async def sse_connect(body: dict):
+    test_id = body["auth"]["test_id"]
+    password = body["auth"].get("password", "")
+    message = body["message"]
+
+    async def event_stream():
+        reply = await call_my_chatbot(message, password)   # &lt;- your integration
+        for word in reply.split():
+            chunk = word + " "
+            yield f"event: token\ndata: {json.dumps({'content': chunk})}\n\n"
+            await asyncio.sleep(0)
+        contract = {
+            "contractVersion": "1",
+            "utteranceId": str(uuid.uuid4()),
+            "utteranceText": message,
+            "testId": test_id,
+            "conversationContext": None,
+            "connectorId": "acme-support-bot",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "chatbotResponse": {
+                "rawPayload": {"text": reply.text, "sources": reply.sources},
+                "normalizedText": reply.text,
+                "agentChain": [],
+                "metadata": {
+                    "model":   reply.model,
+                    "sources": [
+                        {"url": s.url, "title": s.title, "chunk": s.text, "score": s.score}
+                        for s in reply.sources
+                    ],
+                },
+            },
+            "tokenUsage": {"promptTokens": 210, "completionTokens": 38, "totalTokens": 248},
+        }
+        yield f"event: contract\ndata: {json.dumps(contract)}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")</code></pre>
+
+      <div class="appendix">
+        <h2>Appendix — field quick reference</h2>
+        <p><strong>Request &#8594; connector (batch mode):</strong> <code>testId</code>, <code>utteranceText</code>, <code>password?</code></p>
+        <p><strong>Request &#8594; connector (SSE / live-chat mode):</strong> <code>auth</code>{ <code>test_id</code>, <code>password</code> }, <code>message</code>, <code>conversationId?</code></p>
+        <p><strong>Connector &#8594; harness (Standard Evaluation Contract):</strong> <code>contractVersion</code>(="1"), <code>utteranceId</code>, <code>utteranceText</code>, <code>testId</code>, <code>conversationContext</code>(=null), <code>connectorId</code>, <code>timestamp</code>, <code>chatbotResponse</code>{ <code>rawPayload</code>, <code>normalizedText</code>, <code>agentChain</code>, <code>metadata</code>{ <code>latencyMs?</code>, <code>model?</code>, <code>sources?</code>[{ <code>url?</code>, <code>title?</code>, <code>chunk?</code>, <code>score?</code>, <code>documentId?</code> }], <code>toolCalls?</code>[{ <code>name</code>, <code>input</code>, <code>output</code> }], <code>conversationId?</code> } }, <code>tokenUsage?</code>{ <code>promptTokens?</code>, <code>completionTokens?</code>, <code>totalTokens?</code> }</p>
+        <p><strong>Connector error stages:</strong> <code>connector_transport</code>, <code>connector_response</code>, <code>connector_normalization</code>, <code>connector_auth</code></p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════
+       TAB 4 — CSV UPLOAD GUIDE
+       ════════════════════════════════════════════ -->
+  <section class="tab-panel" id="panel-csv">
+    <div class="panel-content">
+
+      <p class="guide-intro">This guide explains the CSV file you upload when creating a regression test job: its required format, the validation rules, and what the harness does with it after you upload. It is written for testers using the harness — no technical background required.</p>
+
+      <h2>1. What the CSV is for</h2>
+      <p>When you create a job, you upload a CSV that lists the utterances (the messages) to send to your chatbot. The harness sends each row to the chatbot connector, captures the response, runs it through your chosen evaluation agent, and records the result — one result per row. <strong>Your CSV is the list of test cases for the run.</strong></p>
+      <div class="note">
+        <p>This guide covers the <strong>browser wizard</strong> (CSV upload) path. If you need to submit test cases programmatically — without a file upload — the harness also provides a <strong>Headless Execution API</strong> at <code>/api/headless</code> that accepts test cases as JSON and streams live progress back to the caller.</p>
+      </div>
+
+      <h2>2. File format requirements</h2>
+      <p>The harness accepts a <strong>plain CSV file, comma-separated, saved as UTF-8</strong>.</p>
+      <table>
+        <thead><tr><th>Requirement</th><th>Detail</th></tr></thead>
+        <tbody>
+          <tr><td>File type</td><td><code>.csv</code> (plain text). <strong>Not</strong> <code>.xlsx</code>, <code>.xls</code>, or any binary spreadsheet.</td></tr>
+          <tr><td>Encoding</td><td>UTF-8 (a leading byte-order mark / BOM is fine and is stripped automatically).</td></tr>
+          <tr><td>Delimiter</td><td>Comma only. Semicolon- or tab-separated files are rejected.</td></tr>
+          <tr><td>First row</td><td>A header row naming the columns.</td></tr>
+          <tr><td>Quoting</td><td>Standard CSV quoting. Values containing commas, quotes, or line breaks are fine <strong>if</strong> wrapped in double quotes.</td></tr>
+        </tbody>
+      </table>
+      <div class="warning">
+        <p><strong>Using Excel?</strong> Excel workbooks (<code>.xlsx</code>) are <strong>not</strong> supported directly. In Excel, use <strong>File &#8594; Save As &#8594; CSV UTF-8 (Comma delimited)</strong> and upload that file. Note that on some regional settings Excel saves CSVs with semicolons — if your upload is rejected for the delimiter, re-save as comma-delimited.</p>
+      </div>
+
+      <h2>3. Columns</h2>
+      <p>Column identity comes from the <strong>header row</strong> (names, not positions), so columns may appear in any order. Header names are <strong>case-sensitive</strong> and surrounding spaces are trimmed (<code> testId </code> matches <code>testId</code>).</p>
+
+      <h3>Required columns</h3>
+      <table>
+        <thead><tr><th>Column</th><th>Required</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>utteranceText</code></td><td>Always</td><td>The message text to send to the chatbot.</td></tr>
+          <tr><td><code>testId</code></td><td>Always</td><td>Your identifier for the test case. Used to group/trace rows; it is <strong>not</strong> validated against anything and is preserved through results, the detail view, and exports.</td></tr>
+          <tr><td><code>password</code></td><td><strong>Only if</strong> the selected connector needs a per-row password</td><td>A per-row credential forwarded to the chatbot for that row.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>The <code>password</code> column is conditional</h3>
+      <p>Whether <code>password</code> is required depends on the <strong>connector</strong> you select for the job:</p>
+      <ul>
+        <li><strong>Connector needs a per-row password</strong> — the <code>password</code> column is <strong>required</strong>, and every row must have a non-empty value.</li>
+        <li><strong>Connector does not</strong> — omit the column entirely (recommended). If you include it, it is ignored.</li>
+      </ul>
+      <p>Because the connector is chosen <em>after</em> the upload step in the wizard, you may be asked to <strong>re-upload</strong> your CSV if you pick a connector that needs passwords and your file didn't include them.</p>
+
+      <h3>Extra columns</h3>
+      <p>Any additional columns beyond the ones above are <strong>accepted and preserved</strong> as per-row metadata (visible in the row's detail/expand view and in exports). Use them for notes, expected answers, categories, etc.</p>
+
+      <h2>4. Examples</h2>
+      <p><strong>Minimal (connector does not need per-row passwords):</strong></p>
+      <pre><code>utteranceText,testId
+"What are your opening hours?",hours-001
+"Cancel my order please",cancel-001
+"Tell me a joke",fun-001</code></pre>
+      <p><strong>With per-row passwords (connector requires them):</strong></p>
+      <pre><code>utteranceText,testId,password
+"Show my account balance",balance-001,hunter2
+"Transfer $50 to savings",transfer-001,hunter2</code></pre>
+      <p><strong>With extra metadata columns and a multi-line value:</strong></p>
+      <pre><code>utteranceText,testId,expectedTopic,note
+"What's the weather?",weather-001,smalltalk,baseline case
+"I have a complaint about my bill.
+It is too high.",billing-002,billing,"multi-line input, quoted"</code></pre>
+
+      <h2>5. How passwords are handled</h2>
+      <p>If your CSV includes a <code>password</code> column:</p>
+      <ul>
+        <li>Passwords are held <strong>in memory only</strong> for the duration of the run and forwarded to the chatbot connector one row at a time.</li>
+        <li>Passwords are <strong>never written to the database</strong>, <strong>never included in any export</strong>, and <strong>never shown</strong> in the job detail view (credential values are masked as <code>••••••••</code>).</li>
+        <li>Each row's password is <strong>discarded immediately</strong> after that row's chatbot call completes.</li>
+        <li>The original CSV file itself is <strong>not retained</strong> on the server. The job stores the parsed rows and the file's name only.</li>
+      </ul>
+      <div class="note"><p>One consequence: if the harness restarts between upload and starting the job, the in-memory passwords are gone, and you'll need to re-upload the CSV before starting.</p></div>
+
+      <h2>6. Validation rules</h2>
+      <p>When you upload, the harness checks the file <strong>before</strong> saving anything. If any check fails, <strong>nothing is saved</strong> and you'll see a clear, per-issue error message.</p>
+      <table>
+        <thead><tr><th>The harness rejects the upload when…</th><th>What you'll see</th></tr></thead>
+        <tbody>
+          <tr><td>The file is larger than the configured limit (default <strong>50 MiB</strong>)</td><td>Size-exceeded error naming the limit and your file's size</td></tr>
+          <tr><td>The file isn't valid UTF-8 text (e.g. you uploaded a real Excel workbook)</td><td>Encoding error</td></tr>
+          <tr><td>The file isn't comma-delimited (semicolons/tabs detected)</td><td>Unsupported-delimiter error</td></tr>
+          <tr><td>A required column is missing (<code>utteranceText</code>, <code>testId</code>, or <code>password</code> when needed)</td><td>Missing-column error naming each missing column</td></tr>
+          <tr><td>The header has duplicate column names</td><td>Duplicate-column error</td></tr>
+          <tr><td>There are no data rows (header only)</td><td>No-data-rows error</td></tr>
+          <tr><td>A row has more or fewer cells than the header</td><td>Row/column-count mismatch, naming the row number</td></tr>
+          <tr><td>A required cell is empty or only whitespace</td><td>Empty-value error, naming the row number and column</td></tr>
+        </tbody>
+      </table>
+      <p><strong>Accepted automatically (no action needed):</strong></p>
+      <ul>
+        <li>A leading UTF-8 BOM is stripped silently.</li>
+        <li>Completely blank rows at the end of the file are skipped (you'll get an informational note saying how many were skipped).</li>
+        <li>Quoted values with embedded commas, quotes, or line breaks are preserved exactly.</li>
+        <li>Non-ASCII / Unicode text (accents, emoji, non-Latin scripts) is preserved exactly.</li>
+      </ul>
+      <p><strong>What is <em>not</em> checked:</strong> the harness validates <strong>structure only</strong> — column presence and non-empty required values. It does <strong>not</strong> verify that <code>testId</code> or <code>password</code> values are "correct" against any system. If a credential is wrong, that surfaces later as a per-row failure when the chatbot rejects it during the run.</p>
+
+      <h2>7. What happens after a successful upload</h2>
+      <ol>
+        <li><strong>Parsing and storage.</strong> Each data row becomes one stored utterance, in file order (row 1, row 2, …). The job records how many utterances were created and how many distinct <code>testId</code> values it saw, and shows you that summary so you can sanity-check before continuing.</li>
+        <li><strong>Re-uploading replaces.</strong> If you upload again to the same draft job (for example, after going Back in the wizard), the new file <strong>completely replaces</strong> the previous rows — there is no "append". The last upload wins.</li>
+        <li><strong>Starting the job.</strong> When you finish the wizard and click <strong>Start Job</strong>, the job is queued and the engine begins processing rows <strong>one at a time, in file order</strong>: send the row to the chatbot connector, capture the raw response, normalize it into the standard contract, then send that to the evaluation agent and record the verdict and scores.</li>
+        <li><strong>Per-row failures are isolated.</strong> If a row fails at any stage, that single row is recorded as failed with the stage and reason, and processing <strong>continues</strong> with the next row. One bad row does not stop the run. A job that finishes with some failed rows still ends as <em>completed</em> (shown as "Completed with errors").</li>
+        <li><strong>Watching progress.</strong> The dashboard and the job detail view update live as rows complete — you don't need to refresh.</li>
+        <li><strong>Results.</strong> When the run finishes you can inspect every row's full trace in the detail view and <strong>download the complete results</strong> as CSV, JSON, or both (zipped). Exports never contain any password.</li>
+      </ol>
+
+      <h2>8. Quick checklist before you upload</h2>
+      <ul class="checklist">
+        <li>Saved as <strong>CSV UTF-8</strong>, comma-delimited (not a raw <code>.xlsx</code>).</li>
+        <li>First row is a header with <code>utteranceText</code> and <code>testId</code> (exact spelling, any order).</li>
+        <li>Added a <code>password</code> column <strong>only if</strong> your connector needs per-row credentials, with a value on every row.</li>
+        <li>No empty <code>utteranceText</code>/<code>testId</code> (or <code>password</code>, when required) cells.</li>
+        <li>Multi-line or comma-containing values are wrapped in double quotes.</li>
+        <li>At least one data row.</li>
+      </ul>
+
+      <h2>9. Common pitfalls</h2>
+      <table>
+        <thead><tr><th>Symptom</th><th>Likely cause and fix</th></tr></thead>
+        <tbody>
+          <tr><td>"File is not valid UTF-8"</td><td>You uploaded an <code>.xlsx</code> (or other binary). Save As &#8594; CSV UTF-8.</td></tr>
+          <tr><td>"Only comma-delimited CSV is supported"</td><td>Excel saved with semicolons (regional setting). Re-save comma-delimited, or fix the delimiter.</td></tr>
+          <tr><td>"Missing required column: password"</td><td>You selected a connector that needs per-row passwords. Add a <code>password</code> column (a value per row) and re-upload.</td></tr>
+          <tr><td>"Missing required column: testId"</td><td>Header typo or wrong case (<code>TestID</code> &#8800; <code>testId</code>). Match the exact name.</td></tr>
+          <tr><td>"Row N has X columns, expected Y"</td><td>An unquoted comma or line break split a cell. Wrap that value in double quotes.</td></tr>
+          <tr><td>"Required column 'utteranceText' is empty"</td><td>A blank cell in a required column. Fill it or remove the row.</td></tr>
+          <tr><td>Job started but every row failed</td><td>Often wrong credentials or an unreachable chatbot endpoint. Check the row error details in the detail view. The CSV itself was fine.</td></tr>
+        </tbody>
+      </table>
+
+    </div>
+  </section>
+
+</main>
+</body>
+</html>

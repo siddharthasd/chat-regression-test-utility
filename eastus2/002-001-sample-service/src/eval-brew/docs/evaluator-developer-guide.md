@@ -295,6 +295,7 @@ Open the registry, choose **Register new evaluator**, and provide the metadata:
 | **Auth mode** | Yes | `none` / `bearer` / `api-key-header` / `basic` / `client-credentials` (§6), plus the credential for the non-`none` modes. For `client-credentials` you enter a **token URL**, **client ID**, **client secret**, and optional **scope** + **audience**; only the client secret is stored encrypted. |
 | **Timeout (seconds)** | Yes | 1–600, default 60. The harness aborts a row's call after this. (Judges are often slower than connectors — size this for your model.) |
 | **Scoring dimensions** | No | One dimension name per line (ordered). Blank lines are ignored; duplicates raise a non-blocking warning; an empty list is allowed (§7). |
+| **Supports Streaming (SSE)** | Yes (toggle) | Enable only if your evaluator implements the SSE protocol (§11). SSE evaluators appear in the **Chat Sessions wizard only** — they are **excluded from the batch job creation wizard**. Leave off for standard evaluators. |
 
 **Test connection.** The registration form has a *Test connection* button that sends a
 sample contract to your endpoint and reports whether the response is a valid
@@ -338,13 +339,13 @@ Your evaluator is ready to register when it:
 - [ ] The `final` payload uses `overallVerdict` (not `evaluationVerdict`) and `parameters[]`
       (not `evaluationScores[]`), with `parameter_name` (snake_case) in each entry.
 - [ ] Uses lowercase `pass`, `fail`, or `warn` for `overallVerdict`.
-- [ ] Registered with **Supports live chat** toggled on in the Evaluator Registry.
+- [ ] Registered with **Supports Streaming (SSE)** toggled on in the Evaluator Registry.
 
 ---
 
 ## 11. Live Chat mode — SSE evaluator protocol
 
-When an evaluator is registered with the **Supports live chat** toggle enabled, it can be
+When an evaluator is registered with the **Supports Streaming (SSE)** toggle enabled, it can be
 selected in the **Chat Sessions** wizard. In this mode the harness POSTs the Standard
 Evaluation Contract to your endpoint and expects an SSE stream of evaluation events in return.
 
@@ -471,9 +472,11 @@ async def sse_evaluate(contract: dict):
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 ```
 
-**Registering an SSE evaluator.** In the Evaluator Registry, toggle **Supports live chat** on
-before saving. Only evaluators with this flag appear in the Chat Sessions wizard. All other
-registration fields (auth mode, timeout, dimensions, credentials) work identically to batch mode.
+**Registering an SSE evaluator.** In the Evaluator Registry, toggle **Supports Streaming (SSE)**
+on before saving. Evaluators with this flag enabled appear in the **Chat Sessions wizard only** —
+they are **excluded from the batch job creation wizard**, which shows non-SSE evaluators only.
+All other registration fields (auth mode, timeout, dimensions, credentials) work identically to
+batch mode.
 
 ---
 

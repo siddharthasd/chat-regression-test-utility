@@ -410,6 +410,12 @@ Then:
 If your chatbot uses a single shared credential (or none), leave this **off** and handle
 auth inside your connector however you like; the CSV then needs no `password` column.
 
+> **Headless API limitation.** The headless API (v1) does **not** support per-row passwords.
+> Submitting a job against a connector that has *expects-per-row-password* enabled is rejected
+> with HTTP 422. If you need to invoke your connector from the headless API, disable per-row
+> passwords and handle per-user auth inside your connector using the `testId` field instead
+> (see the note in §6).
+
 ---
 
 ## 8. Build & test locally before registering
@@ -450,7 +456,8 @@ and provide the metadata:
 | **Endpoint URL** | Yes | Full `http://` or `https://` URL the harness will `POST` to. |
 | **Auth mode** | Yes | `none` / `bearer` / `api-key-header` / `basic` / `client-credentials` (§6). For the non-`none` modes you also enter the credential (token / header name + value / username + password). For `client-credentials` you enter a **token URL**, **client ID**, **client secret**, and optional **scope** + **audience**; only the client secret is stored encrypted. |
 | **Timeout (seconds)** | Yes | 1–300, default 30. The harness aborts a row's call after this. |
-| **Expects per-row password** | Yes (toggle) | Enable only if your chatbot needs a per-row credential (§7). |
+| **Expects per-row password** | Yes (toggle) | Enable only if your chatbot needs a per-row credential (§7). Note: connectors with this on are rejected by the headless API in v1. |
+| **Supports Streaming (SSE)** | Yes (toggle) | Enable only if your connector implements the SSE protocol (§11). SSE connectors appear in the **Chat Sessions wizard only** — they are **excluded from the batch job creation wizard**. Leave off for standard connectors. |
 
 **Test connection.** The registration form has a *Test connection* button that sends a
 sample request to your endpoint and reports whether the response is a conformant
@@ -487,7 +494,7 @@ Your connector is ready to register when it:
 
 ## 11. Live Chat mode — SSE connector protocol
 
-When a connector is registered with the **Supports live chat** toggle enabled, testers can
+When a connector is registered with the **Supports Streaming (SSE)** toggle enabled, testers can
 select it in the **Chat Sessions** wizard. In this mode the harness streams turns one-by-one
 through your connector instead of batching the whole CSV.
 
@@ -613,9 +620,10 @@ async def sse_connect(body: dict):
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 ```
 
-**Registering an SSE connector.** In the Connector Registry, toggle **Supports live chat** on
-before saving. Only connectors with this flag appear in the Chat Sessions wizard. All other
-registration fields (auth mode, timeout, credentials) work identically to the batch mode.
+**Registering an SSE connector.** In the Connector Registry, toggle **Supports Streaming (SSE)**
+on before saving. Connectors with this flag enabled appear in the **Chat Sessions wizard only** —
+they are **excluded from the batch job creation wizard**, which shows non-SSE connectors only.
+All other registration fields (auth mode, timeout, credentials) work identically to batch mode.
 
 ---
 

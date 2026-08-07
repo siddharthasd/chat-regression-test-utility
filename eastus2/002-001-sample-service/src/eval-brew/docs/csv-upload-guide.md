@@ -14,6 +14,11 @@ send to your chatbot. The harness sends each row to the chatbot connector, captu
 the response, runs it through your chosen evaluation agent, and records the result —
 one result per row. **Your CSV is the list of test cases for the run.**
 
+> This guide covers the **browser wizard** (CSV upload) path. If you need to submit test
+> cases programmatically — without a file upload — the harness also provides a **Headless
+> Execution API** at `/api/headless` that accepts test cases as JSON and streams live
+> progress back to the caller.
+
 ---
 
 ## 2. File format requirements

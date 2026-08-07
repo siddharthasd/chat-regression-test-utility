@@ -9,7 +9,7 @@ authentication is enabled (`HARNESS_AUTH_ENABLED=true`).
 
 The harness uses a **two-step access model**:
 
-1. **Azure AD authenticates** the user (verifies their identity via Microsoft login).
+1. **Azure AD authenticates** the user (verifies their identity via Microsoft login, or validates a Bearer token for API callers).
 2. **The harness authorises** the user by checking that their email exists in the
    harness user registry and reading their assigned role.
 
@@ -23,6 +23,15 @@ they are shown an "Access Denied" page.
 |---|---|
 | `admin` | Full access: run jobs, view all jobs, manage connectors and evaluators, manage the user registry. |
 | `user` | Run jobs and view their own jobs. Cannot manage connectors, evaluators, or users. |
+
+### Access methods
+
+| Method | Who uses it | How identity is verified |
+|---|---|---|
+| Browser login | Human users | Azure AD OAuth2 (Microsoft login page) |
+| Bearer token | External systems using the headless API | Azure AD JWT validated on each request |
+
+Both methods require the caller to be pre-registered in the harness user registry.
 
 ---
 
@@ -126,6 +135,31 @@ visible.
 
 ---
 
+## Headless API access
+
+The harness exposes a headless API at `/api/headless/` for external systems such
+as qual-brew to submit and run evaluation jobs programmatically. API callers
+authenticate with an Azure AD Bearer token instead of the browser login flow, but
+they are subject to the same user registry requirement as human users.
+
+To grant an external system access:
+
+1. Ensure the system has an Azure AD identity (a service principal or a user
+   account that will obtain tokens on its behalf).
+2. Register its email address in the harness user registry:
+
+   ```bash
+   harness users add system@accenture.com --role user --name "qual-brew"
+   ```
+
+3. On the first authenticated API call the harness links the Azure AD OID from
+   the Bearer token to the registration record automatically, the same way it
+   does for human users on first browser login.
+
+The `user` role is sufficient for all headless API operations.
+
+---
+
 ## Common scenarios
 
 **A new team member needs access**
@@ -148,7 +182,8 @@ harness users remove ex-employee@accenture.com --yes
 ```
 
 Their Azure AD account is unaffected; only the harness registry entry is removed.
-They will be shown "Access Denied" on their next login attempt.
+They will be shown "Access Denied" on their next login attempt. For API callers,
+the next request receives HTTP 403.
 
 **A user should become an admin**
 
@@ -156,8 +191,8 @@ They will be shown "Access Denied" on their next login attempt.
 harness users change-role user@accenture.com admin
 ```
 
-The change takes effect on their next page load (the role is re-read from the
-database on each request).
+The change takes effect on the user's next login (the role is written into the
+session at login time, not re-read on every request).
 
 **A user registered but cannot log in**
 
@@ -169,3 +204,11 @@ first successful authentication.
 If it still shows `no` after a login attempt, confirm the email address in the
 registry exactly matches the `preferred_username` in their Azure AD account
 (usually their UPN, e.g. `firstname.lastname@accenture.com`).
+
+**An API caller receives HTTP 403**
+
+Check that the service account's email is registered (`harness users list`) and
+that the **Linked** column shows `yes`. If it shows `no`, the OID in the Bearer
+token has never matched the registration — verify the email used at registration
+matches the identity in the token, then have the caller make one authenticated
+request to trigger the link.
