@@ -56,6 +56,22 @@ class UserRegistrationRepository:
             )
         )
 
+    def find_by_any_email(self, emails: list[str]) -> UserRegistration | None:
+        """Return the first registration matching any of the given email addresses
+        regardless of whether an OID is already linked.
+
+        Used as a final fallback when find_unlinked_by_any_email returns None —
+        covers users whose records were pre-seeded with an OID, had their OID
+        changed (account recreation / tenant migration), or are logging in from
+        a second environment where a different OID was previously linked.
+        """
+        if not emails:
+            return None
+        lowered = [e.lower() for e in emails]
+        return self._session.scalar(
+            select(UserRegistration).where(UserRegistration.email.in_(lowered))
+        )
+
     def get(self, reg_id: str) -> UserRegistration | None:
         return self._session.get(UserRegistration, reg_id)
 

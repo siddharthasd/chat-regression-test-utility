@@ -97,12 +97,24 @@ def auth_callback(request: Request):
         repo = UserRegistrationRepository(db)
         reg = repo.find_by_oid(oid)
         if reg is None:
-            # First login: one IN query across all email candidates handles the
-            # common Accenture case where preferred_username (UPN) differs from
-            # the SMTP address the admin used when pre-registering the user.
+            # First login (azure_oid IS NULL): one IN query across all email
+            # candidates — handles the Accenture case where preferred_username /
+            # UPN differs from the SMTP address the admin used to pre-register.
             reg = repo.find_unlinked_by_any_email(email_candidates)
             if reg is not None:
                 log.debug("sso.callback.oid_linked", oid=oid, email=reg.email)
+                repo.link_oid(reg, oid, display_name or reg.email)
+        if reg is None:
+            # Final fallback: search by email without the azure_oid IS NULL
+            # constraint. Covers users whose record already has an OID linked
+            # from a previous session but whose current token carries a different
+            # OID (account recreation, tenant migration, or multi-environment
+            # first-login mismatch). Re-link to the new OID so the user is not
+            # permanently locked out.
+            reg = repo.find_by_any_email(email_candidates)
+            if reg is not None:
+                log.debug("sso.callback.oid_relinked", oid=oid, email=reg.email,
+                          previous_oid=reg.azure_oid)
                 repo.link_oid(reg, oid, display_name or reg.email)
         if reg is None:
             log.debug("sso.callback.not_registered", oid=oid)
