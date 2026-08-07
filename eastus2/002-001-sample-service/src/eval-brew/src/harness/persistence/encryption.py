@@ -45,7 +45,7 @@ def get_or_create_key() -> bytes:
     with _KEY_LOCK:
         if _CACHED_KEY is not None:
             return _CACHED_KEY
-        env_key = os.environ.get("HARNESS_MASTER_KEY")
+        env_key = os.environ.get("HARNESS_MASTER_KEY") or os.environ.get("harness_master_key")
         if env_key:
             _CACHED_KEY = env_key.strip().encode("ascii")
             return _CACHED_KEY
