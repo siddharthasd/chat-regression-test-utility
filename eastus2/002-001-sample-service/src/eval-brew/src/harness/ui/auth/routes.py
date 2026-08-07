@@ -68,15 +68,19 @@ def auth_callback(request: Request):
     # Build a priority-ordered list of email candidates from the OIDC token.
     # In Accenture's federated SSO, Azure AD may surface the user's address in
     # different claims depending on tenant and app-registration configuration:
-    #   name               – display name / UPN surfaced by the SSO provider
+    #   preferred_username – OIDC standard (v2.0 tokens)
     #   userprincipalname  – UPN attribute surfaced directly by the SSO provider
     #   email              – explicit SMTP claim (requires the "email" scope)
     #   upn                – UPN emitted explicitly by some ADFS federations
+    #   unique_name        – UPN in Azure AD v1.0 / ADFS tokens (ver=1.0)
+    #   name               – display name fallback (filtered if no @ present)
     _raw = [
+        claims.get("preferred_username"),
         claims.get("userprincipalname"),
-        claims.get("name"),
         claims.get("email"),
         claims.get("upn"),
+        claims.get("unique_name"),
+        claims.get("name"),
     ]
     seen: set[str] = set()
     email_candidates: list[str] = []

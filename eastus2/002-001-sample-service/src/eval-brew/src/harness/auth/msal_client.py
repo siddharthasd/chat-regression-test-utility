@@ -46,6 +46,7 @@ def complete_flow(cfg: dict, flow: dict, auth_response: dict) -> dict:
     log.debug(
         "sso.flow_completed",
         oid=claims.get("oid") or claims.get("sub"),
-        upn=claims.get("userprincipalname", ""),
+        upn=(claims.get("preferred_username") or claims.get("userprincipalname")
+             or claims.get("upn") or claims.get("unique_name") or ""),
     )
     return claims
