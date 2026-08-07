@@ -67,14 +67,18 @@
       </button>
       {% if is_terminal %}
       <a href="/jobs/{{ meta.job_id }}/download-results.csv"
-         class="btn btn-sm btn-outline-primary">Download CSV</a>
+         class="btn btn-sm btn-outline-primary">PBI Compatible CSV Download</a>
+      <a href="/jobs/{{ meta.job_id }}/download-results.xlsx"
+         class="btn btn-sm btn-outline-primary">PBI Compatible XLSX Download</a>
       <a href="/jobs/{{ meta.job_id }}/download-results.json"
-         class="btn btn-sm btn-outline-primary">Download JSON</a>
+         class="btn btn-sm btn-outline-primary">JSON Download</a>
       {% else %}
       <button type="button" class="btn btn-sm btn-outline-secondary" disabled
-              title="Available after job completes">Download CSV</button>
+              title="Available after job completes">PBI Compatible CSV Download</button>
       <button type="button" class="btn btn-sm btn-outline-secondary" disabled
-              title="Available after job completes">Download JSON</button>
+              title="Available after job completes">PBI Compatible XLSX Download</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" disabled
+              title="Available after job completes">JSON Download</button>
       {% endif %}
     </div>
   </aside>
@@ -574,6 +578,49 @@
                     {% if r.error_status %}
                       <p class="text-danger small">Error: {{ r.error_status }} / {{ r.error_stage }}: {{ r.error_details }}</p>
                     {% endif %}
+                    <!-- Retrieved Context (BL-001) -->
+                    <div class="mb-3">
+                      <strong class="small">Retrieved Context</strong>
+                      <span class="badge bg-secondary ms-1" style="font-size:.7rem">
+                        {{ r.source_count }} source{% if r.source_count != 1 %}s{% endif %} retrieved
+                      </span>
+                      {% if r.sources %}
+                      <details class="mt-1">
+                        <summary class="small" style="cursor:pointer">Show sources</summary>
+                        <table class="table table-sm table-bordered mt-2 small">
+                          <thead class="table-light">
+                            <tr>
+                              <th>Title</th>
+                              <th>Scope</th>
+                              <th>Document ID</th>
+                              <th>Chunk</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {% for src in r.sources %}
+                            <tr>
+                              <td><a href="{{ src.url }}" target="_blank" rel="noopener">{{ src.title }}</a></td>
+                              <td><span class="badge bg-light text-dark border">{{ src.scope }}</span></td>
+                              <td class="text-muted">{{ src.documentId }}</td>
+                              <td>
+                                {% if src.chunk | length > 200 %}
+                                <details>
+                                  <summary style="cursor:pointer">{{ src.chunk_short }}</summary>
+                                  <div class="mt-1">{{ src.chunk }}</div>
+                                </details>
+                                {% else %}
+                                {{ src.chunk }}
+                                {% endif %}
+                              </td>
+                            </tr>
+                            {% endfor %}
+                          </tbody>
+                        </table>
+                      </details>
+                      {% else %}
+                      <p class="text-muted small mt-1 mb-0">No context retrieved</p>
+                      {% endif %}
+                    </div>
                     {% for label, artifact in [
                         ('Raw chatbot response', r.raw_chatbot_response),
                         ('Normalized contract', r.normalized_contract),

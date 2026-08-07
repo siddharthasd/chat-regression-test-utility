@@ -24,6 +24,7 @@ from harness.ui.detail.analytics import compute_analytics
 from harness.ui.detail.view import (
     results_csv_builder,
     results_json_builder,
+    results_xlsx_builder,
     score_entries_from_utterances,
 )
 
@@ -280,6 +281,26 @@ def download_results_json(
     return Response(
         content=body,
         media_type="application/json; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/jobs/{job_id}/download-results.xlsx")
+def download_results_xlsx(
+    request: Request,
+    job_id: str,
+    user: dict = Depends(require_auth),
+):
+    """Multi-sheet XLSX results export (PBI Compatible); terminal jobs only."""
+    with get_session() as session:
+        job = JobRepository(session).get(job_id)
+        if job is None or job.status not in _TERMINAL:
+            raise HTTPException(status_code=404)
+        utterances = UtteranceRepository(session).get_by_job_ordered(job_id)
+        filename, body = results_xlsx_builder(job, utterances)
+    return Response(
+        content=body,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 

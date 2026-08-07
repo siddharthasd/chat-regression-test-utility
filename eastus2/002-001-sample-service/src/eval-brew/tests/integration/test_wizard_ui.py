@@ -46,6 +46,18 @@ def enqueue_spy(monkeypatch):
     return calls
 
 
+def _clear_connectors() -> None:
+    from harness.persistence.models.connector_registration import ConnectorRegistration
+    with get_session() as session:
+        session.query(ConnectorRegistration).delete()
+
+
+def _clear_evaluators() -> None:
+    from harness.persistence.models.evaluator_registration import EvaluationAgentRegistration
+    with get_session() as session:
+        session.query(EvaluationAgentRegistration).delete()
+
+
 def _seed_connector(*, expects=False, name="Conn", auth=None) -> str:
     with get_session() as session:
         reg = ConnectorRegistrationRepository(session).create(
@@ -189,6 +201,7 @@ def test_malformed_csv_blocks_advance(client) -> None:
 
 # --------------------------------------------------------------------------- US5
 def test_empty_connector_registry_affordance(client) -> None:
+    _clear_connectors()
     job_id = _create_job(client)
     _upload(client, job_id, _GOOD_CSV)
     body = client.get(f"/jobs/{job_id}/step3").text
@@ -197,6 +210,7 @@ def test_empty_connector_registry_affordance(client) -> None:
 
 
 def test_empty_evaluator_registry_affordance(client) -> None:
+    _clear_evaluators()
     conn_id = _seed_connector()
     job_id = _create_job(client)
     _upload(client, job_id, _GOOD_CSV)

@@ -128,7 +128,10 @@ def test_download_results_csv_terminal(client) -> None:
     assert resp.status_code == 200
     text = resp.text
     header = text.splitlines()[0]
-    assert header == "utteranceText,testId,utteranceIntent,chatbotResponse,overallVerdict,parameterName,score,verdict,reasoning"
+    assert header == (
+        "utteranceText,testId,utteranceIntent,chatbotResponse,overallVerdict,"
+        "parameterName,score,verdict,reasoning,sourceIndex,title,url,documentId,scope,chunk"
+    )
     assert "password" not in text
     assert "results.csv" in resp.headers["Content-Disposition"]
 
@@ -358,6 +361,69 @@ def test_sidebar_nav_present(client) -> None:
     assert "section-job-overview" in body
     assert "section-parameter-breakdown" in body
     assert "section-result-explorer" in body
+
+
+# --------------------------------------------------------------------------- BL-001 XLSX
+def _result_with_sources(sources=None):
+    return {
+        "normalized_contract": {
+            "chatbotResponse": {
+                "normalizedText": "Hi",
+                "metadata": {"sources": sources or []},
+            }
+        },
+        "raw_chatbot_response": {},
+        "evaluation_verdict": "pass",
+        "evaluation_scores": [
+            {"parameter_name": "relevance", "score": 0.9, "reasoning": "ok", "verdict": "pass"},
+        ],
+        "result_metadata": {},
+    }
+
+
+def test_download_results_xlsx_terminal(client) -> None:
+    import io
+    import openpyxl
+
+    job_id = _seed(rows=[{"text": "hi", "test_id": "t1", "result": _result_with_sources()}])
+    resp = client.get(f"/jobs/{job_id}/download-results.xlsx")
+    assert resp.status_code == 200
+    assert "spreadsheetml" in resp.headers["Content-Type"]
+    assert "results.xlsx" in resp.headers["Content-Disposition"]
+    wb = openpyxl.load_workbook(io.BytesIO(resp.content))
+    assert wb.sheetnames == ["Results", "Retrieved Sources", "Data Dictionary"]
+
+
+def test_download_results_xlsx_running_returns_404(client) -> None:
+    job_id = _seed(status=JobStatus.RUNNING, rows=[{"text": "hi", "test_id": "t1"}])
+    assert client.get(f"/jobs/{job_id}/download-results.xlsx").status_code == 404
+
+
+def test_download_results_xlsx_unknown_job_returns_404(client) -> None:
+    assert client.get("/jobs/does-not-exist/download-results.xlsx").status_code == 404
+
+
+def test_download_results_xlsx_sources_in_sheet2(client) -> None:
+    import io
+    import openpyxl
+
+    sources = [
+        {"url": "https://kb/1", "title": "Art1", "chunk": "text1", "scope": "hr", "documentId": "d1"},
+        {"url": "https://kb/2", "title": "Art2", "chunk": "text2", "scope": "hr", "documentId": "d2"},
+    ]
+    job_id = _seed(rows=[{
+        "text": "hi", "test_id": "t1",
+        "result": _result_with_sources(sources=sources),
+    }])
+    resp = client.get(f"/jobs/{job_id}/download-results.xlsx")
+    wb = openpyxl.load_workbook(io.BytesIO(resp.content))
+    ws2 = wb["Retrieved Sources"]
+    # header + 2 source rows
+    assert ws2.max_row == 3
+    row_vals = [list(r) for r in ws2.iter_rows(min_row=2, values_only=True)]
+    assert row_vals[0][3] == 1   # sourceIndex
+    assert row_vals[1][3] == 2
+    assert row_vals[0][4] == "Art1"  # title
 
 
 def test_v2_verdict_in_scores_cells(client) -> None:

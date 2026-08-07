@@ -13,6 +13,10 @@ import json
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+import openpyxl
+from openpyxl.cell.cell import WriteOnlyCell
+from openpyxl.styles import Font, PatternFill
+
 from harness.persistence.enums import JobStatus
 from harness.ui.dashboard.view import format_timestamp
 
@@ -94,6 +98,32 @@ def _truncate(text: str | None) -> str:
     return text if len(text) <= _TRUNCATE else text[:_TRUNCATE] + "…"
 
 
+def _extract_sources(contract: dict | None) -> list[dict]:
+    """Extract chatbotResponse.metadata.sources; normalise each entry; return [] on any error."""
+    raw = (
+        (contract or {})
+        .get("chatbotResponse", {})
+        .get("metadata", {})
+        .get("sources") or []
+    )
+    if not isinstance(raw, list):
+        return []
+    result = []
+    for s in raw:
+        if not isinstance(s, dict):
+            continue
+        chunk = s.get("chunk") or ""
+        result.append({
+            "url": s.get("url") or "",
+            "title": s.get("title") or "",
+            "chunk": chunk,
+            "chunk_short": chunk[:_TRUNCATE] + "…" if len(chunk) > _TRUNCATE else chunk,
+            "scope": s.get("scope") or "",
+            "documentId": s.get("documentId") or "",
+        })
+    return result
+
+
 def _score_cells(result, declared_dims: list[str]) -> list[dict]:
     """Scores ordered by declared dimensions, then any unexpected entries (FR-007b)."""
     if result is None:
@@ -138,6 +168,7 @@ def row_view(utterance: Utterance, declared_dims: list[str]) -> dict:
         response_text = (contract.get("chatbotResponse") or {}).get("normalizedText")
     annotations = (result.harness_annotations if result else None) or {}
     unexpected = annotations.get("unexpected_score_dimensions") or []
+    sources = _extract_sources(contract)
     return {
         "row_index": utterance.row_index,
         "test_id": utterance.test_id,
@@ -159,6 +190,9 @@ def row_view(utterance: Utterance, declared_dims: list[str]) -> dict:
         "evaluation_scores": result.evaluation_scores if result else None,
         "result_metadata": result.result_metadata if result else None,
         "harness_annotations": annotations or None,
+        # retrieved context (BL-001)
+        "source_count": len(sources),
+        "sources": sources,
     }
 
 
@@ -252,7 +286,11 @@ def score_entries_from_utterances(utterances: list) -> list[ScoreEntry]:
 
 
 def results_csv_builder(job: Job, utterances: list) -> tuple[str, str]:
-    """Build long-format evaluated results CSV. Returns (filename, csv_body)."""
+    """Build long-format evaluated results CSV. Returns (filename, csv_body).
+
+    Rows are the cross-product of evaluation dimensions × retrieved sources.
+    Utterances with no sources emit one row per dimension with blank source fields.
+    """
     base = (job.source_csv_filename or f"job-{job.job_id[:8]}").rsplit(".csv", 1)[0]
     filename = f"{base}-results.csv"
 
@@ -260,7 +298,8 @@ def results_csv_builder(job: Job, utterances: list) -> tuple[str, str]:
     writer = csv.writer(buf)
     writer.writerow(
         ["utteranceText", "testId", "utteranceIntent", "chatbotResponse", "overallVerdict",
-         "parameterName", "score", "verdict", "reasoning"]
+         "parameterName", "score", "verdict", "reasoning",
+         "sourceIndex", "title", "url", "documentId", "scope", "chunk"]
     )
     for u in utterances:
         result = u.evaluation_result
@@ -271,25 +310,29 @@ def results_csv_builder(job: Job, utterances: list) -> tuple[str, str]:
         overall_verdict = (result.evaluation_verdict if result else None) or ""
         intent = (result.utterance_intent if result else None) or ""
         scores = (result.evaluation_scores or []) if result else []
-        if not scores:
-            writer.writerow([
-                u.utterance_text, u.test_id or "", intent, response_text, overall_verdict,
-                "", "", "", "",
-            ])
-        else:
-            for s in scores:
-                if not isinstance(s, dict):
-                    continue
+        sources = _extract_sources(contract)
+
+        dim_rows: list[tuple] = []
+        for s in scores:
+            if isinstance(s, dict):
+                dim_rows.append((
+                    s.get("parameter_name", ""), s.get("score", ""),
+                    s.get("verdict") or "", s.get("reasoning", ""),
+                ))
+        if not dim_rows:
+            dim_rows = [("", "", "", "")]
+
+        src_rows = list(enumerate(sources, start=1)) if sources else [(0, None)]
+
+        for dim in dim_rows:
+            for idx, src in src_rows:
+                src_fields = (
+                    ["", "", "", "", "", ""] if src is None
+                    else [idx, src["title"], src["url"], src["documentId"], src["scope"], src["chunk"]]
+                )
                 writer.writerow([
-                    u.utterance_text,
-                    u.test_id or "",
-                    intent,
-                    response_text,
-                    overall_verdict,
-                    s.get("parameter_name", ""),
-                    s.get("score", ""),
-                    s.get("verdict") or "",
-                    s.get("reasoning", ""),
+                    u.utterance_text, u.test_id or "", intent, response_text, overall_verdict,
+                    *dim, *src_fields,
                 ])
     return filename, buf.getvalue()
 
@@ -322,6 +365,7 @@ def results_json_builder(job: Job, utterances: list) -> tuple[str, str]:
                     entry["verdict"] = s["verdict"]
                 parameters.append(entry)
 
+        sources = _extract_sources(contract)
         result_array.append({
             "utteranceText": u.utterance_text,
             "testId": u.test_id,
@@ -331,9 +375,187 @@ def results_json_builder(job: Job, utterances: list) -> tuple[str, str]:
             "errorStatus": result.error_status if result else None,
             "errorStage": result.error_stage if result else None,
             "parameters": parameters,
+            "sources": [
+                {"url": s["url"], "title": s["title"], "chunk": s["chunk"],
+                 "scope": s["scope"], "documentId": s["documentId"]}
+                for s in sources
+            ],
         })
 
     return filename, json.dumps(result_array, indent=2, ensure_ascii=False)
+
+
+_DICT_S1 = [
+    ("Column", "Type", "Description", "Allowed values"),
+    ("utteranceText", "Text", "The user question sent to the chatbot", "Any UTF-8 string"),
+    ("testId", "Text", "Reference ID from the uploaded CSV", "Any string"),
+    ("utteranceIntent", "Text", "Intent category from the evaluator", "Evaluator-defined or blank"),
+    ("chatbotResponse", "Text", "The chatbot's plain-text reply", "Any string"),
+    ("overallVerdict", "Text", "Worst-case verdict for this utterance", "pass / warn / fail / blank"),
+    ("parameterName", "Text", "The scoring dimension being evaluated", "Evaluator-defined"),
+    ("score", "Decimal", "Numeric score for this dimension", "0.0 (worst) to 1.0 (best)"),
+    ("verdict", "Text", "Verdict for this dimension", "pass / warn / fail / blank"),
+    ("reasoning", "Text", "Evaluator's rationale for this score", "Any string"),
+    ("sourceIndex", "Integer", "1-based position of the KB source for this row; blank when no sources retrieved", "1, 2, 3, … or blank"),
+    ("title", "Text", "KB article or document title", "Any string or blank"),
+    ("url", "Text", "Direct URL to the KB article", "URL or blank"),
+    ("documentId", "Text", "Stable document identifier", "Any string or blank"),
+    ("scope", "Text", "Collection or namespace this article belongs to", "Any string or blank"),
+    ("chunk", "Text", "Full text passage retrieved as grounding context", "Any string or blank"),
+]
+
+_DICT_VERDICTS = [
+    ("Verdict value", "Meaning"),
+    ("pass", "Score meets or exceeds the configured threshold for this dimension"),
+    ("warn", "Score is below threshold but above the minimum acceptable floor — review recommended"),
+    ("fail", "Score is below the minimum acceptable floor — action required"),
+    ("(blank)", "Utterance errored before evaluation; no score was produced"),
+]
+
+_DICT_S2 = [
+    ("Column", "Type", "Description"),
+    ("utteranceId", "Text", "Internal ID — joins to Sheet 1 rows for this utterance"),
+    ("testId", "Text", "Reference ID from the uploaded CSV (repeated for readability)"),
+    ("utteranceText", "Text", "The user question (repeated for readability)"),
+    ("sourceIndex", "Integer", "1-based position of this source in the retrieved list"),
+    ("title", "Text", "KB article or document title"),
+    ("url", "Text", "Direct URL to the KB article"),
+    ("documentId", "Text", "Stable document identifier"),
+    ("scope", "Text", "Collection or namespace this article belongs to"),
+    ("chunk", "Text", "Full text passage retrieved as grounding context"),
+]
+
+
+def _write_data_dictionary(ws) -> None:
+    _section_font = Font(bold=True, size=12)
+    _bold = Font(bold=True)
+    _fill = PatternFill("solid", fgColor="DDEEFF")
+
+    def _section(title: str) -> None:
+        c = WriteOnlyCell(ws, value=title)
+        c.font = _section_font
+        ws.append([c])
+
+    def _col_header(values) -> None:
+        cells = []
+        for v in values:
+            c = WriteOnlyCell(ws, value=v)
+            c.font = _bold
+            c.fill = _fill
+            cells.append(c)
+        ws.append(cells)
+
+    _section("Sheet 1 — Results: Column Definitions")
+    ws.append([])
+    for row in _DICT_S1:
+        _col_header(row) if row[0] == "Column" else ws.append(list(row))
+
+    ws.append([])
+    _section("Verdict Value Definitions")
+    ws.append([])
+    for row in _DICT_VERDICTS:
+        _col_header(row) if row[0] == "Verdict value" else ws.append(list(row))
+
+    ws.append([])
+    _section("Sheet 2 — Retrieved Sources: Column Definitions")
+    ws.append([])
+    for row in _DICT_S2:
+        _col_header(row) if row[0] == "Column" else ws.append(list(row))
+
+
+def results_xlsx_builder(job: Job, utterances: list) -> tuple[str, bytes]:
+    """Three-sheet XLSX (write-only): Results / Retrieved Sources / Data Dictionary.
+
+    Uses openpyxl write_only=True so rows are streamed to the ZIP buffer without
+    ever holding cell objects in RAM — safe for large jobs (2000+ utterances).
+    """
+    from openpyxl.utils import get_column_letter
+
+    base = (job.source_csv_filename or f"job-{job.job_id[:8]}").rsplit(".csv", 1)[0]
+    filename = f"{base}-results.xlsx"
+
+    _bold = Font(bold=True)
+
+    def _header(ws, values: list[str]) -> None:
+        cells = []
+        for v in values:
+            c = WriteOnlyCell(ws, value=v)
+            c.font = _bold
+            cells.append(c)
+        ws.append(cells)
+
+    def _set_widths(ws, widths: list[int]) -> None:
+        for i, w in enumerate(widths, start=1):
+            ws.column_dimensions[get_column_letter(i)].width = w
+
+    wb = openpyxl.Workbook(write_only=True)
+
+    # ── Sheet 1: Results ──────────────────────────────────────────────────────
+    ws1 = wb.create_sheet("Results")
+    _set_widths(ws1, [40, 15, 20, 40, 15, 20, 10, 12, 40, 12, 30, 40, 20, 15, 60])
+    _header(ws1, [
+        "utteranceText", "testId", "utteranceIntent", "chatbotResponse", "overallVerdict",
+        "parameterName", "score", "verdict", "reasoning",
+        "sourceIndex", "title", "url", "documentId", "scope", "chunk",
+    ])
+
+    # ── Sheet 2: Retrieved Sources ────────────────────────────────────────────
+    ws2 = wb.create_sheet("Retrieved Sources")
+    _set_widths(ws2, [20, 15, 40, 12, 30, 40, 20, 15, 60])
+    _header(ws2, [
+        "utteranceId", "testId", "utteranceText",
+        "sourceIndex", "title", "url", "documentId", "scope", "chunk",
+    ])
+
+    for u in utterances:
+        result = u.evaluation_result
+        contract = result.normalized_contract if result else None
+        response_text = ""
+        if contract:
+            response_text = (contract.get("chatbotResponse") or {}).get("normalizedText") or ""
+        overall_verdict = (result.evaluation_verdict if result else None) or ""
+        intent = (result.utterance_intent if result else None) or ""
+        sources = _extract_sources(contract)
+        scores = (result.evaluation_scores or []) if result else []
+
+        dim_rows: list[tuple] = []
+        for s in scores:
+            if isinstance(s, dict):
+                dim_rows.append((
+                    s.get("parameter_name", ""), s.get("score", ""),
+                    s.get("verdict") or "", s.get("reasoning", ""),
+                ))
+        if not dim_rows:
+            dim_rows = [("", "", "", "")]
+
+        src_rows = list(enumerate(sources, start=1)) if sources else [(0, None)]
+
+        for dim in dim_rows:
+            for idx, src in src_rows:
+                src_fields = (
+                    ["", "", "", "", "", ""] if src is None
+                    else [idx, src["title"], src["url"], src["documentId"], src["scope"], src["chunk"]]
+                )
+                ws1.append([
+                    u.utterance_text, u.test_id or "", intent, response_text, overall_verdict,
+                    *dim, *src_fields,
+                ])
+
+        for idx, src in enumerate(sources, start=1):
+            ws2.append([
+                str(u.utterance_id), u.test_id or "", u.utterance_text,
+                idx, src["title"], src["url"], src["documentId"], src["scope"], src["chunk"],
+            ])
+
+    # ── Sheet 3: Data Dictionary ──────────────────────────────────────────────
+    ws3 = wb.create_sheet("Data Dictionary")
+    _set_widths(ws3, [35, 15, 65, 40])
+    _write_data_dictionary(ws3)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return filename, buf.read()
 
 
 def reconstruct_csv(job: Job, utterances: list[Utterance]) -> tuple[str, str]:
