@@ -109,8 +109,8 @@ def test_metadata_panel_masks_secrets(client) -> None:
         rows=[{"text": "hi", "test_id": "t1", "result": _completed_result()}],
     )
     body = _html(client, job_id)
-    assert "SECRET-TOK-123" not in body  # SC-003
-    assert "••••••••" in body
+    assert "SECRET-TOK-123" not in body  # SC-003 — secret must never leak
+    assert "bearer" in body              # mode is shown; credential value is omitted entirely
     assert "ConnX" in body and "EvalX" in body
     assert "Processed 1" in body
 
