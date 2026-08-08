@@ -76,6 +76,8 @@ class EvaluatorRegistryService:
             "timeout_seconds": payload["timeout_seconds"],
             "declared_scoring_dimensions": payload["declared_scoring_dimensions"],
             "supports_sse": payload.get("supports_sse", False),
+            "score_scale_min": payload.get("score_scale_min"),
+            "score_scale_max": payload.get("score_scale_max"),
         }
         if replace_credential or mode_changed:
             update_data["auth_descriptor"] = payload["auth_descriptor"]

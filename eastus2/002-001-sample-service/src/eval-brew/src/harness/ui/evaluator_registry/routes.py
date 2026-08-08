@@ -50,6 +50,8 @@ def _reg_to_view(reg) -> dict:
         "dimensions_text": "\n".join(dims),
         "dimensions_preview": preview,
         "supports_sse": reg.supports_sse,
+        "score_scale_min": reg.score_scale_min,
+        "score_scale_max": reg.score_scale_max,
         "archived": reg.archived,
         "updated_at": reg.updated_at,
     }
@@ -100,6 +102,24 @@ def new_evaluator(
     )
 
 
+@router.get("/evaluators/{evaluation_agent_id}", name="view_evaluator")
+def view_evaluator(
+    request: Request,
+    evaluation_agent_id: str,
+    user: dict = Depends(require_auth),
+):
+    with get_session() as session:
+        reg = EvaluatorRegistryService(session).get(evaluation_agent_id)
+        if reg is None:
+            raise HTTPException(status_code=404)
+        reg_view = _reg_to_view(reg)
+    return templates.TemplateResponse(
+        request,
+        "evaluator_registry/detail.html",
+        {"reg": reg_view, **ctx(request)},
+    )
+
+
 @router.post("/evaluators")
 def create_evaluator(
     request: Request,
@@ -120,6 +140,8 @@ def create_evaluator(
     timeout_seconds: str = Form(None),
     dimensions: str = Form(None),
     supports_sse: str = Form(None),
+    score_scale_min: str = Form(None),
+    score_scale_max: str = Form(None),
     replace_credential: str = Form(None),
     next_url: str = Form(None, alias="next"),
     evaluation_agent_id: str = Form(None),
@@ -133,6 +155,7 @@ def create_evaluator(
         "client_id": client_id, "client_secret": client_secret,
         "scope": scope, "audience": audience, "timeout_seconds": timeout_seconds,
         "dimensions": dimensions, "supports_sse": supports_sse,
+        "score_scale_min": score_scale_min, "score_scale_max": score_scale_max,
         "replace_credential": replace_credential,
         "next": next_url, "evaluation_agent_id": evaluation_agent_id,
     }.items() if v is not None}
@@ -298,6 +321,8 @@ def update_evaluator(
     timeout_seconds: str = Form(None),
     dimensions: str = Form(None),
     supports_sse: str = Form(None),
+    score_scale_min: str = Form(None),
+    score_scale_max: str = Form(None),
     replace_credential: str = Form(None),
     user: dict = Depends(require_auth),
 ):
@@ -309,6 +334,7 @@ def update_evaluator(
         "client_id": client_id, "client_secret": client_secret,
         "scope": scope, "audience": audience, "timeout_seconds": timeout_seconds,
         "dimensions": dimensions, "supports_sse": supports_sse,
+        "score_scale_min": score_scale_min, "score_scale_max": score_scale_max,
         "replace_credential": replace_credential,
     }.items() if v is not None}
     replace = (form.get("replace_credential") or "").lower() in _TRUTHY

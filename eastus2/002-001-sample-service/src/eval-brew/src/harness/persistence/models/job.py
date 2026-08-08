@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import JSON, Boolean, DateTime, Integer, String
+from sqlalchemy import JSON, Boolean, DateTime, Float, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from harness.persistence.base import Base
@@ -33,6 +33,8 @@ SNAPSHOT_FIELDS: frozenset[str] = frozenset(
         "evaluator_auth_descriptor",
         "evaluator_timeout_seconds",
         "evaluator_declared_scoring_dimensions",
+        "evaluator_score_scale_min",
+        "evaluator_score_scale_max",
         "total_utterance_count",
         "harness_version",
         "source_csv_filename",
@@ -76,6 +78,8 @@ class Job(Base):
     evaluator_declared_scoring_dimensions: Mapped[list | None] = mapped_column(
         JSON, nullable=True
     )
+    evaluator_score_scale_min: Mapped[float | None] = mapped_column(Float, nullable=True)
+    evaluator_score_scale_max: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     # --- Headless submission metadata (020) ---
     submission_source: Mapped[str] = mapped_column(String(20), nullable=False, default="wizard")

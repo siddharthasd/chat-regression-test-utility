@@ -22,6 +22,7 @@ from harness.ui._templates import templates
 from harness.ui.detail import view
 from harness.ui.detail.analytics import compute_analytics
 from harness.ui.detail.view import (
+    _score_label,
     results_csv_builder,
     results_flat_csv_builder,
     results_flat_xlsx_builder,
@@ -134,7 +135,14 @@ def _truthy(value: str | None) -> bool:
     return (value or "").lower() in {"1", "true", "on", "yes"}
 
 
-def _analytics_context(utterances: list, dims: list[str], total_count: int | None = None) -> dict:
+def _analytics_context(
+    utterances: list,
+    dims: list[str],
+    total_count: int | None = None,
+    *,
+    score_scale_min: float | None = None,
+    score_scale_max: float | None = None,
+) -> dict:
     """Shared analytics computation used by job_detail and _rerender_error.
 
     total_count: use job.total_utterance_count (declared capacity) for the 5K guard;
@@ -148,7 +156,11 @@ def _analytics_context(utterances: list, dims: list[str], total_count: int | Non
     if not valid_entries:
         return {"analytics": None, "analytics_skipped": False, "analytics_empty": True}
     return {
-        "analytics": compute_analytics(entries, dims),
+        "analytics": compute_analytics(
+            entries, dims,
+            score_scale_min=score_scale_min,
+            score_scale_max=score_scale_max,
+        ),
         "analytics_skipped": False,
         "analytics_empty": False,
     }
@@ -180,11 +192,16 @@ def job_detail(
         dims = meta["declared_dimensions"]
         utterances = UtteranceRepository(session).get_by_job_ordered(job_id)
         all_rows = [view.row_view(u, dims) for u in utterances]
-        analytics_ctx = _analytics_context(utterances, dims, job.total_utterance_count)
+        analytics_ctx = _analytics_context(
+            utterances, dims, job.total_utterance_count,
+            score_scale_min=job.evaluator_score_scale_min,
+            score_scale_max=job.evaluator_score_scale_max,
+        )
         token_totals = _token_totals(utterances)
         is_terminal = job.status in _TERMINAL
         can_cancel = job.status in _CANCELLABLE
         can_delete = _can_delete(job)
+        score_label = _score_label(job.evaluator_score_scale_min, job.evaluator_score_scale_max)
 
     test_id_options = view.distinct_test_ids(all_rows)
     rows = view.apply_filters(
@@ -214,6 +231,7 @@ def job_detail(
             "is_terminal": is_terminal,
             "tooltip_copy": TOOLTIP_COPY,
             "token_totals": token_totals,
+            "score_label": score_label,
             "error": None,
             **analytics_ctx,
             **ctx(request),
@@ -398,8 +416,13 @@ def _rerender_error(request: Request, job_id: str, message: str, status_code: in
         dims = meta["declared_dimensions"]
         utterances = UtteranceRepository(session).get_by_job_ordered(job_id)
         rows = [view.row_view(u, dims) for u in utterances]
-        analytics_ctx = _analytics_context(utterances, dims)
+        analytics_ctx = _analytics_context(
+            utterances, dims,
+            score_scale_min=job.evaluator_score_scale_min,
+            score_scale_max=job.evaluator_score_scale_max,
+        )
         token_totals = _token_totals(utterances)
+        score_label = _score_label(job.evaluator_score_scale_min, job.evaluator_score_scale_max)
     return templates.TemplateResponse(
         request,
         "detail/index.html",
@@ -421,6 +444,7 @@ def _rerender_error(request: Request, job_id: str, message: str, status_code: in
             "is_terminal": meta["status"] in _TERMINAL,
             "tooltip_copy": TOOLTIP_COPY,
             "token_totals": token_totals,
+            "score_label": score_label,
             "error": message,
             **analytics_ctx,
             **ctx(request),

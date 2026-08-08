@@ -54,12 +54,16 @@ def test_basic_descriptor() -> None:
 
 # ------------------------------------------------------------------ US3 dimensions
 def test_dimensions_order_preserved() -> None:
-    payload, _ = parse_evaluator_form(_form(dimensions="c\na\nb"))
+    payload, _ = parse_evaluator_form(
+        _form(dimensions="c\na\nb", score_scale_min="0", score_scale_max="1")
+    )
     assert payload["declared_scoring_dimensions"] == ["c", "a", "b"]  # SC-011
 
 
 def test_dimensions_trim_and_drop_blanks() -> None:
-    payload, _ = parse_evaluator_form(_form(dimensions="  a  \n\n   \n b \n"))
+    payload, _ = parse_evaluator_form(
+        _form(dimensions="  a  \n\n   \n b \n", score_scale_min="0", score_scale_max="1")
+    )
     assert payload["declared_scoring_dimensions"] == ["a", "b"]
 
 
@@ -120,3 +124,69 @@ def test_client_credentials_secret_optional_without_replace() -> None:
     )
     assert errors == {}
     assert payload["auth_descriptor"]["clientSecret"] == ""
+
+
+# ------------------------------------------------------------------ FR-001/002/005/006/007 scale
+def test_eleven_dimensions_rejected() -> None:
+    dims = "\n".join(f"dim{i}" for i in range(11))
+    _, errors = parse_evaluator_form(_form(dimensions=dims))
+    assert "dimensions" in errors
+    assert "11" in errors["dimensions"]
+
+
+def test_duplicate_dimensions_blocked() -> None:
+    _, errors = parse_evaluator_form(_form(dimensions="a\nb\na"))
+    assert "dimensions" in errors
+    assert "'a'" in errors["dimensions"]
+
+
+def test_one_dim_missing_scale_requires_both() -> None:
+    _, errors = parse_evaluator_form(_form(dimensions="accuracy"))
+    assert "score_scale_min" in errors
+    assert "score_scale_max" in errors
+
+
+def test_zero_dims_missing_scale_accepted() -> None:
+    payload, errors = parse_evaluator_form(_form(dimensions=""))
+    assert "score_scale_min" not in errors
+    assert "score_scale_max" not in errors
+    assert payload["declared_scoring_dimensions"] == []
+
+
+def test_scale_min_equal_max_rejected() -> None:
+    _, errors = parse_evaluator_form(
+        _form(dimensions="accuracy", score_scale_min="5", score_scale_max="5")
+    )
+    assert "score_scale_min" in errors
+
+
+def test_scale_min_greater_than_max_rejected() -> None:
+    _, errors = parse_evaluator_form(
+        _form(dimensions="accuracy", score_scale_min="10", score_scale_max="0")
+    )
+    assert "score_scale_min" in errors
+
+
+def test_non_numeric_scale_field_rejected() -> None:
+    _, errors = parse_evaluator_form(
+        _form(dimensions="accuracy", score_scale_min="abc", score_scale_max="1")
+    )
+    assert "score_scale_min" in errors
+
+
+def test_valid_scale_in_payload() -> None:
+    payload, errors = parse_evaluator_form(
+        _form(dimensions="accuracy", score_scale_min="0", score_scale_max="10")
+    )
+    assert errors == {}
+    assert payload["score_scale_min"] == 0.0
+    assert payload["score_scale_max"] == 10.0
+
+
+def test_zero_scale_min_accepted() -> None:
+    payload, errors = parse_evaluator_form(
+        _form(dimensions="accuracy", score_scale_min="0", score_scale_max="1")
+    )
+    assert errors == {}
+    assert payload["score_scale_min"] == 0.0
+    assert payload["score_scale_max"] == 1.0

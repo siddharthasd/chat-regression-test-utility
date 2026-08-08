@@ -30,7 +30,7 @@ def parse_dimensions(text: str | None) -> list[str]:
 
 
 def duplicate_dimensions(dimensions: list[str]) -> list[str]:
-    """Names that appear more than once, first-seen order (FR-009 — non-blocking warning)."""
+    """Names that appear more than once, first-seen order."""
     seen: set[str] = set()
     dups: list[str] = []
     for name in dimensions:
@@ -38,6 +38,17 @@ def duplicate_dimensions(dimensions: list[str]) -> list[str]:
             dups.append(name)
         seen.add(name)
     return dups
+
+
+def parse_scale_field(raw: str | None) -> tuple[float | None, str | None]:
+    """Return (value, error). Blank → (None, None). Non-numeric → (None, message)."""
+    stripped = (raw or "").strip()
+    if not stripped:
+        return None, None
+    try:
+        return float(stripped), None
+    except ValueError:
+        return None, "Must be a numeric value (e.g. 0, 0.5, 10)."
 
 
 def parse_evaluator_form(
@@ -75,6 +86,48 @@ def parse_evaluator_form(
     dimensions = parse_dimensions(form.get("dimensions"))
     supports_sse = (form.get("supports_sse") or "").strip().lower() in _TRUTHY
 
+    # FR-007 — numeric parse first, regardless of dimension count
+    scale_min, err_min = parse_scale_field(form.get("score_scale_min"))
+    scale_max, err_max = parse_scale_field(form.get("score_scale_max"))
+    if err_min:
+        errors["score_scale_min"] = err_min
+    if err_max:
+        errors["score_scale_max"] = err_max
+
+    # FR-001 — hard cap at 10 dimensions
+    if len(dimensions) > 10:
+        errors["dimensions"] = (
+            f"Maximum 10 dimensions allowed ({len(dimensions)} declared)."
+        )
+
+    # FR-002 — duplicate names are now a blocking error (was non-blocking warning)
+    if "dimensions" not in errors:
+        dups = duplicate_dimensions(dimensions)
+        if dups:
+            quoted = ", ".join(f"'{d}'" for d in dups)
+            errors["dimensions"] = (
+                f"Dimension names must be unique. Duplicate(s): {quoted}."
+            )
+
+    # FR-005 — scale required when at least one dimension is declared
+    if len(dimensions) > 0 and not errors.get("score_scale_min") and not errors.get("score_scale_max"):
+        if scale_min is None or scale_max is None:
+            msg = "Score minimum and maximum are required when dimensions are declared."
+            if scale_min is None:
+                errors["score_scale_min"] = msg
+            if scale_max is None:
+                errors["score_scale_max"] = msg
+
+    # FR-006 — scale_min must be strictly less than scale_max
+    if (
+        scale_min is not None
+        and scale_max is not None
+        and not errors.get("score_scale_min")
+        and not errors.get("score_scale_max")
+        and scale_min >= scale_max
+    ):
+        errors["score_scale_min"] = "Score minimum must be strictly less than Score maximum."
+
     descriptor = None
     if mode in AUTH_MODES:
         descriptor = _build_descriptor(mode, form, errors, require_credential)
@@ -89,6 +142,8 @@ def parse_evaluator_form(
         "timeout_seconds": timeout,
         "declared_scoring_dimensions": dimensions,
         "supports_sse": supports_sse,
+        "score_scale_min": scale_min,
+        "score_scale_max": scale_max,
     }, {}
 
 

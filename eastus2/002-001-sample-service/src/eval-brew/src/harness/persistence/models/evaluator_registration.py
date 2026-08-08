@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Integer, String
+from sqlalchemy import JSON, Boolean, DateTime, Float, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from harness.persistence.base import Base
@@ -27,6 +27,8 @@ class EvaluationAgentRegistration(Base):
     auth_descriptor: Mapped[dict] = mapped_column(JSON, nullable=False)
     timeout_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=60)
     declared_scoring_dimensions: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    score_scale_min: Mapped[float | None] = mapped_column(Float, nullable=True)
+    score_scale_max: Mapped[float | None] = mapped_column(Float, nullable=True)
     supports_sse: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)

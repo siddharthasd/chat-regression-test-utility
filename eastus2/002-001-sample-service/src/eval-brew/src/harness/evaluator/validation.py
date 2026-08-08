@@ -81,6 +81,44 @@ def validate_evaluation_result(body: object, *, expected_utterance_id: str | Non
     return problems
 
 
+def validate_score_ranges(
+    scores: list,
+    scale_min: float | None,
+    scale_max: float | None,
+) -> list[str]:
+    """Return out-of-range problem strings (empty list = all ok).
+
+    FR-014: null scale → skip entirely.
+    FR-013: null value or absent key → skip. Integer/float 0 is validated normally.
+    FR-012: string score → skip.
+    FR-010: numeric (int/float, bool excluded) → check inclusive bounds.
+    FR-011: all violations collected before returning.
+    """
+    if scale_min is None or scale_max is None:
+        return []
+    problems: list[str] = []
+    for entry in scores or []:
+        if not isinstance(entry, dict):
+            continue
+        if "score" not in entry:
+            continue
+        score = entry["score"]
+        if score is None:
+            continue
+        if isinstance(score, bool):
+            continue
+        if isinstance(score, str):
+            continue
+        if isinstance(score, (int, float)):
+            if not (scale_min <= score <= scale_max):
+                name = entry.get("parameter_name", "?")
+                problems.append(
+                    f"score {score} for dimension '{name}' is outside the "
+                    f"declared scale [{scale_min}, {scale_max}]"
+                )
+    return problems
+
+
 def compute_harness_annotations(scores: list, declared_dimensions: list[str]) -> dict:
     """Derive harness annotations: parameter_names emitted but not declared (FR-005a)."""
     declared = set(declared_dimensions or [])

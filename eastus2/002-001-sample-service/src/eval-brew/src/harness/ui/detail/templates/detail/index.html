@@ -201,6 +201,25 @@
 
       <!-- Analytics overview tiles -->
       {% if analytics %}
+
+      <!-- Always-visible reading guide for the overview tiles -->
+      <div class="analytics-guide mb-2" id="overview-guide">
+        <strong style="font-size:.8rem">How to read the overview</strong>
+        <dl class="mb-0 mt-1" style="font-size:.78rem">
+          <dt>Overall Mean Score</dt>
+          <dd class="mb-1">When a score scale is declared for this evaluator, this is the normalised
+            mean of every dimension score — (score − min) / (max − min) — averaged across all
+            responses, expressed in [0–1]. When no scale is declared, it is the raw arithmetic mean.
+            In both cases each score contributes equally; it is not a mean of row-level means.</dd>
+          <dt>Overall Verdict Distribution</dt>
+          <dd class="mb-0">Each response receives a single verdict by combining its dimension-level
+            verdicts using a <strong>worst-case rule</strong>: if <em>any</em> dimension is
+            <strong>fail</strong> → the response is fail; if any dimension is <strong>warn</strong>
+            and none is fail → warn; the response is <strong>pass</strong> only when every dimension
+            passes. The distribution shows how many responses fell into each band.</dd>
+        </dl>
+      </div>
+
       <div class="row g-2">
         <div class="col-12 col-md-6 col-lg-4">
           <div class="overview-tile">
@@ -283,6 +302,10 @@
             <dd>Shows where scores clustered across the full range. Bars to the right mean most responses scored high; bars to the left mean most scored low. The shaded band marks where approximately 68% of scores fall (±1 standard deviation from the mean). Scores outside this band are outliers worth investigating.</dd>
             <dt>Verdict Distribution</dt>
             <dd>How the evaluator classified individual responses for this specific parameter. Shown only when the evaluator provides per-parameter verdicts; otherwise displayed as "not available."</dd>
+            <dt>Overall Mean Score</dt>
+            <dd>When a score scale is declared for this evaluator, this is the normalised mean of every dimension score — (score − min) / (max − min) — averaged across all responses, expressed in [0–1]. When no scale is declared, it is the raw arithmetic mean. In both cases each score contributes equally; it is not a mean of row-level means.</dd>
+            <dt>Overall Verdict (per response)</dt>
+            <dd>Each response receives a single verdict by combining its dimension-level verdicts using a worst-case rule: if any dimension is fail → the response is fail; if any dimension is warn and none is fail → warn; the response is pass only when every dimension passes.</dd>
           </dl>
         </div>
       </div>
@@ -547,7 +570,7 @@
               <th>{{ sortlink('utterance_text', 'Utterance') }}</th>
               <th>{{ sortlink('chatbot_response', 'Response') }}</th>
               <th>{{ sortlink('verdict', 'Verdict') }}</th>
-              <th>Scores</th>
+              <th>{{ score_label }}</th>
               <th>{{ sortlink('error_status', 'Error') }}</th>
             </tr>
           </thead>

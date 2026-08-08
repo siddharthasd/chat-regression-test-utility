@@ -132,16 +132,33 @@ def score_entries_from_turns(turns: list) -> list:
         for p in params:
             if not isinstance(p, dict):
                 continue
+            raw_score = p.get("score")
+            if isinstance(raw_score, bool):
+                numeric_val = 0.0
+                is_numeric = False
+            elif isinstance(raw_score, (int, float)):
+                numeric_val = float(raw_score)
+                is_numeric = True
+            elif isinstance(raw_score, str):
+                try:
+                    numeric_val = float(raw_score)
+                except (ValueError, TypeError):
+                    numeric_val = 0.0
+                is_numeric = False
+            else:
+                numeric_val = 0.0
+                is_numeric = False
             entries.append(
                 ScoreEntry(
                     parameter_name=p.get("parameter_name", ""),
-                    score=float(p.get("score") or 0.0),
+                    score=numeric_val,
                     reasoning=p.get("reasoning") or "",
                     verdict=p.get("verdict"),
                     overall_verdict=overall_verdict,
                     error=is_error,
                     unit_id=turn.turn_id,
                     utterance_intent=None,
+                    is_numeric_score=is_numeric,
                 )
             )
         if not params:

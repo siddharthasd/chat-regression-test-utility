@@ -40,6 +40,8 @@ def _job(*, expects_password: bool = False) -> SimpleNamespace:
         evaluator_auth_descriptor={"mode": "none"},
         evaluator_timeout_seconds=60,
         evaluator_declared_scoring_dimensions=DIMS,
+        evaluator_score_scale_min=None,
+        evaluator_score_scale_max=None,
     )
 
 

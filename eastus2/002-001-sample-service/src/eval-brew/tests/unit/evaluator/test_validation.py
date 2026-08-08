@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from harness.evaluator import compute_harness_annotations, validate_evaluation_result
+from harness.evaluator.validation import validate_score_ranges
 
 
 def _good(uid: str = "u-1", dims: tuple[str, ...] = ("relevance",)) -> dict:
@@ -91,3 +92,60 @@ def test_annotations_lists_unexpected_first_seen_order() -> None:
         {"parameter_name": "z", "score": 1, "reasoning": "r"},
     ]
     assert compute_harness_annotations(scores, ["a"]) == {"unexpected_score_dimensions": ["z"]}
+
+
+# ------------------------------------------------------------------ validate_score_ranges (FR-010–014)
+def test_in_range_score_no_problems() -> None:
+    scores = [{"parameter_name": "accuracy", "score": 0.8}]
+    assert validate_score_ranges(scores, 0.0, 1.0) == []
+
+
+def test_out_of_range_score_returns_problem() -> None:
+    scores = [{"parameter_name": "accuracy", "score": 1.5}]
+    problems = validate_score_ranges(scores, 0.0, 1.0)
+    assert len(problems) == 1
+    assert "accuracy" in problems[0]
+    assert "1.5" in problems[0]
+
+
+def test_integer_zero_within_range_no_problem() -> None:
+    scores = [{"parameter_name": "fluency", "score": 0}]
+    assert validate_score_ranges(scores, 0.0, 1.0) == []
+
+
+def test_integer_zero_outside_range_is_problem() -> None:
+    scores = [{"parameter_name": "fluency", "score": 0}]
+    problems = validate_score_ranges(scores, 0.5, 1.0)
+    assert len(problems) == 1
+    assert "fluency" in problems[0]
+
+
+def test_string_score_bypassed() -> None:
+    scores = [{"parameter_name": "tone", "score": "high"}]
+    assert validate_score_ranges(scores, 0.0, 1.0) == []
+
+
+def test_absent_score_key_skipped() -> None:
+    scores = [{"parameter_name": "tone"}]
+    assert validate_score_ranges(scores, 0.0, 1.0) == []
+
+
+def test_null_score_value_skipped() -> None:
+    scores = [{"parameter_name": "tone", "score": None}]
+    assert validate_score_ranges(scores, 0.0, 1.0) == []
+
+
+def test_null_scale_min_skips_all_validation() -> None:
+    scores = [{"parameter_name": "accuracy", "score": 999.0}]
+    assert validate_score_ranges(scores, None, 1.0) == []
+
+
+def test_two_out_of_range_both_listed() -> None:
+    scores = [
+        {"parameter_name": "accuracy", "score": -1.0},
+        {"parameter_name": "fluency", "score": 2.0},
+    ]
+    problems = validate_score_ranges(scores, 0.0, 1.0)
+    assert len(problems) == 2
+    assert any("accuracy" in p for p in problems)
+    assert any("fluency" in p for p in problems)

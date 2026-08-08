@@ -164,8 +164,37 @@
               Declared scoring dimensions
               <span class="text-muted fw-normal small">(one per line, order matters)</span>
             </label>
-            <textarea class="form-control" id="dimensions" name="dimensions" rows="4"
+            <textarea class="form-control {% if errors.dimensions %}is-invalid{% endif %}"
+                      id="dimensions" name="dimensions" rows="4"
                       placeholder="accuracy&#10;fluency&#10;relevance">{{ form.get('dimensions') or (reg.dimensions_text if reg else '') }}</textarea>
+            {% if errors.dimensions %}<div class="invalid-feedback">{{ errors.dimensions }}</div>{% endif %}
+            <div class="form-text mt-1">
+              <span id="dim-counter">0 / 10 dimensions</span>
+            </div>
+          </div>
+
+          <div class="row g-3 mb-4">
+            <div class="col-6">
+              <label class="form-label fw-semibold" for="score_scale_min">
+                Score minimum
+                <span class="text-muted fw-normal small">(required when dimensions declared)</span>
+              </label>
+              <input type="number" step="any"
+                     class="form-control {% if errors.score_scale_min %}is-invalid{% endif %}"
+                     id="score_scale_min" name="score_scale_min"
+                     value="{{ form.get('score_scale_min') if form.get('score_scale_min') is not none else (reg.score_scale_min if reg and reg.score_scale_min is not none else '') }}"
+                     placeholder="e.g. 0">
+              {% if errors.score_scale_min %}<div class="invalid-feedback">{{ errors.score_scale_min }}</div>{% endif %}
+            </div>
+            <div class="col-6">
+              <label class="form-label fw-semibold" for="score_scale_max">Score maximum</label>
+              <input type="number" step="any"
+                     class="form-control {% if errors.score_scale_max %}is-invalid{% endif %}"
+                     id="score_scale_max" name="score_scale_max"
+                     value="{{ form.get('score_scale_max') if form.get('score_scale_max') is not none else (reg.score_scale_max if reg and reg.score_scale_max is not none else '') }}"
+                     placeholder="e.g. 1">
+              {% if errors.score_scale_max %}<div class="invalid-feedback">{{ errors.score_scale_max }}</div>{% endif %}
+            </div>
           </div>
 
           <div class="mb-3">
@@ -230,5 +259,16 @@ document.getElementById('test-conn-btn').addEventListener('click', function() {
       btn.textContent = '⚡ Test Connection';
     });
 });
+
+function updateDimCounter() {
+  var lines = document.getElementById('dimensions').value
+      .split('\n').filter(function(l) { return l.trim() !== ''; });
+  var span = document.getElementById('dim-counter');
+  span.textContent = lines.length + ' / 10 dimensions';
+  span.style.fontWeight = lines.length >= 10 ? 'bold' : 'normal';
+  span.style.color = lines.length >= 10 ? 'var(--bs-danger)' : '';
+}
+document.getElementById('dimensions').addEventListener('input', updateDimCounter);
+updateDimCounter();
 </script>
 {% endblock %}

@@ -61,6 +61,8 @@ class EvaluationAgentRegistrationCreateData(TypedDict):
     evaluation_agent_id: NotRequired[str]
     timeout_seconds: NotRequired[int]
     declared_scoring_dimensions: NotRequired[list]
+    score_scale_min: NotRequired[float | None]
+    score_scale_max: NotRequired[float | None]
 
 
 class EvaluationAgentRegistrationUpdateData(TypedDict, total=False):
@@ -70,3 +72,6 @@ class EvaluationAgentRegistrationUpdateData(TypedDict, total=False):
     auth_descriptor: dict
     timeout_seconds: int
     declared_scoring_dimensions: list
+    supports_sse: bool
+    score_scale_min: float | None
+    score_scale_max: float | None

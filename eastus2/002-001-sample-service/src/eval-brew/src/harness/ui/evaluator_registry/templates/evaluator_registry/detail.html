@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}{{ reg.display_name }} — Evaluator{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-8">
+    <nav aria-label="breadcrumb" class="mb-3">
+      <ol class="breadcrumb small">
+        <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Dashboard</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('list_evaluators') }}">Evaluators</a></li>
+        <li class="breadcrumb-item active">{{ reg.display_name }}</li>
+      </ol>
+    </nav>
+
+    <div class="harness-card">
+      <div class="card-header py-3 d-flex justify-content-between align-items-center">
+        <h5 class="mb-0 fw-bold">{{ reg.display_name }}</h5>
+        <div class="d-flex gap-2">
+          {% if not reg.archived %}
+          <a href="{{ url_for('edit_evaluator', evaluation_agent_id=reg.evaluation_agent_id) }}"
+             class="btn btn-sm btn-outline-primary">Edit</a>
+          {% endif %}
+          <a href="{{ url_for('list_evaluators') }}" class="btn btn-sm btn-outline-secondary">Back</a>
+        </div>
+      </div>
+      <div class="card-body p-4">
+        <dl class="row mb-0">
+          <dt class="col-sm-4">Evaluator ID</dt>
+          <dd class="col-sm-8"><code class="small">{{ reg.evaluation_agent_id }}</code></dd>
+
+          <dt class="col-sm-4">Description</dt>
+          <dd class="col-sm-8">{{ reg.description or '—' }}</dd>
+
+          <dt class="col-sm-4">Endpoint URL</dt>
+          <dd class="col-sm-8"><span class="text-break small">{{ reg.endpoint_url }}</span></dd>
+
+          <dt class="col-sm-4">Auth mode</dt>
+          <dd class="col-sm-8">{{ reg.auth_mode or 'none' }}</dd>
+
+          <dt class="col-sm-4">Timeout</dt>
+          <dd class="col-sm-8">{{ reg.timeout_seconds }}s</dd>
+
+          <dt class="col-sm-4">SSE support</dt>
+          <dd class="col-sm-8">{% if reg.supports_sse %}Yes{% else %}No{% endif %}</dd>
+
+          <dt class="col-sm-4">State</dt>
+          <dd class="col-sm-8">
+            {% if reg.archived %}
+              <span class="badge badge-archived">Archived</span>
+            {% else %}
+              <span class="badge badge-completed">Active</span>
+            {% endif %}
+          </dd>
+
+          <dt class="col-sm-4">Last updated</dt>
+          <dd class="col-sm-8 small text-muted">{{ reg.updated_at }}</dd>
+
+          <dt class="col-sm-4">Declared dimensions</dt>
+          <dd class="col-sm-8">
+            {% if reg.declared_scoring_dimensions %}
+              <ol class="mb-0 ps-3 small">
+                {% for d in reg.declared_scoring_dimensions %}
+                  <li>{{ d }}</li>
+                {% endfor %}
+              </ol>
+            {% else %}
+              <span class="text-muted">None declared</span>
+            {% endif %}
+          </dd>
+
+          <dt class="col-sm-4">Score scale</dt>
+          <dd class="col-sm-8">
+            {% if reg.score_scale_min is not none and reg.score_scale_max is not none %}
+              {{ reg.score_scale_min }} – {{ reg.score_scale_max }}
+            {% else %}
+              <span class="text-muted">Scale: not declared</span>
+            {% endif %}
+          </dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

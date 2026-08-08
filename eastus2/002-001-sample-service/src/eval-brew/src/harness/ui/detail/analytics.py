@@ -21,6 +21,7 @@ class ScoreEntry:
     error: bool
     unit_id: str | None = None  # utterance_id or turn_id; enables dedup for overall counts
     utterance_intent: str | None = None  # evaluator-identified intent for this utterance
+    is_numeric_score: bool = True  # False for string/null originals — excluded from normalised mean
 
 
 @dataclass(frozen=True)
@@ -91,6 +92,16 @@ def _normalise(scores: list[float]) -> list[float]:
         return [0.5] * len(scores)
     rng = mx - mn
     return [(x - mn) / rng for x in scores]
+
+
+def _normalise_to_declared(
+    scores: list[float], scale_min: float, scale_max: float
+) -> list[float]:
+    """Linear normalise to [0, 1] using declared bounds (FR-016)."""
+    rng = scale_max - scale_min
+    if rng == 0:
+        return [0.5] * len(scores)
+    return [(x - scale_min) / rng for x in scores]
 
 
 def _build_histogram(
@@ -247,6 +258,9 @@ def _build_overall_stats(
 def compute_analytics(
     entries: list[ScoreEntry],
     declared_dims: list[str],
+    *,
+    score_scale_min: float | None = None,
+    score_scale_max: float | None = None,
 ) -> RunAnalytics:
     """Aggregate ScoreEntry list into RunAnalytics.
 
@@ -282,7 +296,17 @@ def compute_analytics(
         evaluated_count = len(valid)
         overall_verdicts = [e.overall_verdict for e in valid if e.overall_verdict is not None]
 
-    overall_mean_score = sum(e.score for e in valid) / len(valid) if valid else None
+    if score_scale_min is not None and score_scale_max is not None:
+        scale_rng = score_scale_max - score_scale_min
+        numeric_valid = [e for e in valid if e.is_numeric_score]
+        if numeric_valid and scale_rng != 0:
+            overall_mean_score: float | None = statistics.mean(
+                [(e.score - score_scale_min) / scale_rng for e in numeric_valid]
+            )
+        else:
+            overall_mean_score = None
+    else:
+        overall_mean_score = sum(e.score for e in valid) / len(valid) if valid else None
     overall_verdict_dist = _build_verdict_dist(overall_verdicts) or ()
 
     # Per-parameter stats: declared order first, then unexpected.
@@ -329,8 +353,13 @@ def compute_analytics(
         rng = mx - mn
         stddev = statistics.pstdev(scores)
 
-        normalised = _normalise(scores)
-        histogram = _build_histogram(normalised, mn, mx, mean, stddev)
+        if score_scale_min is not None and score_scale_max is not None:
+            normalised = _normalise_to_declared(scores, score_scale_min, score_scale_max)
+            hist_raw_min, hist_raw_max = score_scale_min, score_scale_max
+        else:
+            normalised = _normalise(scores)
+            hist_raw_min, hist_raw_max = mn, mx
+        histogram = _build_histogram(normalised, hist_raw_min, hist_raw_max, mean, stddev)
 
         param_verdicts = [e.verdict for e in param_entries if e.verdict is not None]
         verdict_dist = _build_verdict_dist(param_verdicts)

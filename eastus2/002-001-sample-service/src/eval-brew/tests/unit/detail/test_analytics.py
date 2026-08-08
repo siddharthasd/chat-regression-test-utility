@@ -9,6 +9,22 @@ import pytest
 from harness.ui.detail.analytics import ScoreEntry, compute_analytics
 
 
+def _numeric_entry(param="accuracy", score=0.8, unit_id="u1"):
+    return ScoreEntry(
+        parameter_name=param, score=score, reasoning="ok",
+        verdict=None, overall_verdict="pass", error=False,
+        unit_id=unit_id, is_numeric_score=True,
+    )
+
+
+def _non_numeric_entry(param="accuracy", score=0.0, unit_id="u1"):
+    return ScoreEntry(
+        parameter_name=param, score=score, reasoning="ok",
+        verdict=None, overall_verdict="pass", error=False,
+        unit_id=unit_id, is_numeric_score=False,
+    )
+
+
 def _entry(
     param="relevance", score=0.8, verdict=None, overall_verdict="pass",
     error=False, unit_id=None
@@ -192,3 +208,44 @@ def test_sigma_band_clamped():
         assert 0.0 <= b.sigma_low <= 1.0
         assert 0.0 <= b.sigma_high <= 1.0
         assert b.sigma_low <= b.sigma_high
+
+
+# ── BL-005: declared scale analytics (FR-015/016/017) ───────────────────────
+
+def test_declared_scale_normalised_mean():
+    # scores [5, 7] on scale [0, 10] → normalised [0.5, 0.7] → mean 0.6
+    entries = [
+        _numeric_entry(score=5.0, unit_id="u1"),
+        _numeric_entry(score=7.0, unit_id="u2"),
+    ]
+    result = compute_analytics(entries, ["accuracy"], score_scale_min=0.0, score_scale_max=10.0)
+    assert result.overall_mean_score == pytest.approx(0.6)
+
+
+def test_all_non_numeric_entries_mean_is_none():
+    entries = [
+        _non_numeric_entry(unit_id="u1"),
+        _non_numeric_entry(unit_id="u2"),
+    ]
+    result = compute_analytics(entries, ["accuracy"], score_scale_min=0.0, score_scale_max=1.0)
+    assert result.overall_mean_score is None
+
+
+def test_declared_scale_histogram_midpoint_bucket():
+    # score at 50% of range [0, 10] → normalised 0.5 → int(0.5*10)=5 → bucket 5
+    entries = [_numeric_entry(score=5.0, unit_id="u1")]
+    result = compute_analytics(entries, ["accuracy"], score_scale_min=0.0, score_scale_max=10.0)
+    buckets = result.parameters[0].histogram_buckets
+    assert len(buckets) == 10
+    assert buckets[5].count == 1
+    assert sum(b.count for b in buckets) == 1
+
+
+def test_legacy_no_scale_raw_mean_unchanged():
+    # FR-017: when no scale, overall_mean_score is the raw arithmetic mean
+    entries = [
+        _numeric_entry(score=0.4, unit_id="u1"),
+        _numeric_entry(score=0.6, unit_id="u2"),
+    ]
+    result = compute_analytics(entries, ["accuracy"])
+    assert result.overall_mean_score == pytest.approx(0.5)

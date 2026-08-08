@@ -11,7 +11,11 @@ import httpx
 import structlog
 
 from harness.evaluator.result import EvaluatorResult, EvaluatorSnapshot
-from harness.evaluator.validation import compute_harness_annotations, validate_evaluation_result
+from harness.evaluator.validation import (
+    compute_harness_annotations,
+    validate_evaluation_result,
+    validate_score_ranges,
+)
 from harness.persistence.exceptions import HarnessKeyMismatchError
 from harness.remote.auth import build_auth_headers, decrypt_descriptor
 from harness.remote.oauth import TokenFetchError, resolve_auth_descriptor
@@ -107,6 +111,19 @@ def dispatch_evaluation(
                 ok=False,
                 error_stage="evaluator_result",
                 error_details="; ".join(problems[:5]),
+                status_code=response.status_code,
+            )
+
+        range_problems = validate_score_ranges(
+            body.get("evaluationScores", []),
+            snapshot.score_scale_min,
+            snapshot.score_scale_max,
+        )
+        if range_problems:
+            return EvaluatorResult(
+                ok=False,
+                error_stage="evaluator_result",
+                error_details="; ".join(range_problems),
                 status_code=response.status_code,
             )
 

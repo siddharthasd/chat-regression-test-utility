@@ -59,6 +59,8 @@ def _evaluator_snapshot(job: Job) -> EvaluatorSnapshot:
         auth_descriptor=job.evaluator_auth_descriptor,
         timeout_seconds=job.evaluator_timeout_seconds,
         declared_scoring_dimensions=job.evaluator_declared_scoring_dimensions or [],
+        score_scale_min=job.evaluator_score_scale_min,
+        score_scale_max=job.evaluator_score_scale_max,
     )
 
 

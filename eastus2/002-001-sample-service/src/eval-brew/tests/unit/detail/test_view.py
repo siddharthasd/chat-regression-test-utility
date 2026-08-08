@@ -162,6 +162,8 @@ def test_row_view_zero_sources_when_no_metadata():
 class _FakeJob:
     job_id = "job-abc12345"
     source_csv_filename = "test.csv"
+    evaluator_score_scale_min = None
+    evaluator_score_scale_max = None
 
 
 def _make_utterances_for_csv(sources=None):
@@ -483,3 +485,50 @@ def test_csv_friendly_names_not_engineering():
     for bad in ("utteranceText", "testId", "overallVerdict", "parameterName",
                 "sourceIndex", "chatbotResponse"):
         assert bad not in header, f"Engineering label leaked: {bad}"
+
+
+# ── BL-005: dynamic scale column headers ─────────────────────────────────────
+
+class _FakeJobWithScale:
+    job_id = "job-scale"
+    source_csv_filename = "scale_run.csv"
+    evaluator_score_scale_min = 0.0
+    evaluator_score_scale_max = 10.0
+
+
+def test_flat_csv_declared_scale_header():
+    utterances = _make_utterances_flat_multi()
+    _, body = results_flat_csv_builder(_FakeJobWithScale(), utterances)
+    header = body.splitlines()[0]
+    assert "relevance: Score (0.0–10.0)" in header
+    assert "relevance: Score (0–1)" not in header
+
+
+def test_flat_csv_no_scale_keeps_default_header():
+    utterances = _make_utterances_flat_multi()
+    _, body = results_flat_csv_builder(_FakeJob(), utterances)
+    header = body.splitlines()[0]
+    assert "relevance: Score (0–1)" in header
+    assert "relevance: Score (0.0–10.0)" not in header
+
+
+def test_long_csv_declared_scale_header():
+    _, body = results_csv_builder(_FakeJobWithScale(), _make_utterances_for_csv())
+    header = body.splitlines()[0]
+    assert "Score (0.0–10.0)" in header
+    assert "Score (0–1)" not in header
+
+
+def test_long_csv_no_scale_keeps_default_header():
+    _, body = results_csv_builder(_FakeJob(), _make_utterances_for_csv())
+    header = body.splitlines()[0]
+    assert "Score (0–1)" in header
+
+
+def test_xlsx_data_dict_score_row_declared_scale():
+    _, body = results_xlsx_builder(_FakeJobWithScale(), _make_utterances_for_xlsx())
+    wb = openpyxl.load_workbook(io.BytesIO(body))
+    ws3 = wb["Data Dictionary"]
+    col_a_values = [ws3.cell(r, 1).value for r in range(1, ws3.max_row + 1)]
+    score_label = "Score (0.0–10.0)"
+    assert score_label in col_a_values

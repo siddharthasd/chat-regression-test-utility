@@ -109,6 +109,23 @@ def _friendly(col: str) -> str:
     return col
 
 
+def _score_label(scale_min: float | None, scale_max: float | None) -> str:
+    """FR-022: dynamic label from job snapshot; legacy jobs keep 'Score (0–1)'."""
+    if scale_min is not None and scale_max is not None:
+        return f"Score ({scale_min}–{scale_max})"
+    return "Score (0–1)"
+
+
+def _score_dict_description(scale_min: float | None, scale_max: float | None) -> str:
+    if scale_min is not None and scale_max is not None:
+        return (
+            f"Numeric score on the declared scale [{scale_min} (minimum) — "
+            f"{scale_max} (maximum)]. Values are reported as received from the "
+            "evaluator (not normalised). This spec assumes higher score = better performance."
+        )
+    return "Numeric score (scale undeclared; values reported as received from the evaluator)"
+
+
 def mask_descriptor(descriptor: dict | None) -> dict:
     """Copy the stored auth descriptor with secret subfields masked (FR-005). No decryption."""
     if not descriptor:
@@ -377,16 +394,33 @@ def score_entries_from_utterances(utterances: list) -> list[ScoreEntry]:
         for s in scores:
             if not isinstance(s, dict):
                 continue
+            raw_score = s.get("score")
+            if isinstance(raw_score, bool):
+                numeric_val = 0.0
+                is_numeric = False
+            elif isinstance(raw_score, (int, float)):
+                numeric_val = float(raw_score)
+                is_numeric = True
+            elif isinstance(raw_score, str):
+                try:
+                    numeric_val = float(raw_score)
+                except (ValueError, TypeError):
+                    numeric_val = 0.0
+                is_numeric = False
+            else:
+                numeric_val = 0.0
+                is_numeric = False
             entries.append(
                 ScoreEntry(
                     parameter_name=s.get("parameter_name", ""),
-                    score=float(s.get("score") or 0.0),
+                    score=numeric_val,
                     reasoning=s.get("reasoning") or "",
                     verdict=s.get("verdict"),
                     overall_verdict=overall_verdict,
                     error=is_error,
                     unit_id=str(u.utterance_id),
                     utterance_intent=intent,
+                    is_numeric_score=is_numeric,
                 )
             )
         if not scores:
@@ -418,11 +452,13 @@ def results_csv_builder(job: Job, utterances: list) -> tuple[str, str]:
 
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow([_friendly(c) for c in (
+    score_col_label = _score_label(job.evaluator_score_scale_min, job.evaluator_score_scale_max)
+    _long_fmt_cols = [
         "utteranceText", "testId", "utteranceIntent", "chatbotResponse", "overallVerdict",
         "parameterName", "score", "verdict", "reasoning",
         "sourceIndex", "title", "url", "documentId", "scope", "chunk",
-    )])
+    ]
+    writer.writerow([score_col_label if c == "score" else _friendly(c) for c in _long_fmt_cols])
     for row in _long_format_rows(utterances):
         writer.writerow(row)
     return filename, buf.getvalue()
@@ -517,15 +553,22 @@ _DICT_S2 = [
 ]
 
 
-def _write_data_dictionary(ws) -> None:
+def _write_data_dictionary(ws, scale_min=None, scale_max=None) -> None:
     def _section(title: str) -> None:
         c = WriteOnlyCell(ws, value=title)
         c.font = _SECTION_FONT
         ws.append([c])
 
+    score_lbl = _score_label(scale_min, scale_max)
+    score_desc = _score_dict_description(scale_min, scale_max)
+    dict_s1 = [
+        (score_lbl, row[1], score_desc, row[3]) if row[0] == "Score (0–1)" else row
+        for row in _DICT_S1
+    ]
+
     _section("Sheet 1 — Results: Column Definitions")
     ws.append([])
-    for row in _DICT_S1:
+    for row in dict_s1:
         _write_header_row(ws, row, fill=True) if row[0] == "Column" else ws.append(list(row))
 
     ws.append([])
@@ -555,11 +598,13 @@ def results_xlsx_builder(job: Job, utterances: list) -> tuple[str, bytes]:
     # ── Sheet 1: Results ──────────────────────────────────────────────────────
     ws1 = wb.create_sheet("Results")
     _set_ws_widths(ws1, [40, 15, 20, 40, 15, 20, 10, 12, 40, 12, 30, 40, 20, 15, 60])
-    _write_header_row(ws1, [_friendly(c) for c in (
+    score_col_label = _score_label(job.evaluator_score_scale_min, job.evaluator_score_scale_max)
+    _long_fmt_cols = [
         "utteranceText", "testId", "utteranceIntent", "chatbotResponse", "overallVerdict",
         "parameterName", "score", "verdict", "reasoning",
         "sourceIndex", "title", "url", "documentId", "scope", "chunk",
-    )])
+    ]
+    _write_header_row(ws1, [score_col_label if c == "score" else _friendly(c) for c in _long_fmt_cols])
 
     # ── Sheet 2: Retrieved Sources ────────────────────────────────────────────
     ws2 = wb.create_sheet("Retrieved Sources")
@@ -584,7 +629,7 @@ def results_xlsx_builder(job: Job, utterances: list) -> tuple[str, bytes]:
     # ── Sheet 3: Data Dictionary ──────────────────────────────────────────────
     ws3 = wb.create_sheet("Data Dictionary")
     _set_ws_widths(ws3, [35, 15, 65, 40])
-    _write_data_dictionary(ws3)
+    _write_data_dictionary(ws3, job.evaluator_score_scale_min, job.evaluator_score_scale_max)
 
     buf = io.BytesIO()
     wb.save(buf)
@@ -655,18 +700,25 @@ def _flat_row(
     return row
 
 
-def _flat_header(dim_names: list[str], max_sources: int) -> list[str]:
+def _flat_header(
+    dim_names: list[str],
+    max_sources: int,
+    scale_min: float | None = None,
+    scale_max: float | None = None,
+) -> list[str]:
     fixed = ["utteranceText", "testId", "utteranceIntent", "chatbotResponse", "overallVerdict"]
-    dim_cols = []
+    score_lbl = _score_label(scale_min, scale_max)
+    headers = [_friendly(c) for c in fixed]
     for name in dim_names:
-        dim_cols.extend([f"{name}_score", f"{name}_verdict", f"{name}_reasoning"])
+        headers.extend([f"{name}: {score_lbl}", f"{name}: Result", f"{name}: Justification"])
     src_cols = []
     for i in range(1, max_sources + 1):
         src_cols.extend([
             f"source{i}_title", f"source{i}_url", f"source{i}_documentId",
             f"source{i}_scope", f"source{i}_chunk",
         ])
-    return [_friendly(c) for c in fixed + dim_cols + src_cols]
+    headers += [_friendly(c) for c in src_cols]
+    return headers
 
 
 def results_flat_csv_builder(job: Job, utterances: list) -> tuple[str, str]:
@@ -675,7 +727,10 @@ def results_flat_csv_builder(job: Job, utterances: list) -> tuple[str, str]:
     filename = f"{base}-results-flat.csv"
 
     dim_names, max_sources, sources_cache = _flat_schema(utterances)
-    header = _flat_header(dim_names, max_sources)
+    header = _flat_header(
+        dim_names, max_sources,
+        job.evaluator_score_scale_min, job.evaluator_score_scale_max,
+    )
 
     buf = io.StringIO()
     writer = csv.writer(buf)
@@ -717,7 +772,10 @@ def results_flat_xlsx_builder(job: Job, utterances: list) -> tuple[str, bytes]:
     filename = f"{base}-results-flat.xlsx"
 
     dim_names, max_sources, sources_cache = _flat_schema(utterances)
-    header = _flat_header(dim_names, max_sources)
+    header = _flat_header(
+        dim_names, max_sources,
+        job.evaluator_score_scale_min, job.evaluator_score_scale_max,
+    )
 
     wb = openpyxl.Workbook(write_only=True)
 
@@ -740,6 +798,13 @@ def results_flat_xlsx_builder(job: Job, utterances: list) -> tuple[str, bytes]:
         c.font = _SECTION_FONT
         ws2.append([c])
 
+    score_lbl = _score_label(job.evaluator_score_scale_min, job.evaluator_score_scale_max)
+    score_desc = _score_dict_description(job.evaluator_score_scale_min, job.evaluator_score_scale_max)
+    flat_dict_dims = [
+        (f"{{name}}: {score_lbl}", row[1], score_desc) if row[0] == "{name}: Score (0–1)" else row
+        for row in _FLAT_DICT_DIMS
+    ]
+
     _section("Fixed Columns")
     ws2.append([])
     for row in _FLAT_DICT_FIXED:
@@ -748,7 +813,7 @@ def results_flat_xlsx_builder(job: Job, utterances: list) -> tuple[str, bytes]:
     ws2.append([])
     _section("Dimension Columns  —  one group per evaluated parameter: {name}_score / {name}_verdict / {name}_reasoning")
     ws2.append([])
-    for row in _FLAT_DICT_DIMS:
+    for row in flat_dict_dims:
         _write_header_row(ws2, row, fill=True) if row[0] == "Pattern" else ws2.append(list(row))
 
     ws2.append([])

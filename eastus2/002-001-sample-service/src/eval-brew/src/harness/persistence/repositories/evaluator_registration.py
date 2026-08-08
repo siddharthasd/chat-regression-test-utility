@@ -43,6 +43,8 @@ class EvaluationAgentRegistrationRepository:
             auth_descriptor=encrypt_descriptor(data["auth_descriptor"]),
             timeout_seconds=data.get("timeout_seconds", 60),
             declared_scoring_dimensions=data.get("declared_scoring_dimensions", []),
+            score_scale_min=data.get("score_scale_min"),
+            score_scale_max=data.get("score_scale_max"),
             supports_sse=data.get("supports_sse", False),
             archived=False,
             created_at=now,
@@ -78,6 +80,8 @@ class EvaluationAgentRegistrationRepository:
             "timeout_seconds",
             "declared_scoring_dimensions",
             "supports_sse",
+            "score_scale_min",
+            "score_scale_max",
         ):
             if field in data:
                 setattr(reg, field, data[field])

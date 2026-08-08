@@ -17,6 +17,8 @@ class EvaluatorSnapshot:
     auth_descriptor: dict  # ciphertext subfields (verbatim from the Job snapshot)
     timeout_seconds: int
     declared_scoring_dimensions: list[str]
+    score_scale_min: float | None = None
+    score_scale_max: float | None = None
 
 
 @dataclass(frozen=True)
