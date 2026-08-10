@@ -56,8 +56,15 @@ def initialize_harness() -> None:
     # Prepare the persistence layer: apply pending migrations or refuse to start
     # if the on-disk schema is newer than this harness (009 FR-014/FR-016).
     from harness.persistence.engine import init_db
+    from harness.persistence.encryption import get_or_create_key
 
     init_db()
+
+    # Validate the encryption key before the pod accepts any traffic.
+    # On Kubernetes this raises RuntimeError when HARNESS_MASTER_KEY is absent,
+    # crashing the process at startup rather than silently generating a new key
+    # on the first request and making all stored credentials permanently unreadable.
+    get_or_create_key()
 
     # Orphan reconciliation: fail any Job left running/cancelling by a prior
     # process before any other module reads persistent state (012 FR-002).

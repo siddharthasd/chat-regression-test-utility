@@ -62,3 +62,29 @@ def test_key_file_created_with_owner_only_perms(isolated_key, tmp_path) -> None:
 def test_password_not_in_db() -> None:
     """No entity persists a per-row CSV password in any form (FR-009)."""
     assert "password" not in Utterance.__table__.columns.keys()
+
+
+def test_kubernetes_without_master_key_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Kubernetes env without HARNESS_MASTER_KEY must raise RuntimeError at key-load time."""
+    monkeypatch.setenv("KUBERNETES_SERVICE_HOST", "10.96.0.1")
+    monkeypatch.delenv("HARNESS_MASTER_KEY", raising=False)
+    monkeypatch.delenv("harness_master_key", raising=False)
+    encryption._reset_key_cache_for_tests()
+    try:
+        with pytest.raises(RuntimeError, match="HARNESS_MASTER_KEY"):
+            encryption.get_or_create_key()
+    finally:
+        encryption._reset_key_cache_for_tests()
+
+
+def test_kubernetes_with_master_key_succeeds(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Kubernetes env with HARNESS_MASTER_KEY set must load without error."""
+    valid_key = encryption.Fernet.generate_key().decode("ascii")
+    monkeypatch.setenv("KUBERNETES_SERVICE_HOST", "10.96.0.1")
+    monkeypatch.setenv("HARNESS_MASTER_KEY", valid_key)
+    encryption._reset_key_cache_for_tests()
+    try:
+        key = encryption.get_or_create_key()
+        assert key == valid_key.encode("ascii")
+    finally:
+        encryption._reset_key_cache_for_tests()

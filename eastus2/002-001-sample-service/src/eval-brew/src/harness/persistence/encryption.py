@@ -7,6 +7,7 @@ encryption boundary is per-credential-subfield (not the whole descriptor) per
 
 from __future__ import annotations
 
+import logging
 import os
 import threading
 from pathlib import Path
@@ -15,6 +16,7 @@ from cryptography.fernet import Fernet, InvalidToken
 
 from harness.persistence.exceptions import HarnessKeyMismatchError
 
+_LOG = logging.getLogger(__name__)
 _KEY_LOCK = threading.Lock()
 _CACHED_KEY: bytes | None = None
 _KEY_FILENAME = "master.key"
@@ -32,6 +34,11 @@ def _key_file_path() -> Path:
     return Path.home() / ".harness" / _KEY_FILENAME
 
 
+def _running_in_kubernetes() -> bool:
+    """True when the process is inside a Kubernetes pod."""
+    return bool(os.environ.get("KUBERNETES_SERVICE_HOST"))
+
+
 def get_or_create_key() -> bytes:
     """Return the Fernet key bytes, creating the key file on first use.
 
@@ -40,6 +47,11 @@ def get_or_create_key() -> bytes:
        needed; preferred for container/PaaS deployments).
     2. File at ``HARNESS_KEY_FILE`` (or the platform default path) — created
        with mode ``0o600`` via ``O_CREAT | O_EXCL`` on first use. Thread-safe.
+
+    Raises RuntimeError if the process is running inside a Kubernetes pod
+    (``KUBERNETES_SERVICE_HOST`` is set) and ``HARNESS_MASTER_KEY`` is not
+    provided. File-based keys are ephemeral per-pod and will differ across
+    replicas and restarts, silently making all stored credentials unreadable.
     """
     global _CACHED_KEY
     with _KEY_LOCK:
@@ -49,13 +61,33 @@ def get_or_create_key() -> bytes:
         if env_key:
             _CACHED_KEY = env_key.strip().encode("ascii")
             return _CACHED_KEY
+
+        # No env var supplied. File-based fallback is unsafe on Kubernetes because
+        # each pod has its own ephemeral filesystem — a new key would be generated
+        # per pod and per restart, rendering all stored credentials unreadable.
+        if _running_in_kubernetes():
+            raise RuntimeError(
+                "HARNESS_MASTER_KEY is not set. "
+                "On Kubernetes every pod restart generates a new encryption key, "
+                "making all stored credentials permanently unreadable. "
+                "Store the key in a Kubernetes Secret and mount it as "
+                "HARNESS_MASTER_KEY in the Deployment env."
+            )
+
         path = _key_file_path()
         if path.exists():
             _CACHED_KEY = path.read_bytes().strip()
             return _CACHED_KEY
         path.parent.mkdir(parents=True, exist_ok=True)
         key = Fernet.generate_key()
-        # O_EXCL: fail if another process created it between the check and now.
+        _LOG.warning(
+            "Generating a new machine-local Fernet key at %s. "
+            "Credentials encrypted with a previous key will no longer be readable. "
+            "Set HARNESS_MASTER_KEY to persist the key across process restarts.",
+            path,
+        )
+        # O_EXCL: fail if another process created the file between the exists()
+        # check and now — avoids a TOCTOU race that would silently use the wrong key.
         fd = os.open(str(path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
         try:
             os.write(fd, key)
