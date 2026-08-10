@@ -306,7 +306,8 @@ def compute_analytics(
         else:
             overall_mean_score = None
     else:
-        overall_mean_score = sum(e.score for e in valid) / len(valid) if valid else None
+        numeric_entries = [e for e in valid if e.is_numeric_score]
+        overall_mean_score = sum(e.score for e in numeric_entries) / len(numeric_entries) if numeric_entries else None
     overall_verdict_dist = _build_verdict_dist(overall_verdicts) or ()
 
     # Per-parameter stats: declared order first, then unexpected.

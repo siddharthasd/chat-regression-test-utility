@@ -404,9 +404,10 @@ def score_entries_from_utterances(utterances: list) -> list[ScoreEntry]:
             elif isinstance(raw_score, str):
                 try:
                     numeric_val = float(raw_score)
+                    is_numeric = True
                 except (ValueError, TypeError):
                     numeric_val = 0.0
-                is_numeric = False
+                    is_numeric = False
             else:
                 numeric_val = 0.0
                 is_numeric = False
@@ -436,6 +437,7 @@ def score_entries_from_utterances(utterances: list) -> list[ScoreEntry]:
                     error=is_error,
                     unit_id=str(u.utterance_id),
                     utterance_intent=intent,
+                    is_numeric_score=False,
                 )
             )
     return entries
@@ -834,7 +836,7 @@ def results_flat_xlsx_builder(job: Job, utterances: list) -> tuple[str, bytes]:
         _write_header_row(ws2, row, fill=True) if row[0] == "Column" else ws2.append(list(row))
 
     ws2.append([])
-    _section("Dimension Columns  —  one group per evaluated parameter: {name}_score / {name}_verdict / {name}_reasoning")
+    _section("Dimension Columns  —  one group per evaluated parameter: {name}: Score / {name}: Result / {name}: Justification")
     ws2.append([])
     for row in flat_dict_dims:
         _write_header_row(ws2, row, fill=True) if row[0] == "Pattern" else ws2.append(list(row))

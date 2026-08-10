@@ -142,9 +142,10 @@ def score_entries_from_turns(turns: list) -> list:
             elif isinstance(raw_score, str):
                 try:
                     numeric_val = float(raw_score)
+                    is_numeric = True
                 except (ValueError, TypeError):
                     numeric_val = 0.0
-                is_numeric = False
+                    is_numeric = False
             else:
                 numeric_val = 0.0
                 is_numeric = False
@@ -172,6 +173,7 @@ def score_entries_from_turns(turns: list) -> list:
                     error=is_error,
                     unit_id=turn.turn_id,
                     utterance_intent=None,
+                    is_numeric_score=False,
                 )
             )
     return entries

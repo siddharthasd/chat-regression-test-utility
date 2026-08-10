@@ -142,13 +142,12 @@ def parse_evaluator_form(
             )
 
     # FR-005 — scale required when at least one dimension is declared
-    if len(dimensions) > 0 and not errors.get("score_scale_min") and not errors.get("score_scale_max"):
-        if scale_min is None or scale_max is None:
-            msg = "Score minimum and maximum are required when dimensions are declared."
-            if scale_min is None:
-                errors["score_scale_min"] = msg
-            if scale_max is None:
-                errors["score_scale_max"] = msg
+    if len(dimensions) > 0:
+        msg = "Score minimum and maximum are required when dimensions are declared."
+        if scale_min is None and not errors.get("score_scale_min"):
+            errors["score_scale_min"] = msg
+        if scale_max is None and not errors.get("score_scale_max"):
+            errors["score_scale_max"] = msg
 
     # FR-006 — scale_min must be strictly less than scale_max
     if (

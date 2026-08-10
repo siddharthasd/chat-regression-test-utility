@@ -72,6 +72,8 @@ class ChatSessionService:
             evaluator_auth_descriptor=evaluator.auth_descriptor,
             evaluator_timeout_seconds=evaluator.timeout_seconds,
             evaluator_declared_scoring_dimensions=evaluator.declared_scoring_dimensions,
+            evaluator_score_scale_min=evaluator.score_scale_min,
+            evaluator_score_scale_max=evaluator.score_scale_max,
         )
         return self._repo.create_session(chat_session)
 

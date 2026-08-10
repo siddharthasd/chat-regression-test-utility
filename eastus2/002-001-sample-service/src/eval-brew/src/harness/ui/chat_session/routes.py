@@ -812,7 +812,11 @@ def chat_session_analytics(
     analytics_empty = False
     if not skip_analytics:
         entries = session_view.score_entries_from_turns(turns)
-        analytics = compute_analytics(entries, declared_dims)
+        analytics = compute_analytics(
+            entries, declared_dims,
+            score_scale_min=chat_session.evaluator_score_scale_min,
+            score_scale_max=chat_session.evaluator_score_scale_max,
+        )
         analytics_empty = analytics.evaluated_count == 0
 
     all_rows = [

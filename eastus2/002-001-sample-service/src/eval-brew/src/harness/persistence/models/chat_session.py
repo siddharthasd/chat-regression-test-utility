@@ -12,7 +12,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Integer, JSON, String, Text
+from sqlalchemy import DateTime, Float, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from harness.persistence.base import Base
@@ -49,6 +49,8 @@ class ChatSession(Base):
     evaluator_auth_descriptor: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     evaluator_timeout_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
     evaluator_declared_scoring_dimensions: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    evaluator_score_scale_min: Mapped[float | None] = mapped_column(Float, nullable=True)
+    evaluator_score_scale_max: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     # Mutable — updated after each successful turn from chatbotResponse.metadata.conversationId
     active_conversation_id: Mapped[str | None] = mapped_column(String(255), nullable=True)

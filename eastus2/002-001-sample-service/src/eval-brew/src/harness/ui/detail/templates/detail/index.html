@@ -589,7 +589,7 @@
                 <ul class="scores">
                 {% for c in r.scores_cells %}
                   <li{% if c.get('unexpected') %} class="unexpected"{% endif %}>
-                    {{ c.name }}: {{ c.score }}{% if c.get('verdict') %} <span class="text-muted">[{{ c.verdict }}]</span>{% endif %}{% if scoring_thresholds and c.name in scoring_thresholds %} <span class="text-muted" title="Threshold — pass ≥ {{ scoring_thresholds[c.name]['pass'] }}, warn ≥ {{ scoring_thresholds[c.name]['warn'] }}">ⓘ</span>{% endif %}
+                    {{ c.name }}: {{ c.score }}{% if c.get('verdict') %} <span class="text-muted">[{{ c.verdict }}]</span>{% endif %}{% if scoring_thresholds and c.name in scoring_thresholds %} <span class="text-muted" title="Threshold — pass ≥ {{ scoring_thresholds[c.name].get('pass', '?') }}, warn ≥ {{ scoring_thresholds[c.name].get('warn', '?') }}">ⓘ</span>{% endif %}
                   </li>
                 {% endfor %}
                 </ul>
