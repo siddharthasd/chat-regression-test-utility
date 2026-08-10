@@ -569,7 +569,7 @@
               <th>{{ sortlink('test_id', 'testId') }}</th>
               <th>{{ sortlink('utterance_text', 'Utterance') }}</th>
               <th>{{ sortlink('chatbot_response', 'Response') }}</th>
-              <th>{{ sortlink('verdict', 'Verdict') }}</th>
+              <th title="Worst-case across all dimensions: fail if any dimension fails; warn if any warns; pass only if every dimension passes.">{{ sortlink('verdict', 'Verdict') }}</th>
               <th>{{ score_label }}</th>
               <th>{{ sortlink('error_status', 'Error') }}</th>
             </tr>
@@ -589,7 +589,7 @@
                 <ul class="scores">
                 {% for c in r.scores_cells %}
                   <li{% if c.get('unexpected') %} class="unexpected"{% endif %}>
-                    {{ c.name }}: {{ c.score }}{% if c.get('verdict') %} <span class="text-muted">[{{ c.verdict }}]</span>{% endif %}
+                    {{ c.name }}: {{ c.score }}{% if c.get('verdict') %} <span class="text-muted">[{{ c.verdict }}]</span>{% endif %}{% if scoring_thresholds and c.name in scoring_thresholds %} <span class="text-muted" title="Threshold — pass ≥ {{ scoring_thresholds[c.name]['pass'] }}, warn ≥ {{ scoring_thresholds[c.name]['warn'] }}">ⓘ</span>{% endif %}
                   </li>
                 {% endfor %}
                 </ul>

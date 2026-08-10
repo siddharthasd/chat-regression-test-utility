@@ -137,6 +137,7 @@ class JobRepository:
         job.evaluator_declared_scoring_dimensions = registration.declared_scoring_dimensions
         job.evaluator_score_scale_min = registration.score_scale_min
         job.evaluator_score_scale_max = registration.score_scale_max
+        job.evaluator_scoring_thresholds = registration.scoring_thresholds
         self._session.flush()
 
     def set_csv_metadata(self, job_id: str, filename: str, row_count: int) -> None:

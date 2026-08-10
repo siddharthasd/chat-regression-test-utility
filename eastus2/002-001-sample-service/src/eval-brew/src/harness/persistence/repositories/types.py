@@ -63,6 +63,7 @@ class EvaluationAgentRegistrationCreateData(TypedDict):
     declared_scoring_dimensions: NotRequired[list]
     score_scale_min: NotRequired[float | None]
     score_scale_max: NotRequired[float | None]
+    scoring_thresholds: NotRequired[dict | None]
 
 
 class EvaluationAgentRegistrationUpdateData(TypedDict, total=False):
@@ -75,3 +76,4 @@ class EvaluationAgentRegistrationUpdateData(TypedDict, total=False):
     supports_sse: bool
     score_scale_min: float | None
     score_scale_max: float | None
+    scoring_thresholds: dict | None

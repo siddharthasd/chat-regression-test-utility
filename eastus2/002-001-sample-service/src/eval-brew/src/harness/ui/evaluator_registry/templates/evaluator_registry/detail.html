@@ -76,6 +76,26 @@
               <span class="text-muted">Scale: not declared</span>
             {% endif %}
           </dd>
+
+          <dt class="col-sm-4">Scoring thresholds</dt>
+          <dd class="col-sm-8">
+            {% if reg.scoring_thresholds %}
+              <table class="table table-sm table-bordered small mb-0" style="max-width:320px">
+                <thead><tr><th>Dimension</th><th>Pass ≥</th><th>Warn ≥</th></tr></thead>
+                <tbody>
+                  {% for dim, bounds in reg.scoring_thresholds.items() %}
+                    <tr>
+                      <td>{{ dim }}</td>
+                      <td>{{ bounds.pass }}</td>
+                      <td>{{ bounds.warn }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            {% else %}
+              <span class="text-muted">None declared</span>
+            {% endif %}
+          </dd>
         </dl>
       </div>
     </div>

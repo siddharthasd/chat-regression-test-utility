@@ -80,6 +80,7 @@ class Job(Base):
     )
     evaluator_score_scale_min: Mapped[float | None] = mapped_column(Float, nullable=True)
     evaluator_score_scale_max: Mapped[float | None] = mapped_column(Float, nullable=True)
+    evaluator_scoring_thresholds: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # --- Headless submission metadata (020) ---
     submission_source: Mapped[str] = mapped_column(String(20), nullable=False, default="wizard")

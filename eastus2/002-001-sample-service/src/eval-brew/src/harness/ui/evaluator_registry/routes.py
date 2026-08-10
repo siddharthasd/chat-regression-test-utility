@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json as _json
+
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
 
@@ -52,6 +54,10 @@ def _reg_to_view(reg) -> dict:
         "supports_sse": reg.supports_sse,
         "score_scale_min": reg.score_scale_min,
         "score_scale_max": reg.score_scale_max,
+        "scoring_thresholds": reg.scoring_thresholds,
+        "scoring_thresholds_json": (
+            _json.dumps(reg.scoring_thresholds, indent=2) if reg.scoring_thresholds else ""
+        ),
         "archived": reg.archived,
         "updated_at": reg.updated_at,
     }
@@ -142,6 +148,7 @@ def create_evaluator(
     supports_sse: str = Form(None),
     score_scale_min: str = Form(None),
     score_scale_max: str = Form(None),
+    scoring_thresholds_json: str = Form(None),
     replace_credential: str = Form(None),
     next_url: str = Form(None, alias="next"),
     evaluation_agent_id: str = Form(None),
@@ -156,6 +163,7 @@ def create_evaluator(
         "scope": scope, "audience": audience, "timeout_seconds": timeout_seconds,
         "dimensions": dimensions, "supports_sse": supports_sse,
         "score_scale_min": score_scale_min, "score_scale_max": score_scale_max,
+        "scoring_thresholds_json": scoring_thresholds_json,
         "replace_credential": replace_credential,
         "next": next_url, "evaluation_agent_id": evaluation_agent_id,
     }.items() if v is not None}
@@ -323,6 +331,7 @@ def update_evaluator(
     supports_sse: str = Form(None),
     score_scale_min: str = Form(None),
     score_scale_max: str = Form(None),
+    scoring_thresholds_json: str = Form(None),
     replace_credential: str = Form(None),
     user: dict = Depends(require_auth),
 ):
@@ -335,6 +344,7 @@ def update_evaluator(
         "scope": scope, "audience": audience, "timeout_seconds": timeout_seconds,
         "dimensions": dimensions, "supports_sse": supports_sse,
         "score_scale_min": score_scale_min, "score_scale_max": score_scale_max,
+        "scoring_thresholds_json": scoring_thresholds_json,
         "replace_credential": replace_credential,
     }.items() if v is not None}
     replace = (form.get("replace_credential") or "").lower() in _TRUTHY

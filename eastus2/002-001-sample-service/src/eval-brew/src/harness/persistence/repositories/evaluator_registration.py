@@ -45,6 +45,7 @@ class EvaluationAgentRegistrationRepository:
             declared_scoring_dimensions=data.get("declared_scoring_dimensions", []),
             score_scale_min=data.get("score_scale_min"),
             score_scale_max=data.get("score_scale_max"),
+            scoring_thresholds=data.get("scoring_thresholds"),
             supports_sse=data.get("supports_sse", False),
             archived=False,
             created_at=now,
@@ -82,6 +83,7 @@ class EvaluationAgentRegistrationRepository:
             "supports_sse",
             "score_scale_min",
             "score_scale_max",
+            "scoring_thresholds",
         ):
             if field in data:
                 setattr(reg, field, data[field])

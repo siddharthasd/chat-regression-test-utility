@@ -164,6 +164,7 @@ class _FakeJob:
     source_csv_filename = "test.csv"
     evaluator_score_scale_min = None
     evaluator_score_scale_max = None
+    evaluator_scoring_thresholds = None
 
 
 def _make_utterances_for_csv(sources=None):
@@ -494,6 +495,7 @@ class _FakeJobWithScale:
     source_csv_filename = "scale_run.csv"
     evaluator_score_scale_min = 0.0
     evaluator_score_scale_max = 10.0
+    evaluator_scoring_thresholds = None
 
 
 def test_flat_csv_declared_scale_header():
@@ -532,3 +534,46 @@ def test_xlsx_data_dict_score_row_declared_scale():
     col_a_values = [ws3.cell(r, 1).value for r in range(1, ws3.max_row + 1)]
     score_label = "Score (0.0–10.0)"
     assert score_label in col_a_values
+
+
+# ── BL-004: rollup rule + threshold declarations in exports ───────────────────
+
+class _FakeJobWithThresholds:
+    job_id = "job-thresh"
+    source_csv_filename = "thresh_run.csv"
+    evaluator_score_scale_min = 0.0
+    evaluator_score_scale_max = 1.0
+    evaluator_scoring_thresholds = {"accuracy": {"pass": 0.80, "warn": 0.60}}
+
+
+def test_xlsx_data_dict_rollup_rule_always_present():
+    _, body = results_xlsx_builder(_FakeJob(), _make_utterances_for_xlsx())
+    wb = openpyxl.load_workbook(io.BytesIO(body))
+    ws3 = wb["Data Dictionary"]
+    col_a_values = [ws3.cell(r, 1).value for r in range(1, ws3.max_row + 1)]
+    assert "Rollup Rule" in col_a_values
+
+
+def test_xlsx_data_dict_threshold_section_present_when_set():
+    _, body = results_xlsx_builder(_FakeJobWithThresholds(), _make_utterances_for_xlsx())
+    wb = openpyxl.load_workbook(io.BytesIO(body))
+    ws3 = wb["Data Dictionary"]
+    col_a_values = [ws3.cell(r, 1).value for r in range(1, ws3.max_row + 1)]
+    assert "Threshold Declarations" in col_a_values
+    assert "accuracy" in col_a_values
+
+
+def test_xlsx_data_dict_threshold_section_absent_when_none():
+    _, body = results_xlsx_builder(_FakeJob(), _make_utterances_for_xlsx())
+    wb = openpyxl.load_workbook(io.BytesIO(body))
+    ws3 = wb["Data Dictionary"]
+    col_a_values = [ws3.cell(r, 1).value for r in range(1, ws3.max_row + 1)]
+    assert "Threshold Declarations" not in col_a_values
+
+
+def test_flat_xlsx_data_dict_rollup_rule_always_present():
+    _, body = results_flat_xlsx_builder(_FakeJob(), _make_utterances_flat_multi())
+    wb = openpyxl.load_workbook(io.BytesIO(body))
+    ws2 = wb["Data Dictionary"]
+    col_a_values = [ws2.cell(r, 1).value for r in range(1, ws2.max_row + 1)]
+    assert "Rollup Rule" in col_a_values

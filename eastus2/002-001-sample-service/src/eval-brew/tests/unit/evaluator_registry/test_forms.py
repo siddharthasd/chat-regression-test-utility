@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from harness.evaluator_registry import parse_evaluator_form
-from harness.evaluator_registry.forms import duplicate_dimensions, parse_dimensions
+from harness.evaluator_registry.forms import duplicate_dimensions, parse_dimensions, parse_thresholds_field
 
 
 def _form(**over) -> dict:
@@ -190,3 +190,34 @@ def test_zero_scale_min_accepted() -> None:
     assert errors == {}
     assert payload["score_scale_min"] == 0.0
     assert payload["score_scale_max"] == 1.0
+
+
+# ── BL-004: scoring threshold form parsing ────────────────────────────────────
+
+def test_valid_thresholds_parsed_to_payload() -> None:
+    raw = '{"accuracy": {"pass": 0.80, "warn": 0.60}}'
+    thresholds, err = parse_thresholds_field(raw)
+    assert err is None
+    assert thresholds == {"accuracy": {"pass": 0.80, "warn": 0.60}}
+
+
+def test_invalid_json_returns_error() -> None:
+    _, err = parse_thresholds_field("{bad json}")
+    assert err is not None and "Invalid JSON" in err
+
+
+def test_pass_le_warn_returns_error() -> None:
+    raw = '{"accuracy": {"pass": 0.50, "warn": 0.80}}'
+    _, err = parse_thresholds_field(raw)
+    assert err is not None and "pass" in err and "warn" in err
+
+
+def test_blank_thresholds_returns_none_no_error() -> None:
+    thresholds, err = parse_thresholds_field("   ")
+    assert thresholds is None and err is None
+
+
+def test_missing_warn_key_returns_error() -> None:
+    raw = '{"accuracy": {"pass": 0.80}}'
+    _, err = parse_thresholds_field(raw)
+    assert err is not None and "warn" in err

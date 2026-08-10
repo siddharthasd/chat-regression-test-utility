@@ -518,7 +518,11 @@ _DICT_S1 = [
     ("Test Case Reference", "Text", "Reference ID from the uploaded CSV", "Any string"),
     ("Intent Category", "Text", "Intent category from the evaluator", "Evaluator-defined or blank"),
     ("Chatbot Answer", "Text", "The chatbot's plain-text reply", "Any string"),
-    ("Overall Result", "Text", "Worst-case verdict for this utterance", "pass / warn / fail / blank"),
+    ("Overall Result", "Text",
+     "Worst-case verdict across all evaluated dimensions. "
+     "Rule: fail if any dimension fails; warn if any warns and none fails; "
+     "pass only if every dimension passes. Determined by the evaluator service.",
+     "pass / warn / fail / blank"),
     ("Dimension", "Text", "The scoring dimension being evaluated", "Evaluator-defined"),
     ("Score (0–1)", "Decimal", "Numeric score for this dimension", "0.0 (worst) to 1.0 (best)"),
     ("Result", "Text", "Verdict for this dimension", "pass / warn / fail / blank"),
@@ -533,9 +537,13 @@ _DICT_S1 = [
 
 _DICT_VERDICTS = [
     ("Verdict value", "Meaning"),
-    ("pass", "Score meets or exceeds the configured threshold for this dimension"),
-    ("warn", "Score is below threshold but above the minimum acceptable floor — review recommended"),
-    ("fail", "Score is below the minimum acceptable floor — action required"),
+    ("pass", "All dimension scores meet or exceed the evaluator's configured pass threshold"),
+    ("warn",
+     "At least one dimension score is below the pass threshold but above the warn threshold "
+     "— review recommended"),
+    ("fail",
+     "At least one dimension score is below the warn threshold — action required. "
+     "A single failing dimension causes the overall result to be fail."),
     ("(blank)", "Utterance errored before evaluation; no score was produced"),
 ]
 
@@ -553,7 +561,7 @@ _DICT_S2 = [
 ]
 
 
-def _write_data_dictionary(ws, scale_min=None, scale_max=None) -> None:
+def _write_data_dictionary(ws, scale_min=None, scale_max=None, scoring_thresholds=None) -> None:
     def _section(title: str) -> None:
         c = WriteOnlyCell(ws, value=title)
         c.font = _SECTION_FONT
@@ -576,6 +584,19 @@ def _write_data_dictionary(ws, scale_min=None, scale_max=None) -> None:
     ws.append([])
     for row in _DICT_VERDICTS:
         _write_header_row(ws, row, fill=True) if row[0] == "Verdict value" else ws.append(list(row))
+
+    ws.append([])
+    _section("Rollup Rule")
+    ws.append([])
+    ws.append(["Rule", "fail if any dimension fails; warn if any warns and none fails; pass only if every dimension passes."])
+
+    if scoring_thresholds:
+        ws.append([])
+        _section("Threshold Declarations")
+        ws.append([])
+        _write_header_row(ws, ["Dimension", "Pass ≥", "Warn ≥"], fill=True)
+        for dim, bounds in scoring_thresholds.items():
+            ws.append([dim, bounds.get("pass"), bounds.get("warn")])
 
     ws.append([])
     _section("Sheet 2 — Retrieved Sources: Column Definitions")
@@ -629,7 +650,7 @@ def results_xlsx_builder(job: Job, utterances: list) -> tuple[str, bytes]:
     # ── Sheet 3: Data Dictionary ──────────────────────────────────────────────
     ws3 = wb.create_sheet("Data Dictionary")
     _set_ws_widths(ws3, [35, 15, 65, 40])
-    _write_data_dictionary(ws3, job.evaluator_score_scale_min, job.evaluator_score_scale_max)
+    _write_data_dictionary(ws3, job.evaluator_score_scale_min, job.evaluator_score_scale_max, job.evaluator_scoring_thresholds)
 
     buf = io.BytesIO()
     wb.save(buf)
@@ -746,7 +767,9 @@ _FLAT_DICT_FIXED = [
     ("Test Case Reference", "Text", "Reference ID from the uploaded CSV"),
     ("Intent Category", "Text", "Intent category from the evaluator"),
     ("Chatbot Answer", "Text", "The chatbot's plain-text reply"),
-    ("Overall Result", "Text", "Worst-case verdict across all dimensions (pass / warn / fail)"),
+    ("Overall Result", "Text",
+     "Worst-case verdict across all evaluated dimensions — "
+     "fail if any dimension fails; warn if any warns; pass only if every dimension passes."),
 ]
 
 _FLAT_DICT_DIMS = [
@@ -821,6 +844,20 @@ def results_flat_xlsx_builder(job: Job, utterances: list) -> tuple[str, bytes]:
     ws2.append([])
     for row in _FLAT_DICT_SRCS:
         _write_header_row(ws2, row, fill=True) if row[0] == "Pattern" else ws2.append(list(row))
+
+    ws2.append([])
+    _section("Rollup Rule")
+    ws2.append([])
+    ws2.append(["Rule", "fail if any dimension fails; warn if any warns and none fails; pass only if every dimension passes."])
+
+    scoring_thresholds = job.evaluator_scoring_thresholds
+    if scoring_thresholds:
+        ws2.append([])
+        _section("Threshold Declarations")
+        ws2.append([])
+        _write_header_row(ws2, ["Dimension", "Pass ≥", "Warn ≥"], fill=True)
+        for dim, bounds in scoring_thresholds.items():
+            ws2.append([dim, bounds.get("pass"), bounds.get("warn")])
 
     buf = io.BytesIO()
     wb.save(buf)

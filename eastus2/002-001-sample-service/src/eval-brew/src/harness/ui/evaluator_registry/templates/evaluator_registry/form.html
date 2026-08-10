@@ -197,6 +197,21 @@
             </div>
           </div>
 
+          <div class="mb-4">
+            <label class="form-label fw-semibold" for="scoring_thresholds_json">
+              Scoring thresholds
+              <span class="text-muted fw-normal small">(optional JSON)</span>
+            </label>
+            <textarea class="form-control font-monospace {% if errors.scoring_thresholds %}is-invalid{% endif %}"
+                      id="scoring_thresholds_json" name="scoring_thresholds_json" rows="5"
+                      placeholder='{&#10;  "accuracy": {"pass": 0.80, "warn": 0.60},&#10;  "fluency":  {"pass": 0.75, "warn": 0.50}&#10;}'>{{ form.get('scoring_thresholds_json') or (reg.scoring_thresholds_json if reg else '') }}</textarea>
+            {% if errors.scoring_thresholds %}<div class="invalid-feedback">{{ errors.scoring_thresholds }}</div>{% endif %}
+            <div class="form-text">
+              One entry per declared dimension. <code>"pass"</code> must be strictly greater than
+              <code>"warn"</code>. Scores ≥ pass → pass; ≥ warn → warn; below warn → fail.
+            </div>
+          </div>
+
           <div class="mb-3">
             <div class="form-check">
               <input class="form-check-input" type="checkbox" name="supports_sse" value="1"

@@ -29,6 +29,7 @@ class EvaluationAgentRegistration(Base):
     declared_scoring_dimensions: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     score_scale_min: Mapped[float | None] = mapped_column(Float, nullable=True)
     score_scale_max: Mapped[float | None] = mapped_column(Float, nullable=True)
+    scoring_thresholds: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     supports_sse: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)

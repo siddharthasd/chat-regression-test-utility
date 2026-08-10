@@ -202,6 +202,7 @@ def job_detail(
         can_cancel = job.status in _CANCELLABLE
         can_delete = _can_delete(job)
         score_label = _score_label(job.evaluator_score_scale_min, job.evaluator_score_scale_max)
+        scoring_thresholds = job.evaluator_scoring_thresholds
 
     test_id_options = view.distinct_test_ids(all_rows)
     rows = view.apply_filters(
@@ -232,6 +233,7 @@ def job_detail(
             "tooltip_copy": TOOLTIP_COPY,
             "token_totals": token_totals,
             "score_label": score_label,
+            "scoring_thresholds": scoring_thresholds,
             "error": None,
             **analytics_ctx,
             **ctx(request),
@@ -423,6 +425,7 @@ def _rerender_error(request: Request, job_id: str, message: str, status_code: in
         )
         token_totals = _token_totals(utterances)
         score_label = _score_label(job.evaluator_score_scale_min, job.evaluator_score_scale_max)
+        scoring_thresholds = job.evaluator_scoring_thresholds
     return templates.TemplateResponse(
         request,
         "detail/index.html",
@@ -445,6 +448,7 @@ def _rerender_error(request: Request, job_id: str, message: str, status_code: in
             "tooltip_copy": TOOLTIP_COPY,
             "token_totals": token_totals,
             "score_label": score_label,
+            "scoring_thresholds": scoring_thresholds,
             "error": message,
             **analytics_ctx,
             **ctx(request),

@@ -6,6 +6,7 @@ Maps to the canonical auth descriptor (009/remote.auth).
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping
 from urllib.parse import urlparse
 
@@ -38,6 +39,37 @@ def duplicate_dimensions(dimensions: list[str]) -> list[str]:
             dups.append(name)
         seen.add(name)
     return dups
+
+
+def parse_thresholds_field(raw: str | None) -> tuple[dict | None, str | None]:
+    """Parse and validate JSON threshold declaration.
+
+    Returns (thresholds_dict, error). Blank → (None, None).
+    """
+    stripped = (raw or "").strip()
+    if not stripped:
+        return None, None
+    try:
+        data = json.loads(stripped)
+    except json.JSONDecodeError as exc:
+        return None, f"Invalid JSON: {exc}"
+    if not isinstance(data, dict):
+        return None, 'Must be a JSON object mapping dimension names to {"pass": N, "warn": N}.'
+    for dim, bounds in data.items():
+        if not isinstance(bounds, dict):
+            return None, f"Threshold for '{dim}' must be an object with 'pass' and 'warn' keys."
+        for key in ("pass", "warn"):
+            if key not in bounds:
+                return None, f"Threshold for '{dim}' is missing the '{key}' key."
+            val = bounds[key]
+            if isinstance(val, bool) or not isinstance(val, (int, float)):
+                return None, f"Threshold '{key}' for '{dim}' must be a number."
+        if bounds["pass"] <= bounds["warn"]:
+            return None, (
+                f"'pass' threshold ({bounds['pass']}) for '{dim}' must be strictly "
+                f"greater than 'warn' threshold ({bounds['warn']})."
+            )
+    return data, None
 
 
 def parse_scale_field(raw: str | None) -> tuple[float | None, str | None]:
@@ -128,6 +160,10 @@ def parse_evaluator_form(
     ):
         errors["score_scale_min"] = "Score minimum must be strictly less than Score maximum."
 
+    thresholds, err_thresholds = parse_thresholds_field(form.get("scoring_thresholds_json"))
+    if err_thresholds:
+        errors["scoring_thresholds"] = err_thresholds
+
     descriptor = None
     if mode in AUTH_MODES:
         descriptor = _build_descriptor(mode, form, errors, require_credential)
@@ -144,6 +180,7 @@ def parse_evaluator_form(
         "supports_sse": supports_sse,
         "score_scale_min": scale_min,
         "score_scale_max": scale_max,
+        "scoring_thresholds": thresholds,
     }, {}
 
 

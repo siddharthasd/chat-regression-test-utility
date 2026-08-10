@@ -78,6 +78,7 @@ class EvaluatorRegistryService:
             "supports_sse": payload.get("supports_sse", False),
             "score_scale_min": payload.get("score_scale_min"),
             "score_scale_max": payload.get("score_scale_max"),
+            "scoring_thresholds": payload.get("scoring_thresholds"),
         }
         if replace_credential or mode_changed:
             update_data["auth_descriptor"] = payload["auth_descriptor"]
