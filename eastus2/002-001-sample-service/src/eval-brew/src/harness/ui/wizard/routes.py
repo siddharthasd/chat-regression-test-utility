@@ -26,7 +26,6 @@ from harness.identity.context import IdentityContext
 from harness.orchestrator import enqueue_job  # module global — patchable in tests
 from harness.persistence import get_session
 from harness.persistence.exceptions import (
-    HarnessKeyMismatchError,
     InactiveRegistrationError,
     InvalidTransitionError,
     MissingSnapshotFieldError,
@@ -317,22 +316,7 @@ def step3_save(
         endpoint = reg.endpoint_url
         timeout = reg.timeout_seconds
         sse = reg.supports_sse
-        try:
-            descriptor = ConnectorRegistryService(session).get_auth_descriptor_decrypted(cid)
-        except HarnessKeyMismatchError:
-            return templates.TemplateResponse(
-                request,
-                "wizard/step3.html",
-                {
-                    "job_id": job_id,
-                    "entries": entries,
-                    "selected": cid,
-                    "error": "Could not decrypt connector credentials. Contact your administrator.",
-                    "test_result": None,
-                    **ctx(request),
-                },
-                status_code=400,
-            )
+        descriptor = ConnectorRegistryService(session).get_auth_descriptor_decrypted(cid)
 
     test_result = run_connector_test(endpoint, descriptor, timeout, expects, sse)
     if not test_result.ok:
@@ -412,22 +396,7 @@ def step4_save(
         timeout = reg.timeout_seconds
         dims = list(reg.declared_scoring_dimensions or [])
         sse = reg.supports_sse
-        try:
-            descriptor = EvaluatorRegistryService(session).get_auth_descriptor_decrypted(agent_id)
-        except HarnessKeyMismatchError:
-            return templates.TemplateResponse(
-                request,
-                "wizard/step4.html",
-                {
-                    "job_id": job_id,
-                    "entries": entries,
-                    "selected": agent_id,
-                    "error": "Could not decrypt evaluator credentials. Contact your administrator.",
-                    "test_result": None,
-                    **ctx(request),
-                },
-                status_code=400,
-            )
+        descriptor = EvaluatorRegistryService(session).get_auth_descriptor_decrypted(agent_id)
 
     test_result = run_evaluator_test(endpoint, descriptor, timeout, dims, sse)
     if not test_result.ok:

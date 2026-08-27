@@ -105,9 +105,7 @@ def _sse_body(*events: tuple[str, str]) -> str:
 
 
 def _setup_db(tmp_path, monkeypatch, db_name="orch"):
-    from harness.persistence import encryption, engine as eng
-    monkeypatch.setenv("HARNESS_KEY_FILE", str(tmp_path / f"{db_name}.key"))
-    encryption._reset_key_cache_for_tests()
+    from harness.persistence import engine as eng
     if not os.environ.get("DATABASE_URL"):
         pytest.skip("DATABASE_URL not set — integration tests require PostgreSQL")
     eng.init_db()

@@ -143,17 +143,6 @@ def test_auth_header_built_from_decrypted_bearer() -> None:
     assert captured["auth"] == "Bearer SECRET-TOK"
 
 
-def test_decrypt_failure_is_connector_auth() -> None:
-    r = dispatch_utterance(
-        _snap(auth={"mode": "bearer", "credential": "not-valid-ciphertext"}),
-        UtteranceRow("t", "h"),
-        client=_client(_ok),
-    )
-    assert r.ok is False
-    assert r.error_stage == "connector_auth"
-    assert "machine-local key" in r.error_details
-
-
 def test_no_plaintext_credential_in_result() -> None:
     ciphertext = encryption.encrypt_credential("DISTINCT-TOKEN-XYZ")
     r = dispatch_utterance(

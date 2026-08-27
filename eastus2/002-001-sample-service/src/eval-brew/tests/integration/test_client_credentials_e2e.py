@@ -80,12 +80,9 @@ def run(tmp_path_factory):
     """Register a cc connector + cc evaluator and run one real two-row job."""
     tmp = tmp_path_factory.mktemp("cc_e2e")
     db_path = tmp / "cc.db"
-    prev = {k: os.environ.get(k) for k in ("HARNESS_KEY_FILE",)}
-    os.environ["HARNESS_KEY_FILE"] = str(tmp / "cc.key")
 
-    from harness.persistence import encryption, engine
+    from harness.persistence import engine
 
-    encryption._reset_key_cache_for_tests()
     if not os.environ.get("DATABASE_URL"):
         pytest.skip("DATABASE_URL not set — integration tests require PostgreSQL")
     engine.init_db()
@@ -119,9 +116,6 @@ def run(tmp_path_factory):
                     "declared_scoring_dimensions": ["relevance"],
                 }
             )
-            # clientSecret must be ciphertext at rest (encrypted on create).
-            assert conn_reg.auth_descriptor["clientSecret"] != "conn-secret"
-
             jobs = JobRepository(session)
             job = jobs.create_draft("CC Job", None, "alice")
             jobs.set_connector_snapshot(job.job_id, conn_reg)
@@ -150,11 +144,6 @@ def run(tmp_path_factory):
         connector.shutdown()
         evaluator.shutdown()
         token_server.shutdown()
-        for k, v in prev.items():
-            if v is None:
-                os.environ.pop(k, None)
-            else:
-                os.environ[k] = v
 
 
 def test_job_completed_all_rows_passed(run) -> None:

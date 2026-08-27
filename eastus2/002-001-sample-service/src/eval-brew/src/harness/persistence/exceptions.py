@@ -19,13 +19,6 @@ class HarnessDatabaseTooNewError(HarnessPersistenceError):
         super().__init__("database newer than this harness version; upgrade harness")
 
 
-class HarnessKeyMismatchError(HarnessPersistenceError):
-    """Fernet decryption failed — wrong or missing machine-local key (FR-008)."""
-
-    def __init__(self) -> None:
-        super().__init__("machine-local key missing or wrong")
-
-
 class JobNotFoundError(HarnessPersistenceError):
     """No Job exists for the given id."""
 

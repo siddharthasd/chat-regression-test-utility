@@ -17,7 +17,6 @@ from harness.evaluator_registry import (
 from harness.evaluator_registry.forms import parse_dimensions
 from harness.evaluator_registry.test_connection import TestConnectionResult
 from harness.persistence import get_session
-from harness.persistence.exceptions import HarnessKeyMismatchError
 from harness.ui._context import ctx
 from harness.ui._registry_forms import descriptor_from_form as _descriptor_from_form
 from harness.ui._templates import templates
@@ -233,15 +232,7 @@ def test_connection_evaluator(
     descriptor, needs_stored = _descriptor_from_form(form, mode)
     if needs_stored and eid:
         with get_session() as session:
-            try:
-                descriptor = EvaluatorRegistryService(session).get_auth_descriptor_decrypted(eid)
-            except HarnessKeyMismatchError:
-                result = TestConnectionResult(
-                    False, "auth_decrypt_failed", detail="machine-local key missing or wrong"
-                )
-                return templates.TemplateResponse(
-                    request, "evaluator_registry/_test_result.html", {"result": result}
-                )
+            descriptor = EvaluatorRegistryService(session).get_auth_descriptor_decrypted(eid)
 
     result = run_test_connection(endpoint, descriptor, timeout, dims_val, sse)
     return templates.TemplateResponse(
@@ -264,15 +255,7 @@ def test_evaluator_by_id(
             return templates.TemplateResponse(
                 request, "evaluator_registry/_test_result.html", {"result": result}
             )
-        try:
-            descriptor = service.get_auth_descriptor_decrypted(evaluation_agent_id)
-        except HarnessKeyMismatchError:
-            result = TestConnectionResult(
-                False, "auth_decrypt_failed", None, "machine-local key missing or wrong"
-            )
-            return templates.TemplateResponse(
-                request, "evaluator_registry/_test_result.html", {"result": result}
-            )
+        descriptor = service.get_auth_descriptor_decrypted(evaluation_agent_id)
         endpoint = reg.endpoint_url
         timeout = reg.timeout_seconds
         dims = list(reg.declared_scoring_dimensions or [])

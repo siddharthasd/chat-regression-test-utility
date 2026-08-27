@@ -15,11 +15,9 @@ from harness.persistence.repositories import JobRepository, UtteranceRepository
 
 
 @pytest.fixture
-def db(tmp_path, monkeypatch):
-    monkeypatch.setenv("HARNESS_KEY_FILE", str(tmp_path / "up.key"))
-    from harness.persistence import encryption, engine
+def db(tmp_path):
+    from harness.persistence import engine
 
-    encryption._reset_key_cache_for_tests()
     if not os.environ.get("DATABASE_URL"):
         pytest.skip("DATABASE_URL not set — integration tests require PostgreSQL")
     engine.init_db()

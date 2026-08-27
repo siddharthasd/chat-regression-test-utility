@@ -92,8 +92,7 @@ def _isolate_harness_paths(tmp_path_factory: pytest.TempPathFactory) -> Iterator
     connect to the configured PostgreSQL instance.
     """
     base = tmp_path_factory.mktemp("harness_home")
-    prev = {k: os.environ.get(k) for k in ("HARNESS_KEY_FILE", "HARNESS_SESSION_HTTPS_ONLY")}
-    os.environ["HARNESS_KEY_FILE"] = str(base / "master.key")
+    prev = {k: os.environ.get(k) for k in ("HARNESS_SESSION_HTTPS_ONLY",)}
     os.environ["HARNESS_SESSION_HTTPS_ONLY"] = "false"
     yield
     for key, value in prev.items():

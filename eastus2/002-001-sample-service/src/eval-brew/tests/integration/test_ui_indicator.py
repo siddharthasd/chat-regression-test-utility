@@ -15,12 +15,10 @@ from harness.ui import create_app
 
 
 @pytest.fixture
-def client(tmp_path, monkeypatch, stub_identity):
+def client(monkeypatch, stub_identity):
     """Yield a TestClient with alice as the stub identity."""
-    monkeypatch.setenv("HARNESS_KEY_FILE", str(tmp_path / "ui.key"))
-    from harness.persistence import encryption, engine
+    from harness.persistence import engine
 
-    encryption._reset_key_cache_for_tests()
     if not os.environ.get("DATABASE_URL"):
         pytest.skip("DATABASE_URL not set — integration tests require PostgreSQL")
     engine.init_db()
@@ -54,12 +52,10 @@ def test_indicator_is_non_interactive(client) -> None:
         )
 
 
-def test_indicator_escapes_html_chars(tmp_path, monkeypatch, stub_identity) -> None:
+def test_indicator_escapes_html_chars(monkeypatch, stub_identity) -> None:
     """SC-010 / XSS-safety: a malicious-looking identity string is escaped."""
-    monkeypatch.setenv("HARNESS_KEY_FILE", str(tmp_path / "ui.key"))
-    from harness.persistence import encryption, engine
+    from harness.persistence import engine
 
-    encryption._reset_key_cache_for_tests()
     if not os.environ.get("DATABASE_URL"):
         pytest.skip("DATABASE_URL not set — integration tests require PostgreSQL")
     engine.init_db()

@@ -59,15 +59,15 @@ class ConnectorRegistryService:
 
     # ------------------------------------------------------------------ write
     def create(self, payload: dict) -> ConnectorRegistration:
-        """Create a registration; the repo assigns the id and encrypts secrets (FR-003)."""
+        """Create a registration; the repo assigns the id (FR-003)."""
         return self._repo.create(payload)
 
     def update(
         self, connector_id: str, payload: dict, *, replace_credential: bool
     ) -> ConnectorRegistration:
-        """Update in place. Re-encrypts the descriptor only when the credential is
-        replaced or the mode changed; otherwise the stored ciphertext is preserved
-        (FR-006/011/012)."""
+        """Update in place. Replaces the full descriptor when the credential is
+        replaced or the mode changed; otherwise merges non-secret fields while
+        preserving the stored secret (FR-006/011/012)."""
         existing = self._repo.get(connector_id)
         if existing is None:
             raise ValueError(f"connector not found: {connector_id!r}")
@@ -86,8 +86,8 @@ class ConnectorRegistryService:
             update_data["auth_descriptor"] = payload["auth_descriptor"]
         else:
             # Non-secret fields (tokenUrl, clientId, scope, audience) may have
-            # changed. Decrypt the stored secret, merge it with the new payload so
-            # the repo re-encrypts a complete descriptor without losing the secret.
+            # changed. Merge stored secret into the new payload so non-secret
+            # field changes are saved without losing the existing credential.
             stored = decrypt_descriptor(existing.auth_descriptor or {})
             merged = dict(payload["auth_descriptor"])
             for key in ("clientSecret", "credential", "password"):

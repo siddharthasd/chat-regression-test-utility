@@ -1,8 +1,7 @@
 """ConnectorRegistration ORM model — a registered remote connector (009 FR-001a).
 
-Credential subfields within ``auth_descriptor`` are Fernet ciphertext at rest
-(FR-008); ``mode`` / ``headerName`` / ``username`` stay plaintext. Managed by
-the CRUD module 013; snapshotted onto each Job at job-creation time.
+Credential subfields within ``auth_descriptor`` are stored as plaintext.
+Managed by the CRUD module 013; snapshotted onto each Job at job-creation time.
 """
 
 from __future__ import annotations

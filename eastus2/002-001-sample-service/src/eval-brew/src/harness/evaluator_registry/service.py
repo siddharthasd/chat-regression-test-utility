@@ -84,8 +84,8 @@ class EvaluatorRegistryService:
             update_data["auth_descriptor"] = payload["auth_descriptor"]
         else:
             # Non-secret fields (tokenUrl, clientId, scope, audience) may have
-            # changed. Decrypt the stored secret, merge it with the new payload so
-            # the repo re-encrypts a complete descriptor without losing the secret.
+            # changed. Merge stored secret into the new payload so non-secret
+            # field changes are saved without losing the existing credential.
             stored = decrypt_descriptor(existing.auth_descriptor or {})
             merged = dict(payload["auth_descriptor"])
             for key in ("clientSecret", "credential", "password"):

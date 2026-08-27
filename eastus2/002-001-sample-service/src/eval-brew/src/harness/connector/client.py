@@ -12,7 +12,6 @@ import structlog
 
 from harness.connector.result import ConnectorResult, ConnectorSnapshot, UtteranceRow
 from harness.contract import validate_contract
-from harness.persistence.exceptions import HarnessKeyMismatchError
 from harness.remote.auth import build_auth_headers, decrypt_descriptor
 from harness.remote.oauth import TokenFetchError, resolve_auth_descriptor
 
@@ -42,17 +41,7 @@ def dispatch_utterance(
         endpoint_url=snapshot.endpoint_url,
         utterance_id=row.utterance_id if hasattr(row, "utterance_id") else None,
     )
-    # 1. Decrypt credentials before sending; a key failure means no request goes out.
-    try:
-        descriptor = decrypt_descriptor(snapshot.auth_descriptor)
-    except HarnessKeyMismatchError:
-        log.debug("connector.dispatch.key_mismatch", endpoint_url=snapshot.endpoint_url)
-        return ConnectorResult(
-            ok=False,
-            error_stage="connector_auth",
-            error_details="machine-local key missing or wrong",
-        )
-
+    descriptor = decrypt_descriptor(snapshot.auth_descriptor)
     body = _build_body(snapshot, row)
 
     owns_client = client is None

@@ -1,62 +1,23 @@
-"""Encryption-utility tests: round-trip, non-determinism, key-mismatch, at-rest.
+"""Encryption-utility tests.
 
-Covers FR-008/FR-009, SC-004/SC-005.
+Encryption was removed; credentials are stored as plaintext.
+The only remaining invariant is that per-row CSV passwords are never persisted.
 """
 
 from __future__ import annotations
 
-import pytest
-
 from harness.persistence import encryption
-from harness.persistence.exceptions import HarnessKeyMismatchError
 from harness.persistence.models import Utterance
 
 
-@pytest.fixture
-def isolated_key(monkeypatch: pytest.MonkeyPatch, tmp_path):
-    """Give each test a fresh key file + cleared in-process key cache."""
-    monkeypatch.setenv("HARNESS_KEY_FILE", str(tmp_path / "master.key"))
-    encryption._reset_key_cache_for_tests()
-    yield tmp_path
-    encryption._reset_key_cache_for_tests()
-
-
-def test_round_trip(isolated_key) -> None:
+def test_round_trip() -> None:
     secret = "s3cr3t-token-DEADBEEF"
     assert encryption.decrypt_credential(encryption.encrypt_credential(secret)) == secret
 
 
-def test_ciphertext_is_non_deterministic(isolated_key) -> None:
-    a = encryption.encrypt_credential("same-input")
-    b = encryption.encrypt_credential("same-input")
-    assert a != b  # Fernet includes a random IV
-
-
-def test_credential_encrypted_at_rest(isolated_key) -> None:
-    secret = "DISTINCTIVE-CRED-12345"
-    ciphertext = encryption.encrypt_credential(secret)
-    assert secret not in ciphertext
-
-
-def test_key_missing_or_wrong_raises(isolated_key, monkeypatch, tmp_path) -> None:
-    ciphertext = encryption.encrypt_credential("value")
-    # Rotate to a different key file → decryption must fail with the canonical error.
-    monkeypatch.setenv("HARNESS_KEY_FILE", str(tmp_path / "other.key"))
-    encryption._reset_key_cache_for_tests()
-    with pytest.raises(HarnessKeyMismatchError, match="machine-local key missing or wrong"):
-        encryption.decrypt_credential(ciphertext)
-
-
-def test_key_file_created_with_owner_only_perms(isolated_key, tmp_path) -> None:
-    import os
-    import stat
-
-    encryption.encrypt_credential("x")
-    key_path = tmp_path / "master.key"
-    assert key_path.exists()
-    if os.name != "nt":  # POSIX permission bits only meaningful off Windows
-        mode = stat.S_IMODE(key_path.stat().st_mode)
-        assert mode == 0o600
+def test_descriptor_round_trip() -> None:
+    descriptor = {"mode": "bearer", "credential": "tok123", "other": "x"}
+    assert encryption.decrypt_descriptor(encryption.encrypt_descriptor(descriptor)) == descriptor
 
 
 def test_password_not_in_db() -> None:
@@ -64,27 +25,4 @@ def test_password_not_in_db() -> None:
     assert "password" not in Utterance.__table__.columns.keys()
 
 
-def test_kubernetes_without_master_key_raises(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Kubernetes env without HARNESS_MASTER_KEY must raise RuntimeError at key-load time."""
-    monkeypatch.setenv("KUBERNETES_SERVICE_HOST", "10.96.0.1")
-    monkeypatch.delenv("HARNESS_MASTER_KEY", raising=False)
-    monkeypatch.delenv("harness_master_key", raising=False)
-    encryption._reset_key_cache_for_tests()
-    try:
-        with pytest.raises(RuntimeError, match="HARNESS_MASTER_KEY"):
-            encryption.get_or_create_key()
-    finally:
-        encryption._reset_key_cache_for_tests()
 
-
-def test_kubernetes_with_master_key_succeeds(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Kubernetes env with HARNESS_MASTER_KEY set must load without error."""
-    valid_key = encryption.Fernet.generate_key().decode("ascii")
-    monkeypatch.setenv("KUBERNETES_SERVICE_HOST", "10.96.0.1")
-    monkeypatch.setenv("HARNESS_MASTER_KEY", valid_key)
-    encryption._reset_key_cache_for_tests()
-    try:
-        key = encryption.get_or_create_key()
-        assert key == valid_key.encode("ascii")
-    finally:
-        encryption._reset_key_cache_for_tests()

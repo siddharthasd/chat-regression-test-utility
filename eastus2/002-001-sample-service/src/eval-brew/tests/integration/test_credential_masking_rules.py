@@ -54,12 +54,9 @@ def run(tmp_path_factory):
     """Run one real job carrying the known password through the full pipeline."""
     tmp = tmp_path_factory.mktemp("masking")
     db_path = tmp / "masking.db"
-    prev = {k: os.environ.get(k) for k in ("HARNESS_KEY_FILE",)}
-    os.environ["HARNESS_KEY_FILE"] = str(tmp / "masking.key")
 
-    from harness.persistence import encryption, engine
+    from harness.persistence import engine
 
-    encryption._reset_key_cache_for_tests()
     if not os.environ.get("DATABASE_URL"):
         pytest.skip("DATABASE_URL not set — integration tests require PostgreSQL")
     eng = engine.init_db()
@@ -133,11 +130,6 @@ def run(tmp_path_factory):
     connector.shutdown()
     evaluator.shutdown()
     password_store._reset_for_tests()
-    for k, v in prev.items():
-        if v is None:
-            os.environ.pop(k, None)
-        else:
-            os.environ[k] = v
 
 
 def _export(run, fmt: str) -> bytes:

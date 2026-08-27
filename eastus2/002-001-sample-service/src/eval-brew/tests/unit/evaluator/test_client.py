@@ -106,14 +106,6 @@ def test_timeout_is_evaluator_transport() -> None:
 
 
 # ------------------------------------------------------------------ credential paths
-def test_decrypt_failure_is_evaluator_auth() -> None:
-    r = dispatch_evaluation(
-        _snap(auth={"mode": "bearer", "credential": "not-valid"}), CONTRACT, client=_client(_ok)
-    )
-    assert r.error_stage == "evaluator_auth"
-    assert "machine-local key" in r.error_details
-
-
 def test_auth_header_built_from_decrypted_bearer() -> None:
     ciphertext = encryption.encrypt_credential("EVAL-TOK")
     captured: dict = {}

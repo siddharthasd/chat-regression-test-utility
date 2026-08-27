@@ -3,7 +3,7 @@
 Mutable after creation: ``turns`` (relationship) and ``active_conversation_id``
 (updated from the connector's chatbotResponse.metadata.conversationId on each
 successful turn to enable multi-turn conversation continuity).
-Credentials (test_id_enc, test_password_enc) are Fernet ciphertext at rest.
+Credentials (test_id_enc, test_password_enc) are stored as plaintext.
 Connector and evaluator snapshots mirror the Job snapshotting convention.
 """
 
@@ -31,7 +31,6 @@ class ChatSession(Base):
     owner_oid: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
 
-    # Fernet-encrypted test credentials — never decrypted except in the pipeline
     test_id_enc: Mapped[str] = mapped_column(Text, nullable=False)
     test_password_enc: Mapped[str] = mapped_column(Text, nullable=False)
 

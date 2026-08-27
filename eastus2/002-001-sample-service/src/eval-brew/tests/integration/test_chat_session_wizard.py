@@ -13,12 +13,10 @@ from harness.persistence.repositories.evaluator_registration import EvaluationAg
 
 
 @pytest.fixture
-def client(tmp_path, monkeypatch):
-    monkeypatch.setenv("HARNESS_KEY_FILE", str(tmp_path / "wiz.key"))
+def client(monkeypatch):
     monkeypatch.delenv("HARNESS_AUTH_ENABLED", raising=False)
-    from harness.persistence import encryption, engine
+    from harness.persistence import engine
 
-    encryption._reset_key_cache_for_tests()
     if not os.environ.get("DATABASE_URL"):
         pytest.skip("DATABASE_URL not set — integration tests require PostgreSQL")
     engine.init_db()
@@ -160,7 +158,7 @@ def test_wizard_session_persisted_in_db(client) -> None:
         assert sess.evaluator_name == "WizEval"
 
 
-def test_wizard_credentials_encrypted_in_db(client) -> None:
+def test_wizard_credentials_stored_in_db(client) -> None:
     cid = _seed_sse_connector()
     eid = _seed_sse_evaluator()
 
@@ -171,11 +169,9 @@ def test_wizard_credentials_encrypted_in_db(client) -> None:
 
     with get_session() as db:
         from harness.persistence.repositories.chat_session_repository import ChatSessionRepository
-        from harness.persistence.encryption import decrypt_credential
         sess = ChatSessionRepository(db).get_session(session_id)
-        assert sess.test_id_enc != "tester@domain.com"
-        assert decrypt_credential(sess.test_id_enc) == "tester@domain.com"
-        assert decrypt_credential(sess.test_password_enc) == "TopSecret"
+        assert sess.test_id_enc == "tester@domain.com"
+        assert sess.test_password_enc == "TopSecret"
 
 
 def test_step5_confirmation_shows_summary(client) -> None:

@@ -16,7 +16,6 @@ from harness.evaluator.validation import (
     validate_evaluation_result,
     validate_score_ranges,
 )
-from harness.persistence.exceptions import HarnessKeyMismatchError
 from harness.remote.auth import build_auth_headers, decrypt_descriptor
 from harness.remote.oauth import TokenFetchError, resolve_auth_descriptor
 
@@ -37,15 +36,7 @@ def dispatch_evaluation(
     injectable for MockTransport tests.
     """
     log.debug("evaluator.dispatch.start", endpoint_url=snapshot.endpoint_url)
-    try:
-        descriptor = decrypt_descriptor(snapshot.auth_descriptor)
-    except HarnessKeyMismatchError:
-        log.debug("evaluator.dispatch.key_mismatch", endpoint_url=snapshot.endpoint_url)
-        return EvaluatorResult(
-            ok=False,
-            error_stage="evaluator_auth",
-            error_details="machine-local key missing or wrong",
-        )
+    descriptor = decrypt_descriptor(snapshot.auth_descriptor)
 
     expected_uid = contract.get("utteranceId") if isinstance(contract, dict) else None
 

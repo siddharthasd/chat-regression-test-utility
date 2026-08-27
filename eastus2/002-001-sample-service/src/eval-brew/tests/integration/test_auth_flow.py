@@ -52,9 +52,8 @@ _FAKE_CLAIMS_LEGACY_CLAIM = {
 
 
 @pytest.fixture
-def auth_client(tmp_path, monkeypatch):
+def auth_client(monkeypatch):
     """TestClient with HARNESS_AUTH_ENABLED=true and MSAL patched."""
-    monkeypatch.setenv("HARNESS_KEY_FILE", str(tmp_path / "auth.key"))
     monkeypatch.setenv("HARNESS_AUTH_ENABLED", "true")
     monkeypatch.setenv("HARNESS_AZURE_TENANT_ID", "fake-tenant")
     monkeypatch.setenv("HARNESS_AZURE_CLIENT_ID", "fake-client")
@@ -67,9 +66,8 @@ def auth_client(tmp_path, monkeypatch):
     monkeypatch.setattr(auth_routes_mod.msal_client, "initiate_flow", lambda cfg: _FAKE_FLOW)
     monkeypatch.setattr(auth_routes_mod.msal_client, "complete_flow", lambda cfg, flow, resp: _FAKE_CLAIMS)
 
-    from harness.persistence import encryption, engine
+    from harness.persistence import engine
 
-    encryption._reset_key_cache_for_tests()
     if not os.environ.get("DATABASE_URL"):
         pytest.skip("DATABASE_URL not set — integration tests require PostgreSQL")
     engine.init_db()
@@ -79,13 +77,11 @@ def auth_client(tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def noauth_client(tmp_path, monkeypatch):
+def noauth_client(monkeypatch):
     """TestClient with auth disabled — all routes accessible as synthetic admin."""
-    monkeypatch.setenv("HARNESS_KEY_FILE", str(tmp_path / "noauth.key"))
     monkeypatch.delenv("HARNESS_AUTH_ENABLED", raising=False)
-    from harness.persistence import encryption, engine
+    from harness.persistence import engine
 
-    encryption._reset_key_cache_for_tests()
     if not os.environ.get("DATABASE_URL"):
         pytest.skip("DATABASE_URL not set — integration tests require PostgreSQL")
     engine.init_db()

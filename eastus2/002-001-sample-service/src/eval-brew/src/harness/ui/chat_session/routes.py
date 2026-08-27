@@ -18,7 +18,6 @@ from harness.connector_registry import run_test_connection as _run_conn_test
 from harness.evaluator_registry import EvaluatorRegistryService as _EvalRegService
 from harness.evaluator_registry import run_test_connection as _run_eval_test
 from harness.persistence import get_session
-from harness.persistence.exceptions import HarnessKeyMismatchError
 from harness.persistence.models.connector_registration import ConnectorRegistration
 from harness.persistence.models.evaluator_registration import EvaluationAgentRegistration
 from harness.persistence.repositories.chat_session_repository import ChatSessionRepository
@@ -211,21 +210,7 @@ def wizard_step2_post(
         timeout = connector.timeout_seconds
         expects = connector.expects_per_row_password
         sse = connector.supports_sse
-        try:
-            descriptor = _ConnRegService(db).get_auth_descriptor_decrypted(cid)
-        except HarnessKeyMismatchError:
-            return templates.TemplateResponse(
-                request,
-                "chat_session/wizard_step2.html",
-                {
-                    "errors": {"connector_id": "Could not decrypt connector credentials. Contact your administrator."},
-                    "form": form,
-                    "connectors": connectors,
-                    "test_result": None,
-                    **ctx(request),
-                },
-                status_code=400,
-            )
+        descriptor = _ConnRegService(db).get_auth_descriptor_decrypted(cid)
 
     test_result = _run_conn_test(endpoint, descriptor, timeout, expects, sse)
     if not test_result.ok:
@@ -345,21 +330,7 @@ def wizard_step4_post(
         timeout = evaluator.timeout_seconds
         dims = list(evaluator.declared_scoring_dimensions or [])
         sse = evaluator.supports_sse
-        try:
-            descriptor = _EvalRegService(db).get_auth_descriptor_decrypted(eid)
-        except HarnessKeyMismatchError:
-            return templates.TemplateResponse(
-                request,
-                "chat_session/wizard_step4.html",
-                {
-                    "errors": {"evaluator_id": "Could not decrypt evaluator credentials. Contact your administrator."},
-                    "form": form,
-                    "evaluators": evaluators,
-                    "test_result": None,
-                    **ctx(request),
-                },
-                status_code=400,
-            )
+        descriptor = _EvalRegService(db).get_auth_descriptor_decrypted(eid)
 
     test_result = _run_eval_test(endpoint, descriptor, timeout, dims, sse)
     if not test_result.ok:

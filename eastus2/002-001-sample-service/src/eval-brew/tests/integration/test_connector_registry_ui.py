@@ -16,11 +16,9 @@ from harness.persistence.repositories import JobRepository
 
 
 @pytest.fixture
-def ui_client(tmp_path, monkeypatch):
-    monkeypatch.setenv("HARNESS_KEY_FILE", str(tmp_path / "ui.key"))
-    from harness.persistence import encryption, engine
+def ui_client():
+    from harness.persistence import engine
 
-    encryption._reset_key_cache_for_tests()
     if not os.environ.get("DATABASE_URL"):
         pytest.skip("DATABASE_URL not set — integration tests require PostgreSQL")
     # Force a fresh DB + rebind SessionLocal per test. create_app()'s
